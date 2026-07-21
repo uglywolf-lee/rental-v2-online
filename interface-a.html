@@ -86,8 +86,8 @@
 
     <div class="right-panel">
         <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px;">
-            <input type="text" class="form-control" placeholder="건물명, 주소, 호실, 입주자 등 통합 검색...">
-            <button class="btn btn-main" style="flex:none; width:80px;">검색</button>
+            <input type="text" id="searchKeyword" class="form-control" placeholder="건물명, 주소, 호실 통합 검색...">
+            <button class="btn btn-main" style="flex:none; width:80px;" onclick="loadBuildings()">검색</button>
         </div>
         <div class="excel-table-wrap">
             <table>
@@ -121,22 +121,123 @@
         </div>
     </div>
 
+<script src="auth.js"></script>
 <script>
-function handleAssetSubmit(event) {
+async function handleAssetSubmit(event) {
     event.preventDefault();
-    clearRoomInputs();
+    const name = document.getElementById('buildingName').value.trim();
+    const addr = document.getElementById('actualAddress').value.trim();
+    const floors = parseInt(document.getElementById('assignedFloor').value) || 1;
+    const roomNo = document.getElementById('roomNumber').value.trim() || '';
+    const area   = parseFloat(document.getElementById('roomArea').value) || 0;
+
+    // 기존 건물 duplicate 체크
+    try {
+        const existingRes = await fetch('/api/v1/buildings');
+        const existing = await existingRes.json();
+        let bldgId = null;
+        for (const b of existing) {
+            if (b.name === name && b.address === addr) {
+                bldgId = b.id; break;
+            }
+        }
+
+        // 신규 등록
+        if (!bldgId) {
+            const postRes = await fetch('/api/v1/buildings', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({name, address:addr, floors})
+            });
+            const bldg = await postRes.json();
+            if (!bldg.id) return alert('건물 등록 실패');
+            bldgId = bldg.id;
+        }
+
+        // rooms 등록 (building_id=bldgId 고정)
+        const roomPostUrl = `/api/v1/rooms?building_id=${bldgId}`;
+        const r2 = await fetch('/api/v1/rooms', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({building_id:bldgId, floor_no:floors, room_no:roomNo, area_sqm:area, current_room_status:'비어있다'})
+        });
+        const room = await r2.json();
+        alert('✅ 완료 — 건물:' + name + ' / 호실:' + roomNo);
+        clearRoomInputs();
+    } catch(e) {
+        alert('등록 오류: ' + e.message);
+    }
 }
 
 function handleAssetUpdate() {
-    clearRoomInputs();
+    // TODO: 기존 건물/호실 수정 로직 (GET → PATCH)
+    alert('⚠️ 현황 변경 기능은 다음 단계에서 구현됩니다.');
 }
 
 function clearRoomInputs() {
     document.getElementById('roomNumber').value = '';
     document.getElementById('roomArea').value = '';
-    document.getElementById('roomStatus').selectedIndex = 0;
     document.getElementById('roomNumber').focus();
 }
+
+async function loadBuildings(){
+    try {
+        const kw = (document.getElementById('searchKeyword')?.value || '').trim().toLowerCase();
+        
+        const res = await fetch('/api/v1/buildings');
+        const buildings = await res.json();
+        if (!buildings.length) { alert('등록된 건물이 없습니다.'); return; }
+        
+        const roomRes = await fetch('/api/v1/rooms');
+        const allRooms = await roomRes.json() || [];
+        
+        const tbody = document.querySelector('.excel-table-wrap tbody');
+        tbody.innerHTML = '';
+        
+        let matchCount = 0;
+        
+        // buildings → rooms 매칭해서 모든 row 후보 수집
+        for (const b of buildings) {
+            for (const rm of allRooms) {
+                if (rm.building_name !== b.name) continue;
+                
+                const kwMatch = !kw || 
+                    b.name.toLowerCase().includes(kw) || 
+                    b.address.toLowerCase().includes(kw) ||
+                    (rm.room || '').toLowerCase().includes(kw);
+                
+                if (!kwMatch) continue;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="col-no">${rm.id}</td>
+                    <td class="cell-text-center">${b.name}</td>
+                    <td class="cell-text-center">${b.address}</td>
+                    <td class="cell-text-center">${rm.floor || ''}</td>
+                    <td class="cell-text-center">${rm.room || rm.room_no || '-'}</td>
+                    <td class="cell-num-right">${rm.area ? rm.area.toFixed(3) : '-'}</td>
+                    <td class="cell-text-center">-</td>
+                    <td class="cell-text-center">${rm.status || '-'}</td>
+                    <td class="col-active">1</td>
+                `;
+                tbody.appendChild(tr);
+                matchCount++;
+            }
+        }
+        
+        if (!matchCount) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="9" class="cell-text-center">검색 결과가 없습니다</td>';
+            tbody.appendChild(tr);
+        }
+    } catch(e) { alert('불러오기 오류: ' + e.message); }
+}
+
+async function initLoadBuildings(){
+    loadBuildings();
+}
+
+document.addEventListener('DOMContentLoaded', initLoadBuildings);
 </script>
 </body>
 </html>

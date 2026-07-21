@@ -398,7 +398,37 @@ function saveContract(){
     console.log('[R7/R18 감사로그 추적 기록 시스템 실행 - audit_logs]');
     console.log('상세로그내역JSON: ', JSON.stringify(d));
 
-    alert('✅ 계약서 마스터 인서트 성공!\n\n임차인명: ' + document.getElementById('f_tenantName').value + '\n구분: ' + d.lease_type + '\n보증금: ' + d.deposit_amount.toLocaleString() + '원\n월세료: ' + d.monthly_rent.toLocaleString() + '원\n관리비: ' + d.maintenance_fee.toLocaleString() + '원');
+    // API POST 연동
+    fetch('/api/v1/contracts', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+            room_info: d.room_info,
+            host_address_full: d.host_address_full,
+            lease_type: d.lease_type,
+            deposit_amount: d.deposit_amount,
+            monthly_rent: d.monthly_rent,
+            maintenance_fee: d.maintenance_fee,
+            commission_fee: d.commission_fee,
+            start_date: d.start_date,
+            end_date: d.end_date,
+            documents_json: d.documents_json,
+            broker_id: d.broker_id,
+            tenant_contact_id: d.tenant_contact_id || 0,
+            owner_contact_id: d.owner_contact_id || 1
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if(res.id){
+            alert('✅ 계약서 마스터 인서트 성공!\\n\\n계약 ID: ' + res.id + '\\n임차인명: ' + document.getElementById('f_tenantName').value + '\\n구분: ' + d.lease_type + '\\n보증금: ' + d.deposit_amount.toLocaleString() + '원\\n월세료: ' + d.monthly_rent.toLocaleString() + '원\\n관리비: ' + d.maintenance_fee.toLocaleString() + '원');
+        } else {
+            alert('❌ 계약서 등록 실패: ' + (res.error || JSON.stringify(res)));
+        }
+    })
+    .catch(e => {
+        alert('❌ API 통신 오류: ' + e.message);
+    });
 }
 
 function resetAll(){

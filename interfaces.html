@@ -21,10 +21,12 @@
 
 <!-- A. 부동산 -->
 <div class="section" style="border-left-color:#28a745;margin-top:15px">
-<h2>A. 부동산 관리</h2>
+<h2>A. 부동산 관리 (interface-a.html)</h2>
 <div class="item"><span class="op">입력</span><span>부동산 건물 및 인프라 호실 등록 <span class="field-tag">buildings.name / .address / rooms.room_no / .area_sqm</span></span></div>
 <div class="item"><span class="op">수정</span><span>현황 변경 및 면적/특성 수정 시 <span class="field-tag">is_active=0</span> 비활성화 후 신규 Row 복제 <span class="field-tag">INSERT</span> (규칙 8 준수)</span></div>
-<div class="item"><span class="op">검색</span><span>주소/유형별 현황 리스트 조회 <span class="field-tag">address LIKE '%주소%'</span></span></div>
+<div class="item"><span class="op">검색</span><span>부동산명/주소/호실 OR 매칭 통합 검색 API 연동 <span class="field-tag">buildings.name LIKE '%keyword%' OR rooms.room LIKE '%keyword%'</span></span></div>
+<div class="item"><span class="op">API</span><span>GET /api/v1/buildings (name,address,floors,rooms_count,is_active) · POST /api/v1/rooms {building_name,floor,room,area,status}</span></div>
+<div class="item"><span class="note">duplicate 체크: buildings name+address 조합으로 기존 건물이면 rooms만 insert</span></div>
 </div>
 
 <!-- B. 계약서 -->
