@@ -130,4 +130,31 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 * [F] 시설 유지보수: 파손 신고 접수, 상태값 변경 및 ${'`'}incidents.estimated_cost${'`'} 수리비 추적 정산.
 * [G/H/I] 통합 실무 대시보드: 월세 총합/만기/갱신 현황 통합 시각화. 행별 메모장(${'`'}<input class="ledger-memo-input">${'`'}) 변경 시 ${'`'}onChange${'`'} -> ${'`'}POST /api/v1/memos${'`'} 자동 저장 (R35). 권한별 차등 격리.
 * [J] 팀원 관리: ${'`'}team_management.html${'`'}, 구형 이메일 칸 제거, 사번 식별자 고정, 패스워드 최소 6자 검증 적용 (R40).
+
+## 4. API_SPECIFICATION_SIMULATION
+* server_url = 'http://localhost:8080' (로컬 Node.js HTTP 서버 기준 주소)
+
+* ### Bypass Authentication Flow
+  - LOGIN_URL     = 'http://localhost:8080/'
+  - BYPASS_URL    = 'http://127.0.0.1:8080/?access=master_sys_884621'        // 바이패스 제작자접속 파라미터 포함 주소
+  - BYPASS_TARGET = 'http://localhost:8080/?access=master_sys_884621'          // main.html 진입 시 동일한 파라미터 전달 필요
+
+* ### REST API Endpoints (R24 기준)
+  - POST ${'`'}${{server_url}}/api/v1/users/login${{'}}            → { employee_no, password } → 세션 생성 (loginOk+userRole+userEmp)
+  - GET  ${{server_url}}/api/v1/users/me$                          → 현재 로그인된 사용자 정보 조회
+  - POST ${'`'}${{server_url}}/api/v1/memos${{'}}                 → { room_id, contact_id, writer_user_id, memo_text } (R35)
+  - GET    ${{server_url}}/api/v1/buildings$                       → buildings 목록 조회
+  - POST   ${{server_url}}/api/v1/buildings$                       → buildings 신규 등록
+  - GET/PUT/DELETE ${{server_url}}/api/v1/rooms$.id$                → rooms CRUD
+  - GET    ${{server_url}}/api/v1/contacts$                        → contacts 목록 조회 (category별 필터링 가능)
+  - POST   ${{server_url}}/api/v1/contracts$                       → contracts 신규 등록 (R8 버전관리 적용)
+  - GET    ${{server_url}}/api/v1/bills$                           → bills 목록 (room_id/contact_id 기반)
+  - POST   ${{server_url}}/api/v1/meter_readings$                  → meter_readings당월검침등록 + bills.amount 자동파생연동
+  - GET/POST ${'`'}${{server_url}}/api/v1/incidents${{'}}           → incidents CRUD + estimated_cost추적
+  - GET    ${{server_url}}/api/v1/audit_logs$                      ### K 인터페이스 전용 감사로그 조회
+  - GET/POST ${{server_url}}/api/v1/team_members$                  → team_management.html R40매핑 사번+패스워드최소6자검증
+
+* ### API 호출 시 공통 Headers
+  - 'Content-Type': ${'`'}application/json${'`'}
+  - 'X-Session-Token': sessionStorage.getItem('sess_token')   // 세션 인증용 (auth.js 연동)
 `;
