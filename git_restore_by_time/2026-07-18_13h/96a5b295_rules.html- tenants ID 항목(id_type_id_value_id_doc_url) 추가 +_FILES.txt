@@ -1,0 +1,10 @@
+Commit: 96a5b295ad195adae944b346836f1971073b47b1
+TS: 1784349618
+Msg: rules.html: tenants ID 항목(id_type/id_value/id_doc_url) 추가 + 식별정보 처리규칙(11~13)
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sat Jul 18 13:40:18 2026 +0900
+
+    rules.html: tenants ID 항목(id_type/id_value/id_doc_url) 추가 + 식별정보 처리규칙(11~13)
+
+rules.html

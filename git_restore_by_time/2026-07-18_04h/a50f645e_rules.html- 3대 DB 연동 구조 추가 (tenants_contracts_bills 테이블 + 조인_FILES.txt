@@ -1,0 +1,10 @@
+Commit: a50f645eb6de6d49f3b4ab3ec7c08bb1f25ba85d
+TS: 1784315780
+Msg: rules.html: 3대 DB 연동 구조 추가 (tenants/contracts/bills 테이블 + 조인 예시)
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sat Jul 18 04:16:20 2026 +0900
+
+    rules.html: 3대 DB 연동 구조 추가 (tenants/contracts/bills 테이블 + 조인 예시)
+
+rules.html

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>프로그램 사용기록 조회 대시보드</title>
+    <style>
+        :root { 
+            --primary: #6f42c1; 
+            --border: #dee2e6; 
+            --bg: #f8f9fa;
+            --text-dark: #212529;
+            --text-muted: #6c757d;
+            --white: #ffffff;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; 
+            display: flex; 
+            height: calc(100vh - 64px); 
+            overflow: hidden; 
+            background-color: var(--bg); 
+        }
+        
+        /* 좌측: 검색/필터 패널 */
+        .left-panel { width: 35%; background: var(--white); border-right: 1px solid var(--border); padding: 25px; overflow-y: auto; box-sizing: border-box; }
+        .panel-title { font-size: 1.1rem; color: var(--primary); margin: 0 0 20px 0; border-bottom: 2px solid var(--primary); padding-bottom: 8px; font-weight: bold; }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: var(--text-dark); }
+        .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.88rem; box-sizing: border-box; }
+        
+        .btn-box { margin-top: 15px; display: flex; gap: 8px; }
+        .btn { flex: 1; padding: 10px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-main { background: var(--primary); color: var(--white); }
+        .btn-sub { background: var(--text-muted); color: var(--white); }
+        .btn-export { flex: none; width: 120px; }
+
+        .alert-box { padding: 8px 12px; border-radius: 4px; margin-bottom: 15px; font-size: 0.78rem; line-height: 1.4; }
+        .alert-info { background: #f3e9ff; color: #5a2d8a; border-left: 3px solid var(--primary); }
+
+        /* 우측: 검색결과 테이블 패널 */
+        .right-panel { width: 65%; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; background: var(--white); }
+        .search-bar { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-bottom: 15px; padding: 20px; background: var(--white); border-bottom: 1px solid var(--border); }
+        
+        /* 엑셀 테이블 */
+        .excel-table-wrap { flex: 1; overflow: auto; border: 1px solid #bbc4cc; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 6px 8px; font-weight: 600; position: sticky; top: 0; text-align: center; white-space: nowrap; color: var(--text-dark); z-index: 10; }
+        td { border: 1px solid #ced4da; padding: 6px 8px; white-space: nowrap; color: #333; }
+        tr:nth-child(even) { background-color: var(--bg); }
+        tr:hover { background-color: #e8f4fd; cursor: pointer; }
+
+        .cell-text-center { text-align: center; }
+        .cell-num-right { text-align: right; }
+
+        /* 이름 콤팩트 컬럼 */
+        .th-name { width: 65px; min-width: 65px; padding: 6px 4px; }
+        .col-name { width: 65px; min-width: 65px; text-align: center; padding: 6px 4px; }
+
+        /* 우측 끝으로 이동된 사번 콤팩트 우측 정렬 컬럼 */
+        .th-empno { width: 65px; min-width: 65px; padding: 6px 4px; }
+        .col-empno { width: 65px; min-width: 65px; text-align: right; padding: 6px 4px; }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="panel-title">🔍 K. 프로그램 사용기록 조회 / 검색패널</div>
+        
+        <form onsubmit="event.preventDefault()">
+            <div class="alert-box alert-info">ℹ️ "누가 언제 어떤 메뉴에서 무슨 작업을 했는지" 전체 변경 이력을 실시간으로 안전하게 조회합니다.</div>
+
+            <div class="form-group">
+                <label>작업자 성명 (누가 작업했는지 검색)</label>
+                <input type="text" class="form-control" placeholder="예: 홍길동">
+            </div>
+            
+            <div class="form-group">
+                <label>대상 업무 메뉴 / 대분류 작업</label>
+                <select class="form-control">
+                    <option value="">—전체 업무 조회—</option>
+                    <option value="contracts">계약서 등록/변경/해지 기록</option>
+                    <option value="bills">공과금 납부 상태 기록</option>
+                    <option value="tenants">임차인 명부 수정 기록</option>
+                    <option value="rooms">호실 상태 변경 기록</option>
+                    <option value="users">직원 권한 변경 기록</option>
+                    <option value="incidents">시설 유지보수 기록</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>작업 종류 (신규등록 / 수정변경 / 삭제 / 조회)</label>
+                <select class="form-control">
+                    <option value="">—전체 작업 종류 조회—</option>
+                    <option value="INSERT">신규 데이터 등록 기록</option>
+                    <option value="UPDATE">기존 데이터 수정 기록</option>
+                    <option value="DELETE">데이터 삭제 기록</option>
+                    <option value="SELECT">단순 화면 조회 기록</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>작업 일자 범위 검색</label>
+                <input type="text" class="form-control" placeholder="예: 2026-07-01 ~ 현재">
+            </div>
+
+            <div class="btn-box">
+                <button type="submit" class="btn btn-main">실시간 기록 조회</button>
+                <button type="button" class="btn btn-sub">데이터 전체 추출</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="right-panel">
+        <div class="search-bar">
+            <input type="text" class="form-control" placeholder="상세 기록 내용 또는 특정 키워드 검색...">
+            <button class="btn btn-main btn-export">데이터 전체 추출</button>
+        </div>
+        <div class="excel-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="th-name">이름</th>
+                        <th>대상 업무 메뉴</th>
+                        <th>작업 종류</th>
+                        <th>상세 작업 기록 (변경 전 ➔ 변경 후 내용)</th>
+                        <th>실행 일시</th>
+                        <th class="th-empno">사번</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="col-name">홍길동</td>
+                        <td class="cell-text-center">계약서 관리</td>
+                        <td class="cell-text-center">신규 등록</td>
+                        <td>[변경전: 없음] ➔ [변경후: 101호 보증금 5,000만원 / 월세 350만원]</td>
+                        <td class="cell-num-right">2026-07-19 10:23:45</td>
+                        <td class="col-empno">EMP-001</td>
+                    </tr>
+                    <tr>
+                        <td class="col-name">이영희</td>
+                        <td class="cell-text-center">공과금 관리</td>
+                        <td class="cell-text-center">상태 수정</td>
+                        <td>[변경전: 미납] ➔ [변경후: 납부완료 처리]</td>
+                        <td class="cell-num-right">2026-07-19 14:07:12</td>
+                        <td class="col-empno">EMP-005</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

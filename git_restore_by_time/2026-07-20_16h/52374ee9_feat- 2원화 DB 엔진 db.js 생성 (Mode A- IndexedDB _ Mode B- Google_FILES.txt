@@ -1,0 +1,16 @@
+Commit: 52374ee9b3428157a31bca35691d564e489b5af0
+TS: 1784532792
+Msg: feat: 2원화 DB 엔진 db.js 생성 (Mode A: IndexedDB / Mode B: GoogleSheets API)
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 16:33:12 2026 +0900
+
+    feat: 2원화 DB 엔진 db.js 생성 (Mode A: IndexedDB / Mode B: GoogleSheets API)
+    
+    - 모든 모드에서 동일한 CRUD 인터페이스 제공
+    - 환경설정(window.DB_CONFIG.mode)으로 자동 전환
+    - export/import 기능 통합
+    - GOOGLE_SHEETS_SETUP_GUIDE.md 신규 (Google Sheets API 키 + 시트 ID 설정 가이드)
+    - RULES.md / interfaces.html에 2원화 아키텍처 표기 명시
+
+db.js

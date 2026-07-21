@@ -1,0 +1,10 @@
+Commit: 2d31ba2f5d041e6fcc064755db207011e4ea5446
+TS: 1784484608
+Msg: refactor:contract_master_tab_structure_tenant_contract_docs_no_id_fields
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 03:10:08 2026 +0900
+
+    refactor:contract_master_tab_structure_tenant_contract_docs_no_id_fields
+
+contract_master.html

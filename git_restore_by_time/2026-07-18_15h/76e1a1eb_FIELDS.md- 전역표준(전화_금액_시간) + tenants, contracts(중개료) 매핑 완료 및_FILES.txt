@@ -1,0 +1,10 @@
+Commit: 76e1a1ebb12348219de080a06e0e310873d98a5b
+TS: 1784357854
+Msg: FIELDS.md: 전역표준(전화/금액/시간) + tenants, contracts(중개료) 매핑 완료 및 system_snapshots 롤백테이블, 운영복원규칙 완벽 반영
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sat Jul 18 15:57:34 2026 +0900
+
+    FIELDS.md: 전역표준(전화/금액/시간) + tenants, contracts(중개료) 매핑 완료 및 system_snapshots 롤백테이블, 운영복원규칙 완벽 반영
+
+FIELDS.md

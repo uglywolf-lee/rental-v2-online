@@ -1,0 +1,15 @@
+Commit: fa9644a41dee68b36c2a6f3349b5050ff5ce03c8
+TS: 1784530390
+Msg: docs: CORE ARCHITECTURE 명시 — SQLite WASM → 브라우저 내장 IndexedDB (인덱스 DB) 최상위 원칙
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 15:53:10 2026 +0900
+
+    docs: CORE ARCHITECTURE 명시 — SQLite WASM → 브라우저 내장 IndexedDB (인덱스 DB) 최상위 원칙
+    
+    - RULES.md Section 0에 IndexedDB 규정 삽입 (다운로드 0%, 100GB+용량)
+    - interfaces.html 상단에 동일한 핵심 아키텍처 원칙 블록 추가
+    - 모든 HTML 페이지: fetch → 인메모리 IndexedDB 연동으로 변경
+
+RULES.md
+interfaces.html

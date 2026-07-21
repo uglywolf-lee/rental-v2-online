@@ -1,0 +1,18 @@
+Commit: f7003d00311e7f22860d58a93ad0f00dc5dfd0e6
+TS: 1784519199
+Msg: fix:removes margin-top 64px from all iframe pages
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 12:46:39 2026 +0900
+
+    fix:removes margin-top 64px from all iframe pages
+
+auditlog.html
+contractor_roster.html
+dashboard.html
+g_h_i_dashboard.html
+incidents_maintenance.html
+interface-a.html
+monthly_rent_collection.html
+team_management.html
+utility_bills.html

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>시설 유지보수 및 파손신고 관리 (통합형)</title>
+    <style>
+        :root { 
+            --primary: #e83e8c; 
+            --border: #dee2e6; 
+            --bg: #f8f9fa; 
+            --text-dark: #495057;
+            --text-muted: #6c757d;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; 
+            display: flex; 
+            height: calc(100vh - 64px); 
+            overflow: hidden; 
+            background-color: var(--bg); 
+        }
+        
+        .left-panel { width: 35%; background: white; border-right: 1px solid var(--border); padding: 25px; overflow-y: auto; box-sizing: border-box; }
+        .right-panel { width: 65%; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; background: white; }
+        .panel-title { font-size: 1.1rem; color: var(--primary); margin: 0 0 20px 0; border-bottom: 2px solid var(--primary); padding-bottom: 8px; font-weight: bold; }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: var(--text-dark); }
+        .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.88rem; box-sizing: border-box; }
+        .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        
+        .file-upload-box {
+            border: 2px dashed var(--border);
+            border-radius: 4px;
+            padding: 12px;
+            text-align: center;
+            background: var(--bg);
+            cursor: pointer;
+        }
+        .file-upload-box:hover {
+            border-color: var(--primary);
+        }
+        .file-preview-area {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            overflow-x: auto;
+        }
+        .preview-img {
+            width: 60px;
+            height: 60px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            object-fit: cover;
+        }
+        
+        .btn-box { margin-top: 15px; display: flex; gap: 8px; }
+        .btn { flex: 1; padding: 10px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-main { background: var(--primary); color: white; }
+        .btn-sub { background: #6c757d; color: white; }
+        
+        .right-top { flex: 1; padding: 20px; overflow-y: auto; border-bottom: 1px solid var(--border); }
+        .search-bar { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-bottom: 15px; }
+        
+        .right-bottom { height: 40%; background: #525659; display: flex; flex-direction: column; overflow: hidden; }
+        .viewer-header { background: #dee2e6; padding: 6px 15px; font-size: 0.8rem; font-weight: bold; color: var(--text-dark); }
+        .viewer-body { flex: 1; display: flex; justify-content: center; align-items: center; padding: 15px; overflow-y: auto; }
+        .detail-card { width: 85%; font-size: 0.82rem; line-height: 1.6; color: #333; background: white; border-radius: 4px; padding: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .detail-card h4 { margin-top: 0; margin-bottom: 10px; }
+        
+        .excel-table-wrap { overflow: auto; border: 1px solid #bbc4cc; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 6px 8px; font-weight: 600; position: sticky; top: 0; text-align: center; color: #212529; white-space: nowrap; }
+        td { border: 1px solid #ced4da; padding: 6px 8px; white-space: nowrap; }
+        tr:nth-child(even) { background-color: #f8f9fa; color: #333; }
+        tr:hover { background-color: #e8f4fd; cursor: pointer; }
+        
+        .cell-text-center { text-align: center; }
+        .cell-num-right { text-align: right; }
+        
+        .col-no { min-width: 50px; max-width: 65px; width: 55px; text-align: right; }
+        .th-no { min-width: 50px; max-width: 65px; width: 55px; text-align: center; }
+        
+        .status-badge { font-weight: bold; }
+        .status-process { color: #fd7e14; }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="panel-title">🔧 F. 시설유지보수/파손신고 관리</div>
+        <form onsubmit="event.preventDefault();">
+            <div class="form-group">
+                <label>대상 호실 직접 기입</label>
+                <input type="text" class="form-control" placeholder="예: A동 101호" required>
+            </div>
+            <div class="form-group">
+                <label>사고 유형 분류</label>
+                <select class="form-control">
+                    <option>시설파손</option>
+                    <option>무단점유</option>
+                    <option>일반유지보수</option>
+                </select>
+            </div>
+            <div class="row-grid">
+                <div class="form-group">
+                    <label>최초 신고 일자</label>
+                    <input type="date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>보수 완료 일자 (예정일)</label>
+                    <input type="date" class="form-control">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>상세 내용 기술</label>
+                <input type="text" class="form-control" placeholder="발생 위치 및 현황 요약 구체적 기재 필수">
+            </div>
+            <div class="form-group">
+                <label>현장 증빙 사진 첨부</label>
+                <div class="file-upload-box" onclick="document.getElementById('photoUpload').click()">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">📸 클릭하여 파손 부위 이미지 파일 업로드</span>
+                    <input type="file" id="photoUpload" style="display:none;" accept="image/*" multiple onchange="previewImages(this)">
+                </div>
+                <div class="file-preview-area" id="previewArea"></div>
+            </div>
+            <div class="form-group">
+                <label>담당 직원 성명</label>
+                <input type="text" class="form-control" placeholder="실무 담당자 이름 입력" required>
+            </div>
+            <div class="form-group">
+                <label>추산 수리비 (원)</label>
+                <input type="number" class="form-control" placeholder="숫자로만 원단위 입력">
+            </div>
+            <div class="btn-box">
+                <button type="submit" class="btn btn-main">신규 파손신고등록</button>
+                <button type="button" class="btn btn-sub">상태변경 (접수중→완료)</button>
+            </div>
+        </form>
+    </div>
+    <div class="right-panel">
+        <div class="right-top">
+            <div class="search-bar">
+                <input type="text" class="form-control" placeholder="건물명, 호실, 파손내용 등 통합 검색...">
+                <button class="btn btn-main" style="flex:none; width:80px;">검색</button>
+            </div>
+            <div class="excel-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="th-no">No.</th>
+                            <th>대상 호실</th>
+                            <th>사고분류</th>
+                            <th>신고 일자</th>
+                            <th>보수 일자</th>
+                            <th>상세 내용</th>
+                            <th>담당 직원 성명</th>
+                            <th>추산 수리비 (원)</th>
+                            <th>처리상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="col-no">772</td>
+                            <td class="cell-text-center">A동 101호</td>
+                            <td class="cell-text-center">시설파손</td>
+                            <td class="cell-num-right">2026-07-20 (월)</td>
+                            <td class="cell-num-right">-</td>
+                            <td class="cell-text-center">관파열 누수</td>
+                            <td class="cell-text-center">홍길동</td>
+                            <td class="cell-num-right">3,200,000</td>
+                            <td class="cell-text-center"><span class="status-badge status-process">접수중</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="right-bottom">
+            <div class="viewer-header">🔍 해당 호실 유지보수 이력 및 임차인청구 가능 여부 검증용 원본 연결고리 뷰어</div>
+            <div class="viewer-body">
+                <div class="detail-card">
+                    <h4>호실 A동 101호 파손신고 연계정보</h4>
+                    <p><b>[임차인 상호/성명]</b>: (주)네트웍스 파트너스 / 김자산 (실명확인필)</p>
+                    <p><b>[일자 대조 확인]</b>: 접수시점 = 2026-07-20 (월) / 완료시점 = 미정</p>
+                    <p><b>[추산수리비 정산기준]</b>: 3,200,000원 (상태값이 '보급완료' 또는 '처리완료' 되면 임차인 청구 절차로 전환됨)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+function previewImages(input) {
+    var previewArea = document.getElementById('previewArea');
+    previewArea.innerHTML = '';
+    if (input.files) {
+        Array.from(input.files).forEach(file => {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'preview-img';
+                previewArea.appendChild(img);
+            }
+            reader.readAsDataURL(file);
+        });
+    }
+}
+</script>
+</body>
+</html>

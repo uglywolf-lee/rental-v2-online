@@ -1,0 +1,17 @@
+Commit: 3f29695d1dc6a4ad71c5bde7099555f0997f0588
+TS: 1784532457
+Msg: docs: 2원화 데이터베이스 아키텍처 명시 (Mode A: IndexedDB 단일PC / Mode B: Google Sheets 네트워크)
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 16:27:37 2026 +0900
+
+    docs: 2원화 데이터베이스 아키텍처 명시 (Mode A: IndexedDB 단일PC / Mode B: Google Sheets 네트워크)
+    
+    - RULES.md Section 0에 2원화 DB 표로 상세 비교 (용량·적합환경·이관 방식 등)
+    - interfaces.html 상단에 동일 아키텍처 정의 삽입 + Guide 참조 링크
+    - GOOGLE_SHEETS_SETUP_GUIDE.md 신규: Google Sheets API 키 생성(5분 가이드) + 시트ID 복사 + 구조 템플릿 + 관련링크 모음
+    - 두 모드 모두 Python/서버/WASM 설치 0% 원칙 유지
+
+GOOGLE_SHEETS_SETUP_GUIDE.md
+RULES.md
+interfaces.html

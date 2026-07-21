@@ -1,0 +1,11 @@
+Commit: 7a44f20cc9aa2692ae10d0374d4435f29711f1bf
+TS: 1784478354
+Msg: fix:contractor_roster_search-only_no-registration
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 01:25:54 2026 +0900
+
+    fix:contractor_roster_search-only_no-registration
+
+auth.js
+contractor_roster.html

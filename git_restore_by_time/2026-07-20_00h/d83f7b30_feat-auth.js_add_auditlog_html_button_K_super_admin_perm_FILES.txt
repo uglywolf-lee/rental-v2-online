@@ -1,0 +1,21 @@
+Commit: d83f7b308e8ecd5ef9eefa347c68f243d0f0b2e3
+TS: 1784473911
+Msg: feat:auth.js_add_auditlog_html_button_K_super_admin_perm
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 00:11:51 2026 +0900
+
+    feat:auth.js_add_auditlog_html_button_K_super_admin_perm
+
+auditlog.html
+auth.js
+contract_master.html
+contractor_roster.html
+dashboard.html
+g_h_i_dashboard.html
+incidents_maintenance.html
+index.html
+interface-a.html
+monthly_rent_collection.html
+team_management.html
+utility_bills.html

@@ -1,0 +1,10 @@
+Commit: cfa1efa0a0e5d587ea3dfedd6c9f37605f7a67a2
+TS: 1784364352
+Msg: rules.html + FIELDS.md 완전 연동본 — 필드명/에러오타모든수정완료
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sat Jul 18 17:45:52 2026 +0900
+
+    rules.html + FIELDS.md 완전 연동본 — 필드명/에러오타모든수정완료
+
+rules.html

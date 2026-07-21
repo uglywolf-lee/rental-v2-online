@@ -1,0 +1,14 @@
+Commit: ad97d5b4c9d0de66d428a4c5ae3bc091c0ec77b3
+TS: 1784480006
+Msg: fix:all_pages_body_display_flex_left_right_panel_normal
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 01:53:26 2026 +0900
+
+    fix:all_pages_body_display_flex_left_right_panel_normal
+
+auditlog.html
+incidents_maintenance.html
+monthly_rent_collection.html
+team_management.html
+utility_bills.html

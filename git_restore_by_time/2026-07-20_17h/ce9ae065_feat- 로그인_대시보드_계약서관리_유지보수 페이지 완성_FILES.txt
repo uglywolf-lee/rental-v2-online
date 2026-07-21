@@ -1,0 +1,19 @@
+Commit: ce9ae06527a84e3aff536157810805a3e1bc7657
+TS: 1784536125
+Msg: feat: 로그인/대시보드/계약서관리/유지보수 페이지 완성
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 17:28:45 2026 +0900
+
+    feat: 로그인/대시보드/계약서관리/유지보수 페이지 완성
+    
+    - index.html: 로그인페이지+역할별라우팅(관리자->dashboard,직원이상->contract/incidents)
+    - dashboard.html: 총괄대시보드(계약현황판/미납현황)
+    - contract_master.html: 계약서입력/목록 CRUD 페이지(Js버그수정+재작성)
+    - incidents_maintenance.html: 유지보수신고/현황판 신규페이지
+    - server/main_server.js: HTTP서버(8899) + SQLite테이블 + API라우팅 완성
+
+contract_master.html
+dashboard.html
+incidents_maintenance.html
+index.html

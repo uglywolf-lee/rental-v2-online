@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부동산 시스템 명세서 실시간 뷰어 (최종 수정본)</title>
+    <!-- 마크다운 실시간 변환 라이브러리 로드 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- 에이전트 작업 파일 동기화 -->
+    <script src="spec_data.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; margin: 0; padding: 30px; background: #f4f7f6; color: #2c3e50; line-height: 1.7; }
+        .viewer-container { max-width: 1000px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+        
+        .sync-badge { display: inline-flex; align-items: center; background: #e8f8f5; color: #1abc9c; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; margin-bottom: 20px; border: 1px solid #a3e4d7; }
+        .sync-badge::before { content: "●"; margin-right: 6px; font-size: 0.7rem; animation: blink 1.5s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+        #markdown-render h1 { font-size: 1.8rem; color: #2980b9; border-bottom: 3px solid #3498db; padding-bottom: 12px; margin-top: 0; margin-bottom: 30px; text-align: center; }
+        #markdown-render h2 { font-size: 1.3rem; color: #2c3e50; border-left: 5px solid #3498db; padding-left: 12px; margin-top: 40px; margin-bottom: 15px; }
+        #markdown-render h3 { font-size: 1.1rem; color: #34495e; margin-top: 25px; margin-bottom: 10px; background: #f2f4f4; padding: 6px 12px; border-radius: 4px; }
+        #markdown-render ul, #markdown-render ol { padding-left: 22px; margin-bottom: 15px; font-size: 0.95rem; }
+        #markdown-render li { margin-bottom: 6px; }
+        
+        #markdown-render code { font-family: 'Consolas', monospace; background: #f8f9f9; padding: 2px 6px; border-radius: 4px; color: #c0392b; font-size: 0.9em; border: 1px solid #e5e8e8; }
+        #markdown-render table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px; font-size: 0.9rem; }
+        #markdown-render th, #markdown-render td { padding: 10px 12px; border: 1px solid #eaeded; text-align: left; }
+        #markdown-render th { background-color: #34495e; color: white; font-weight: 600; }
+        #markdown-render tr:nth-child(even) td { background-color: #f8f9f9; }
+    </style>
+</head>
+<body>
+
+<div class="viewer-container">
+    <div class="sync-badge">spec_data.js 연동 완료 (marked.parse 정상 구동)</div>
+    <div id="markdown-render"></div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // window 스코프에 선언된 호출 변수명과 1:1 매핑 검증
+        if (typeof window.REAL_ESTATE_SYSTEM_SPEC !== 'undefined') {
+            const rawMarkdownData = window.REAL_ESTATE_SYSTEM_SPEC;
+            
+            // 올바른 라이브러리 규격 메서드인 marked.parse()를 적용하여 화면 렌더링
+            document.getElementById('markdown-render').innerHTML = marked.parse(rawMarkdownData.trim());
+        } else {
+            document.getElementById('markdown-render').innerHTML = `
+                <p style="color: #c0392b; text-align: center; font-weight: bold; padding: 20px;">
+                    ⚠️ 로드 오류: window.REAL_ESTATE_SYSTEM_SPEC 변수를 찾을 수 없습니다. spec_data.js 파일을 확인하세요.
+                </p>`;
+        }
+    });
+</script>
+
+</body>
+</html>

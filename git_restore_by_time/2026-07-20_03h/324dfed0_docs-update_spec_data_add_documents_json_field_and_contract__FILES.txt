@@ -1,0 +1,10 @@
+Commit: 324dfed0ed33bf8ac6fba63815b146bfbab95524
+TS: 1784484870
+Msg: docs:update_spec_data_add_documents_json_field_and_contract_master_tab_mapping
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 03:14:30 2026 +0900
+
+    docs:update_spec_data_add_documents_json_field_and_contract_master_tab_mapping
+
+spec_data.js

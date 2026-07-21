@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>계약자 인적 데이터 명부 (엑셀 통합형)</title>
+    <style>
+        :root { 
+            --primary: #6f42c1; 
+            --border: #dee2e6; 
+            --bg: #f8f9fa; 
+            --text-dark: #495057;
+            --text-muted: #6c757d;
+            --success: #28a745;
+            --danger: #dc3545;
+            --info: #0d6efd;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; 
+            display: flex; 
+            height: calc(100vh - 64px); 
+            overflow-y: auto; 
+            background-color: var(--bg); 
+        }
+        
+        .left-panel { width: 35%; background: white; border-right: 1px solid var(--border); padding: 25px; box-sizing: border-box; }
+        .right-panel { flex: 1; padding: 20px; display: flex; flex-direction: column; box-sizing: border-box; background: white; }
+        
+        .panel-title { font-size: 0.95rem; color: var(--primary); margin: 0 0 20px 0; border-bottom: 2px solid var(--primary); padding-bottom: 8px; font-weight: bold; }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: var(--text-dark); }
+        .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.88rem; box-sizing: border-box; }
+        
+        .date-range-box { display: flex; align-items: center; gap: 8px; }
+        .date-range-box input { flex: 1; }
+        
+        .btn-box { margin-top: 15px; display: flex; gap: 8px; }
+        .btn { padding: 10px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-main { background: var(--primary); color: white; flex: 1; }
+        .btn-sub { background: var(--text-muted); color: white; }
+        
+        .excel-table-wrap { flex: 1; overflow: auto; border: 1px solid #bbc4cc; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 6px 8px; font-weight: 600; position: sticky; top: 0; text-align: center; white-space: nowrap; }
+        td { border: 1px solid #ced4da; padding: 6px 8px; white-space: nowrap; color: #333; }
+        tr:nth-child(even) { background-color: var(--bg); }
+        tr:hover { background-color: #e8f4fd; cursor: pointer; }
+        
+        .cell-text-center { text-align: center; }
+        .cell-num-right { text-align: right; }
+        
+        .status-badge { font-weight: bold; }
+        .status-active { color: var(--success); }
+        .status-ended { color: var(--danger); }
+        
+        .actions-btn { background: var(--info); color: white; border: none; padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 0.78rem; }
+        .file-view-btn { background: var(--success); color: white; text-decoration: none; display: inline-block; padding: 4px 8px; border-radius: 3px; font-size: 0.72rem; }
+        
+        .display-none { display: none; }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="panel-title">👥 계약자 검색·조회</div>
+        
+        <form onsubmit="event.preventDefault(); searchContractor();">
+            <div class="form-group">
+                <label>전체 검색</label>
+                <input type="text" class="form-control" id="globalSearchInput" placeholder="이름·전화·호실·상호명 모두 검색">
+            </div>
+
+            <div class="form-group">
+                <label>호실 검색</label>
+                <input type="text" class="form-control" id="roomFilterInput" placeholder="예: C동 102호 또는 102호">
+            </div>
+
+            <div class="form-group">
+                <label>계약 잔여 기간 검색 (선택사항)</label>
+                <div class="date-range-box">
+                    <input type="date" class="form-control">
+                    <span>~</span>
+                    <input type="date" class="form-control">
+                </div>
+            </div>
+
+            <div class="form-group display-none" id="nameFilterGroup">
+                <label>상호명 또는 성명</label>
+                <input type="text" class="form-control" placeholder="계약자 상호이름 또는 성명 입력">
+            </div>
+
+            <div class="form-group display-none" id="idFilterGroup">
+                <label>식별번호 (사업자/주민번호 앞자리)</label>
+                <input type="text" class="form-control" placeholder="예: 123-45-67890">
+            </div>
+            
+            <div class="btn-box">
+                <button type="submit" class="btn btn-main">계약자 전체검색</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="right-panel">
+        <div class="panel-title">📋 등록된 계약자 명부 (조회/수정)</div>
+        
+        <div class="excel-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>호실</th>
+                        <th>계약자 상호 / 성명</th>
+                        <th>전화번호</th>
+                        <th>계약 시작일</th>
+                        <th>계약 종료일</th>
+                        <th>계약 상태</th>
+                        <th>계약서 파일</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="cell-text-center">C동 102호</td>
+                        <td class="cell-text-center">(주)네트웍스 파트너스</td>
+                        <td class="cell-text-center">010-1234-5678</td>
+                        <td class="cell-num-right">2025-01-15 (수)</td>
+                        <td class="cell-num-right">2026-12-31 (목)</td>
+                        <td class="cell-text-center"><span class="status-badge status-active">계약중</span></td>
+                        <td class="cell-text-center"><a href="#" class="file-view-btn">계약서 파일보기</a></td>
+                        <td class="cell-text-center"><button class="actions-btn" onclick="editContractor('C동 102호')">수정</button></td>
+                    </tr>
+                    <tr>
+                        <td class="cell-text-center">A동 201호</td>
+                        <td class="cell-text-center">대한솔루션</td>
+                        <td class="cell-text-center">010-9876-5432</td>
+                        <td class="cell-num-right">2024-01-01 (월)</td>
+                        <td class="cell-num-right">2025-12-31 (수)</td>
+                        <td class="cell-text-center"><span class="status-badge status-ended">계약종료</span></td>
+                        <td class="cell-text-center"><a href="#" class="file-view-btn">계약서 파일보기</a></td>
+                        <td class="cell-text-center"><button class="actions-btn" onclick="editContractor('A동 201호')">수정</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function searchContractor() {
+            const query = document.getElementById('globalSearchInput').value.trim().toLowerCase();
+            const roomQuery = document.getElementById('roomFilterInput').value.trim();
+            alert(`전체검색: '${query}', 호실검색: '${roomQuery}' 실행. (API 연동)`);
+        }
+
+        function editContractor(room) {
+            alert(`${room} 계약자 정보를 수정합니다.`);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+Commit: 408c971889fcc3367a9ba954bc84f18f18d4b896
+TS: 1784432096
+Msg: fix:team_management.html-사원ID매핑+FIELDS.md/rules.html규칙40추가
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 12:34:56 2026 +0900
+
+    fix:team_management.html-사원ID매핑+FIELDS.md/rules.html규칙40추가
+
+_fix_team.html
+rules.html
+team_management.html

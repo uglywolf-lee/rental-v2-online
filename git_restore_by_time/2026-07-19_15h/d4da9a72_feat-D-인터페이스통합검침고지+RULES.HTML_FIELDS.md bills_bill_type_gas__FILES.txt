@@ -1,0 +1,10 @@
+Commit: d4da9a72c62be4101e1fb9da3f3058daca9dcd5b
+TS: 1784442170
+Msg: feat:D-인터페이스통합검침고지+RULES.HTML/FIELDS.md bills_bill_type_gas_comm
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 15:22:50 2026 +0900
+
+    feat:D-인터페이스통합검침고지+RULES.HTML/FIELDS.md bills_bill_type_gas_comm
+
+rules.html

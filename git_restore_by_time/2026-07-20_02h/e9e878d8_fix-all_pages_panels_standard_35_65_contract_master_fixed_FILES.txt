@@ -1,0 +1,13 @@
+Commit: e9e878d821cebe997c3365dc1f9e478e5c3e3adc
+TS: 1784481519
+Msg: fix:all_pages_panels_standard_35_65_contract_master_fixed
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 02:18:39 2026 +0900
+
+    fix:all_pages_panels_standard_35_65_contract_master_fixed
+
+auditlog.html
+contract_master.html
+monthly_rent_collection.html
+team_management.html

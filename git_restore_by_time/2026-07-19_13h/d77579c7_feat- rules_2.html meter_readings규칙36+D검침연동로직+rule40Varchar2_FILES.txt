@@ -1,0 +1,10 @@
+Commit: d77579c7fb43edaba5204bc10867b4e351835dbb
+TS: 1784434411
+Msg: feat: rules_2.html meter_readings규칙36+D검침연동로직+rule40Varchar20매핑
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 13:13:31 2026 +0900
+
+    feat: rules_2.html meter_readings규칙36+D검침연동로직+rule40Varchar20매핑
+
+rules.html

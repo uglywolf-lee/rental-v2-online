@@ -1,0 +1,14 @@
+Commit: 557443cf0acf81b446219905ba9267253fb5f9f3
+TS: 1784395237
+Msg: fix: 분석요구사항 4개 적용 - placeholder숫자화/supervisor수정/350만원고정
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 02:20:37 2026 +0900
+
+    fix: 분석요구사항 4개 적용 - placeholder숫자화/supervisor수정/350만원고정
+
+auditlog.html
+contract_master.html
+property_asset.html
+rules.html
+team_management.html

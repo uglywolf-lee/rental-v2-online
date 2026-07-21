@@ -1,0 +1,11 @@
+Commit: 7905b28b2646ddaf255299436cceb36751b1b0b7
+TS: 1784445085
+Msg: feat: REAL_ESTATE_SYSTEM_SPEC.md (v1.1) 저장 - 전역표준/CORE_RULES/DB_SCHEMA_8테이블/INTERFACE_MAPPING_A~J
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 16:11:25 2026 +0900
+
+    feat: REAL_ESTATE_SYSTEM_SPEC.md (v1.1) 저장 - 전역표준/CORE_RULES/DB_SCHEMA_8테이블/INTERFACE_MAPPING_A~J
+
+REAL_ESTATE_SYSTEM_SPEC.md
+RULES.md

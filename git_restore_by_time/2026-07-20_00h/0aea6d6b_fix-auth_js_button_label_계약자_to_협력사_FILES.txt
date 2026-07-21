@@ -1,0 +1,13 @@
+Commit: 0aea6d6ba6a7fabc9581eb04f2f99f5f5b26ab8e
+TS: 1784476549
+Msg: fix:auth_js_button_label_계약자_to_협력사
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 00:55:49 2026 +0900
+
+    fix:auth_js_button_label_계약자_to_협력사
+
+auth.js
+contractor_roster.html
+g_h_i_dashboard.html
+login.html

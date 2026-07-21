@@ -1,0 +1,10 @@
+Commit: 58558fa2d1c07ba226cc7e8665ef04bcfde57b4b
+TS: 1784314234
+Msg: dashboard.html: 부동산 관리 시스템 UI v1 (좌측 등록 폼 + 우측 테이블 레이아웃)
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sat Jul 18 03:50:34 2026 +0900
+
+    dashboard.html: 부동산 관리 시스템 UI v1 (좌측 등록 폼 + 우측 테이블 레이아웃)
+
+dashboard.html

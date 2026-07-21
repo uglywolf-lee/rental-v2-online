@@ -1,0 +1,15 @@
+Commit: db11329b05563c054604719a3ad617e90af9b10d
+TS: 1784528242
+Msg: feat:contract_master 협력사브라우저 dropdown 연동 + design-token 준수(inline-style R25제거)
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 15:17:22 2026 +0900
+
+    feat:contract_master 협력사브라우저 dropdown 연동 + design-token 준수(inline-style R25제거)
+    
+    - search input+button → select dropdown (broker_id FK → contacts)
+    - loadBrokerToDropdown/onBrokerSelected JS 연동 추가
+    - brokerInfo 클래스로 인라인스타일 제거 (design token 준수)
+    - API endpoint 주석 변경: /api/contact → /api/v1/contacts
+
+contract_master.html

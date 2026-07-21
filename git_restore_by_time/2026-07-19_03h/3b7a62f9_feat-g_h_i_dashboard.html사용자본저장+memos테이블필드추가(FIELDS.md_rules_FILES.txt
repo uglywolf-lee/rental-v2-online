@@ -1,0 +1,14 @@
+Commit: 3b7a62f9fcd853bed3a100e596540cf1185fb65a
+TS: 1784398471
+Msg: feat:g_h_i_dashboard.html사용자본저장+memos테이블필드추가(FIELDS.md/rules.html규칙매핑완벽)
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 03:14:31 2026 +0900
+
+    feat:g_h_i_dashboard.html사용자본저장+memos테이블필드추가(FIELDS.md/rules.html규칙매핑완벽)
+
+FIELDS.md
+g_h_i_dashboard.html
+g_hi_dashboard_memo.html
+memo_template.html
+rules.html

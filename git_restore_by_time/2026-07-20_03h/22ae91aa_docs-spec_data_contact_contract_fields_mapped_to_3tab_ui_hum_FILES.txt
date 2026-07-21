@@ -1,0 +1,10 @@
+Commit: 22ae91aa16e410593dadaa47883d77285124620b
+TS: 1784486864
+Msg: docs:spec_data_contact_contract_fields_mapped_to_3tab_ui_human_readable_labels
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 03:47:44 2026 +0900
+
+    docs:spec_data_contact_contract_fields_mapped_to_3tab_ui_human_readable_labels
+
+spec_data.js

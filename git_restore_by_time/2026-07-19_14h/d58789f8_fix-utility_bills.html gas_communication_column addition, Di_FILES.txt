@@ -1,0 +1,15 @@
+Commit: d58789f8369b9a60c802d426a5d03f57c79ea2b4
+TS: 1784437671
+Msg: fix:utility_bills.html gas_communication_column addition, Dinterface unified
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 14:07:51 2026 +0900
+
+    fix:utility_bills.html gas_communication_column addition, Dinterface unified
+
+.DS_Store
+_fix_team.html
+_utility_meters_reading_backup_ok.html
+g_hi_dashboard_memo.html
+memo_template.html
+utility_bills.html

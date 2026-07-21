@@ -1,0 +1,10 @@
+Commit: 38da4ca8c47040840368237a68a563b3bf12f541
+TS: 1784432825
+Msg: fix:FIELDS.md-users테이블username→employee_no매핑추가
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 12:47:05 2026 +0900
+
+    fix:FIELDS.md-users테이블username→employee_no매핑추가
+
+FIELDS.md

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>월세 납부 관리 장부 (사무인력 전용)</title>
+    <style>
+        :root { 
+            --primary: #17a2b8; 
+            --border: #dee2e6; 
+            --bg: #f8f9fa; 
+            --text-dark: #495057;
+            --text-muted: #6c757d;
+            --white: #ffffff;
+            --dark-viewer: #525659;
+            --text-dark-main: #333333;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;  
+            display: flex; 
+            height: calc(100vh - 64px); 
+            overflow: hidden; 
+            background-color: var(--bg); 
+        }
+        
+        .left-form-panel { 
+            width: 35%; 
+            background: var(--white); 
+            border-right: 1px solid var(--border); 
+            padding: 25px; 
+            overflow-y: auto; 
+        }
+        .panel-title { 
+            font-size: 1.15rem; 
+            color: var(--primary); 
+            margin-top: 0; 
+            margin-bottom: 20px; 
+            border-bottom: 2px solid var(--primary); 
+            padding-bottom: 8px; 
+            font-weight: bold; 
+        }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: var(--text-dark); }
+        .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.88rem; box-sizing: border-box; }
+        .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .row-grid-5 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: var(--bg); padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
+        
+        .btn-box { margin-top: 20px; display: flex; gap: 10px; }
+        .btn { flex: 1; padding: 10px; border: none; border-radius: 4px; font-size: 0.88rem; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-main { background: var(--primary); color: var(--white); }
+        .btn-sub { background: var(--text-muted); color: var(--white); }
+        
+        .right-verify-panel { width: 65%; display: flex; flex-direction: column; height: 100%; }
+        
+        .verify-top-area { flex: 1; padding: 20px; overflow-y: auto; background: var(--white); border-bottom: 1px solid var(--border); }
+        .search-grid-box { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-bottom: 15px; }
+        .btn-search { padding: 0 15px; }
+        .table-shadow-wrap { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        
+        .verify-bottom-area { height: 40%; background: var(--dark-viewer); display: flex; flex-direction: column; }
+        .viewer-header-bar { background: var(--border); padding: 6px 15px; font-size: 0.8rem; font-weight: bold; color: var(--text-dark); }
+        .viewer-content-center { flex: 1; display: flex; justify-content: center; align-items: center; padding: 15px; overflow: hidden; }
+        .viewer-paper-sheet { width: 85%; height: 95%; background: var(--white); color: var(--text-dark-main); padding: 20px; box-sizing: border-box; font-size: 0.78rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); overflow-y: auto; }
+        .viewer-paper-title { text-align: center; margin-top: 0; border-bottom: 1px solid var(--text-dark-main); padding-bottom: 5px; }
+        .viewer-paper-sheet p { margin-bottom: 8px; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { background: #e9ecef; border: 1px solid var(--border); padding: 10px; font-weight: 600; text-align: center; }
+        td { border: 1px solid var(--border); padding: 10px; white-space: nowrap; color: var(--text-dark-main); }
+        
+        .cell-text-center { text-align: center; } 
+        .cell-num-right { text-align: right; }    
+        .status-paid-complete { color: #0056b3; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="left-form-panel">
+        <div class="panel-title">💰 E. 월세 납입 관리 장부</div>
+        
+        <form onsubmit="event.preventDefault();">
+            <div class="form-group">
+                <label>연동 대상 호실 정보 (실수방지 검색창)</label>
+                <select class="form-control" id="roomSelect" onchange="loadMeterReadingsData(this.value)">
+                    <option value="">호실을 선택하십시오 (필수)</option>
+                    <option value="A동 101호">A동 101호</option>
+                    <option value="A동 102호">A동 102호</option>
+                    <option value="A동 201호">A동 201호</option>
+                    <option value="A동 1024호" selected>A동 1024호</option>
+                </select>
+            </div>
+            
+            <div class="row-grid">
+                <div class="form-group">
+                    <label>실제 수납 일자</label>
+                    <input type="date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>약정 기본 월세 (원)</label>
+                    <input type="number" class="form-control" id="rentAmount" value="3500000" oninput="calculateTotalBill()" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>정산 처리 형태</label>
+                <select class="form-control">
+                    <option>정상 월세 완납</option>
+                    <option>일부 미납 (다음 달 잔액 이월)</option>
+                    <option>보증금 반환 대체 정산</option>
+                    <option>연체료 가산 수납</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>당월 공과금 및 관리비 비용 명세 (자동 연동 · 수정 가능)</label>
+                <div class="row-grid-5">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>🏢 일반관리비</label>
+                        <input type="number" class="form-control bill-input" id="billAdmin" value="120000" min="0" placeholder="0" oninput="calculateTotalBill()">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>⚡ 전기요금</label>
+                        <input type="number" class="form-control bill-input" id="billElec" value="45200" min="0" placeholder="0" oninput="calculateTotalBill()">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>🚰 수도요금</label>
+                        <input type="number" class="form-control bill-input" id="billWater" value="24500" min="0" placeholder="0" oninput="calculateTotalBill()">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>🔥 가스요금</label>
+                        <input type="number" class="form-control bill-input" id="billGas" value="58000" min="0" placeholder="0" oninput="calculateTotalBill()">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0; grid-column: span 2;">
+                        <label>🌐 통신요금</label>
+                        <input type="number" class="form-control bill-input" id="billNet" value="16500" min="0" placeholder="0" oninput="calculateTotalBill()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="row-grid">
+                <div class="form-group">
+                    <label>부가세 (10% 자동산출)</label>
+                    <input type="number" class="form-control" id="vatAmount" value="350000" readonly>
+                </div>
+                <div class="form-group">
+                    <label>총 수납 금액 (월세+공과금+관리비+부가세)</label>
+                    <input type="number" class="form-control" id="totalBillAmount" value="4114200" min="0" placeholder="0">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>수납 확인 이력 변경 메모 (특이사항)</label>
+                <input type="text" class="form-control" placeholder="입금자 실명 상이 또는 지연 사유 요약">
+            </div>
+            
+            <div class="btn-box">
+                <button type="submit" class="btn btn-main">납부 이력 반영 (INSERT)</button>
+                <button type="button" class="btn btn-sub">수납 수동 이력 조정</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="right-verify-panel">
+        <div class="verify-top-area">
+            <div class="search-grid-box">
+                <input type="text" class="form-control" placeholder="월별 수납 현황 / 미납자 명단 실시간 대조 검색...">
+                <button class="btn btn-main btn-search">조회</button>
+            </div>
+            <div class="table-shadow-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>대상 호실</th>
+                            <th>임차 상호 / 성명</th>
+                            <th>청구월</th>
+                            <th>약정 약정일</th>
+                            <th>입금 확인일 (요일)</th>
+                            <th>수납 금액</th>
+                            <th>수납 상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="cell-text-center"><b>A동 1024호</b></td>
+                            <td class="cell-text-center">(주)네트웍스 파트너스</td>
+                            <td class="cell-text-center">2026-07</td>
+                            <td class="cell-text-center">매월 15일</td>
+                            <td class="cell-num-right">2026-07-15 (수)</td>
+                            <td class="cell-num-right" id="tableDisplayAmount">4,114,200원</td>
+                            <td class="cell-text-center"><span class="status-paid-complete">완납</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="verify-bottom-area">
+            <div class="viewer-header-bar">📄 해당 호실 월세 약정 조항 확인용 원본 계약서 뷰어</div>
+            <div class="viewer-content-center">
+                <div class="viewer-paper-sheet">
+                    <h4 class="viewer-paper-title">임대차 계약서 조항 요약</h4>
+                    <p><b>[제 2조 차임]</b> 임차인은 월세 금 \3,500,000을 매월 15일 임대인 지정 계좌로 입금하기로 약정함.</p>
+                    <p><b>[제 4조 연체]</b> 차임 지급이 2기 이상 지연될 경우 임대인은 계약 해지를 통보할 수 있음.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+var mockMeterReadingsDB = {
+    "A동 101호": { admin: 100000, elec: 32000, water: 18000, gas: 42000, net: 16500, rent: 2500000 },
+    "A동 102호": { admin: 100000, elec: 28500, water: 12000, gas: 31000, net: 16500, rent: 2800000 },
+    "A동 201호": { admin: 150000, elec: 51000, water: 29000, gas: 62000, net: 22000, rent: 4000000 },
+    "A동 1024호": { admin: 120000, elec: 45200, water: 24500, gas: 58000, net: 16500, rent: 3500000 }
+};
+
+function loadMeterReadingsData(roomNo) {
+    if (!roomNo || !mockMeterReadingsDB[roomNo]) {
+        document.getElementById('billAdmin').value = 0;
+        document.getElementById('billElec').value = 0;
+        document.getElementById('billWater').value = 0;
+        document.getElementById('billGas').value = 0;
+        document.getElementById('billNet').value = 0;
+        calculateTotalBill();
+        return;
+    }
+    
+    var data = mockMeterReadingsDB[roomNo];
+    document.getElementById('rentAmount').value = data.rent;
+    document.getElementById('billAdmin').value = data.admin;
+    document.getElementById('billElec').value = data.elec;
+    document.getElementById('billWater').value = data.water;
+    document.getElementById('billGas').value = data.gas;
+    document.getElementById('billNet').value = data.net;
+    
+    calculateTotalBill();
+}
+
+function calculateTotalBill() {
+    var rent = parseInt(document.getElementById('rentAmount').value) || 0;
+    var admin = parseInt(document.getElementById('billAdmin').value) || 0;
+    var elec = parseInt(document.getElementById('billElec').value) || 0;
+    var water = parseInt(document.getElementById('billWater').value) || 0;
+    var gas = parseInt(document.getElementById('billGas').value) || 0;
+    var net = parseInt(document.getElementById('billNet').value) || 0;
+    
+    var vat = Math.floor(rent * 0.1);
+    document.getElementById('vatAmount').value = vat;
+    
+    var total = rent + admin + elec + water + gas + net + vat;
+    document.getElementById('totalBillAmount').value = total;
+    
+    var tableDisplay = document.getElementById('tableDisplayAmount');
+    if (tableDisplay) {
+        tableDisplay.textContent = total.toLocaleString() + "원";
+    }
+}
+
+window.onload = function() {
+    calculateTotalBill();
+};
+</script>
+</body>
+</html>

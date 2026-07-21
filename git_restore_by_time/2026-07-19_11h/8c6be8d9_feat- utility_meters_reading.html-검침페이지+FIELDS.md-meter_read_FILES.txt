@@ -1,0 +1,12 @@
+Commit: 8c6be8d92b8d540729af7e79e11e083d48a48042
+TS: 1784429140
+Msg: feat: utility_meters_reading.html-검침페이지+FIELDS.md-meter_readings테이블규칙36추가-D인터페이스업데이트
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 11:45:40 2026 +0900
+
+    feat: utility_meters_reading.html-검침페이지+FIELDS.md-meter_readings테이블규칙36추가-D인터페이스업데이트
+
+FIELDS.md
+rules.html
+utility_meters_reading.html

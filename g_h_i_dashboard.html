@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>전사 데이터 통합 조회 대시보드 (G, H, I 실무 통합본)</title>
+    <style>
+        :root { 
+            --primary: #6610f2; 
+            --teal: #20c997; 
+            --amber: #ffc107; 
+            --border: #dee2e6; 
+            --bg: #f8f9fa;
+            --text-dark: #212529;
+            --text-muted: #6c757d;
+            --danger: #dc3545;
+            --white: #ffffff;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; 
+            background: var(--bg); 
+            height: calc(100vh - 30px); 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            padding: 10px;
+        }
+        
+        .board-header { 
+            background: linear-gradient(135deg, var(--primary), #4e0cb2); 
+            color: var(--white); 
+            padding: 8px 15px; 
+            border-radius: 6px; 
+            margin-bottom: 8px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+        }
+        .board-header h1 { margin: 0; font-size: 1.1rem; }
+        
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+        .card { 
+            background: var(--white); 
+            border-radius: 6px; 
+            border: 1px solid var(--border); 
+            padding: 8px 12px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+        }
+        .card h2 { 
+            margin: 0 0 4px 0; 
+            font-size: 0.82rem; 
+            padding-bottom: 2px; 
+            border-bottom: 1px solid #eee; 
+            display: flex; 
+            justify-content: space-between; 
+        }
+        .metric-row { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 2px; }
+        .val { font-weight: bold; color: var(--text-dark); }
+
+        .card-teal { border-left: 4px solid var(--teal); }
+        .card-teal h2 { color: var(--teal); }
+        
+        .card-amber { border-left: 4px solid var(--amber); }
+        .card-amber h2 { color: #b58900; }
+        
+        .card-primary { border-left: 4px solid var(--primary); }
+        .card-primary h2 { color: var(--primary); }
+
+        .text-orange { color: #fd7e14; }
+        .text-red { color: var(--danger); }
+
+        .realtime-ledger-section { 
+            flex: 1; 
+            background: var(--white); 
+            border-radius: 6px; 
+            border: 1px solid var(--border); 
+            padding: 10px; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+        }
+        .ledger-title { 
+            font-size: 0.9rem; 
+            font-weight: bold; 
+            color: #111; 
+            margin-top: 0; 
+            margin-bottom: 8px; 
+            padding-bottom: 4px; 
+            border-bottom: 2px solid var(--teal); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        .ledger-badge { background: #fff3cd; color: #856404; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; font-weight: normal; }
+        
+        .excel-table-wrap { flex: 1; overflow-x: auto; overflow-y: auto; max-height: 65vh; border: 1px solid #bbc4cc; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        
+        th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 6px 4px; font-weight: 600; position: sticky; top: 0; text-align: center; color: var(--text-dark); z-index: 10; white-space: nowrap; }
+        td { border: 1px solid #ced4da; padding: 5px 4px; white-space: nowrap; color: #333; }
+        tr:nth-child(even) { background-color: var(--bg); }
+        tr:hover { background-color: #e8f4fd; cursor: pointer; }
+        
+        .cell-text-center { text-align: center; }
+        .cell-num-right { text-align: right; }
+        
+        .th-no { width: 30px; min-width: 30px; padding: 6px 2px; }
+        .col-no { width: 30px; min-width: 30px; text-align: right; padding: 5px 4px; }
+
+        .th-day { width: 40px; min-width: 40px; padding: 6px 2px; }
+        .cell-day { width: 40px; min-width: 40px; text-align: center; padding: 5px 2px; }
+
+        .th-status { width: 45px; min-width: 45px; padding: 6px 2px; }
+        .cell-status { width: 45px; min-width: 45px; text-align: center; padding: 5px 2px; }
+
+        .th-memo { background: #e6fffa; text-align: center; min-width: 400px; }
+        .cell-memo { min-width: 400px; }
+
+        /* 총합산 셀 강조 스타일 */
+        .cell-total { font-weight: bold; text-decoration: underline; text-underline-offset: 3px; }
+
+        .status-wait { color: #b58900; font-weight: bold; background: #fffbeb; padding: 2px 4px; border-radius: 3px; display: inline-block; font-size: 0.75rem; }
+        .status-overdue { color: var(--danger); font-weight: bold; background: #fff5f5; padding: 2px 4px; border-radius: 3px; display: inline-block; font-size: 0.75rem; }
+
+        .ledger-memo-input { width: 100%; padding: 4px 8px; border: 1px solid #ced4da; border-radius: 3px; font-size: 0.8rem; font-family: inherit; box-sizing: border-box; background: #fff; color: #000; }
+        .ledger-memo-input:focus { border-color: var(--teal); outline: none; background: #fdfdfd; box-shadow: 0 0 3px rgba(32, 201, 151, 0.3); }
+    </style>
+</head>
+<body>
+
+    <div class="board-header">
+        <h1>🏢 전사 데이터 통합 대시보드</h1>
+    </div>
+
+    <div class="grid-3">
+        <div class="card card-teal">
+            <h2>📊 G. 월세 수입 요약</h2>
+            <div class="metric-row"><span>당월 목표 총수입</span><span class="val">1억 4,500만원</span></div>
+            <div class="metric-row"><span>보증금 반환 정산액</span><span class="val">8,000만원</span></div>
+        </div>
+
+        <div class="card card-amber">
+            <h2>📅 H. 만기 스케줄 요약</h2>
+            <div class="metric-row"><span>30일 이내 만기도래</span><span class="val text-orange">5건</span></div>
+            <div class="metric-row"><span>중도 해지 및 분쟁</span><span class="val text-red">1건</span></div>
+        </div>
+
+        <div class="card card-primary">
+            <h2>👑 I. 인프라 가동률</h2>
+            <div class="metric-row"><span>전체 운영 자산 수</span><span class="val">4개동 / 180호실</span></div>
+            <div class="metric-row"><span>미해결 시설파손</span><span class="val text-red">2건 접수중</span></div>
+        </div>
+    </div>
+
+    <div class="realtime-ledger-section">
+        <div class="ledger-title">
+            <span>📅 이번 달 월세 수납 대상자 명부</span>
+            <span class="ledger-badge">💡 통화 내용 및 입금 약속 시점을 메모창에 입력하면 서버에 자동 기록됩니다.</span>
+        </div>
+        
+        <div class="excel-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="th-no">순번</th>
+                        <th>대상 호실</th>
+                        <th>이름/상호</th>
+                        <th>연락처</th>
+                        <th class="th-day">약정일</th>
+                        <th>월세 금액</th>
+                        <th>전기</th>
+                        <th>수도</th>
+                        <th>가스</th>
+                        <th>통신</th>
+                        <th>부가세</th>
+                        <th>총합산</th>
+                        <th class="th-status">상태</th>
+                        <th class="th-memo">✍️ 수납 진행 상황 메모</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="col-no">1</td>
+                        <td class="cell-text-center"><b>A동 201호</b></td>
+                        <td class="cell-text-center">(주)네트웍스 파트너스</td>
+                        <td class="cell-num-right">010-1234-5678</td>
+                        <td class="cell-day">15일</td>
+                        <td class="cell-num-right">3,500,000원</td>
+                        <td class="cell-num-right">45,200원</td>
+                        <td class="cell-num-right">24,500원</td>
+                        <td class="cell-num-right">58,000원</td>
+                        <td class="cell-num-right">16,500원</td>
+                        <td class="cell-num-right">350,000원</td>
+                        <td class="cell-num-right cell-total">3,994,200원</td>
+                        <td class="cell-status"><span class="status-overdue">연체</span></td>
+                        <td class="cell-memo"><input type="text" class="ledger-memo-input" value="금일 오후 3시 은행 마감 전까지 무조건 송금하겠다고 담당자 확약함." onchange="saveRealtimeMemo(this)"></td>
+                    </tr>
+                    <tr>
+                        <td class="col-no">2</td>
+                        <td class="cell-text-center"><b>A동 202호</b></td>
+                        <td class="cell-text-center">김법인 주식회사</td>
+                        <td class="cell-num-right">010-9876-5432</td>
+                        <td class="cell-day">20일</td>
+                        <td class="cell-num-right">2,800,000원</td>
+                        <td class="cell-num-right">28,500원</td>
+                        <td class="cell-num-right">12,000원</td>
+                        <td class="cell-num-right">31,000원</td>
+                        <td class="cell-num-right">16,500원</td>
+                        <td class="cell-num-right">280,000원</td>
+                        <td class="cell-num-right cell-total">3,168,000원</td>
+                        <td class="cell-status"><span class="status-wait">대기</span></td>
+                        <td class="cell-memo"><input type="text" class="ledger-memo-input" placeholder="통화 내용 입력 (예: 내일 입금 예정)" onchange="saveRealtimeMemo(this)"></td>
+                    </tr>
+                    <tr>
+                        <td class="col-no">3</td>
+                        <td class="cell-text-center"><b>B동 101호</b></td>
+                        <td class="cell-text-center">미래테크 상사</td>
+                        <td class="cell-num-right">010-5555-6666</td>
+                        <td class="cell-day">20일</td>
+                        <td class="cell-num-right">1,500,000원</td>
+                        <td class="cell-num-right">32,000원</td>
+                        <td class="cell-num-right">18,000원</td>
+                        <td class="cell-num-right">42,000원</td>
+                        <td class="cell-num-right">16,500원</td>
+                        <td class="cell-num-right">150,000원</td>
+                        <td class="cell-num-right cell-total">1,758,500원</td>
+                        <td class="cell-status"><span class="status-wait">대기</span></td>
+                        <td class="cell-memo"><input type="text" class="ledger-memo-input" placeholder="통화 내용 입력" onchange="saveRealtimeMemo(this)"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+<script>
+function saveRealtimeMemo(inputElement) {
+    var memoText = inputElement.value;
+}
+</script>
+</body>
+</html>

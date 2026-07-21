@@ -1,0 +1,12 @@
+Commit: 178267b1d932ac795f6bdb0cea190d82a86ee22b
+TS: 1784389373
+Msg: 추가-J팀원등록권한관리/K감사로그조회페이지·기존F영어DB필드명전량치환완료
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 00:42:53 2026 +0900
+
+    추가-J팀원등록권한관리/K감사로그조회페이지·기존F영어DB필드명전량치환완료
+
+auditlog.html
+incidents_maintenance.html
+team_management.html

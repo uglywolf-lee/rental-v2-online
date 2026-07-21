@@ -1,0 +1,12 @@
+Commit: 4bdd19f94c1caae1a49a7113c879cda7c538cf47
+TS: 1784357015
+Msg: FIELDS.md: 전역표준(전화/금액/시간) + 부동산시간/화면표시 규칙 + 공과금 원단위 표시 반영
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sat Jul 18 15:43:35 2026 +0900
+
+    FIELDS.md: 전역표준(전화/금액/시간) + 부동산시간/화면표시 규칙 + 공과금 원단위 표시 반영
+
+FIELDS.md
+interfaces.html
+rules.html

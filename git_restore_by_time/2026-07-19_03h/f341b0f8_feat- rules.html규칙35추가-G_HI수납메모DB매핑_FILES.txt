@@ -1,0 +1,10 @@
+Commit: f341b0f8ba99c0aee52e09a36acf6d1a69dee77b
+TS: 1784398991
+Msg: feat: rules.html규칙35추가-G/HI수납메모DB매핑
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 03:23:11 2026 +0900
+
+    feat: rules.html규칙35추가-G/HI수납메모DB매핑
+
+rules.html

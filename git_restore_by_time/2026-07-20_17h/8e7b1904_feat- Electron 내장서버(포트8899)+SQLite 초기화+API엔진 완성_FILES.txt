@@ -1,0 +1,14 @@
+Commit: 8e7b190402456aef64b3370639b9963417333d8f
+TS: 1784535658
+Msg: feat: Electron 내장서버(포트8899)+SQLite 초기화+API엔진 완성
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 17:20:58 2026 +0900
+
+    feat: Electron 내장서버(포트8899)+SQLite 초기화+API엔진 완성
+    
+    - main_server.js: HTTP서버(8899) + SQLite테블생성 + 브라우저자동기동 + API라우팅(contract/contacts/incidents/login)
+    - RULES.md Section 0/port 표제 확정(Electron 내장서버 방식, 포트8899)
+    - interfaces.html 상단 동일 아키텍처 정의
+
+server/main_server.js

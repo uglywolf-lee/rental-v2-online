@@ -1,0 +1,16 @@
+Commit: 04af5995c8163b4e2949162b35801a1dd79ef8a6
+TS: 1784482715
+Msg: fix:all_pages_full_height_calc_100vhminus64px
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 02:38:35 2026 +0900
+
+    fix:all_pages_full_height_calc_100vhminus64px
+
+auditlog.html
+contract_master.html
+contractor_roster.html
+incidents_maintenance.html
+monthly_rent_collection.html
+team_management.html
+utility_bills.html

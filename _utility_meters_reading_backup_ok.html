@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>관리공과금 고지 장부 (실무 고속 연동형)</title>
+    <style>
+        :root { --primary: #dc3545; --teal: #20c997; --border: #dee2e6; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; background: var(--bg); }
+        
+        /* 좌측 패널: 1세대 개별 정밀 등록/수정 전용 */
+        .left-panel { width: 35%; background: white; border-right: 1px solid var(--border); padding: 25px; overflow-y: auto; box-sizing: border-box; }
+        .panel-title { font-size: 1.1rem; color: var(--primary); margin: 0 0 15px 0; border-bottom: 2px solid var(--primary); padding-bottom: 8px; font-weight: bold; }
+        
+        /* 형님 지시: 주소는 작게, 호실은 거대하게 디자인 */
+        .address-sub { font-size: 0.8rem; color: #6c757d; margin-bottom: 2px; }
+        .room-main-title { font-size: 2.2rem; font-weight: 900; color: #111; margin-bottom: 15px; line-height: 1; }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: #495057; }
+        .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.88rem; box-sizing: border-box; }
+        .btn-box { margin-top: 15px; display: flex; gap: 8px; }
+        .btn { flex: 1; padding: 10px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-main { background: var(--primary); color: white; }
+        .btn-sub { background: #6c757d; color: white; }
+        
+        /* 우측 패널: 대량 입력 및 검증 통합 섹션 */
+        .right-panel { width: 65%; display: flex; flex-direction: column; box-sizing: border-box; background: white; height: 100%; }
+        
+        /* 우측 상단: 12세대 한눈에 고속 연속 입력판 (입력 시 사라지는 구조) */
+        .right-top-batch { flex: 6; padding: 20px; overflow-y: auto; border-bottom: 2px dashed var(--border); display: flex; flex-direction: column; }
+        .batch-title { font-size: 0.95rem; font-weight: bold; color: #111; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .batch-badge { background: #e6fffa; color: #0d9488; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; }
+        
+        /* 우측 하단: 가장 최근에 입력 성공한 5개 장부 (눈대중 확인용) */
+        .right-bottom-history { flex: 4; padding: 15px 20px; background: #fdfdfd; display: flex; flex-direction: column; overflow: hidden; }
+        .history-title { font-size: 0.85rem; font-weight: bold; color: #6c757d; margin-bottom: 8px; }
+
+        /* 엑셀 스타일 시트 공통 정의 */
+        .excel-table-wrap { flex: 1; overflow: auto; border: 1px solid #bbc4cc; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 6px 8px; font-weight: 600; position: sticky; top: 0; text-align: left; color: #212529; z-index: 10; }
+        td { border: 1px solid #ced4da; padding: 4px 8px; white-space: nowrap; color: #333; }
+        
+        /* 테이블 내부 입력칸 스타일 (속도 최적화) */
+        .table-input { width: 100%; padding: 4px; border: 1px solid #bbc4cc; border-radius: 3px; font-size: 0.8rem; box-sizing: border-box; text-align: right; }
+        .table-input:focus { border-color: var(--teal); outline: none; background: #f1f5f9; }
+        .btn-table-save { padding: 3px 8px; font-size: 0.75rem; font-weight: bold; background: var(--teal); color: white; border: none; border-radius: 3px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <!-- [좌측]: 1세대 정밀 조회 및 지난달 검침 기록 확인 패널 -->
+    <div class="left-panel">
+        <div class="panel-title">⚡ D. 공과금 검침 및 개별 등록</div>
+        
+        <!-- 주소는 작게, 방호실은 거대하게 매핑 -->
+        <div class="address-sub">서울시 구로구 디지털로 30길 12 (구로 테크노타운)</div>
+        <div class="room-main-title">201호</div>
+        
+        <form onsubmit="event.preventDefault();">
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 12px; font-size: 0.78rem; line-height: 1.4; border-left: 3px solid var(--primary);">
+                <b>🔌 전기 고지 가이드 (한전 방식):</b><br>
+                지난달 최종 누적 검침량: <span style="font-weight: bold; color: blue;">14,250 kWh</span>
+            </div>
+            
+            <div class="form-group">
+                <label>이번 달 전기 누적 계량값 입력 (kWh)</label>
+                <input type="number" class="form-control" placeholder="예: 14580 (입력 시 사용량 자동 계산)" required>
+            </div>
+            
+            <hr style="border:0; border-top:1px dashed var(--border); margin:15px 0;">
+            
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 12px; font-size: 0.78rem; line-height: 1.4; border-left: 3px solid #0d6efd;">
+                <b>🚰 수도 고지 가이드 (수도공사 방식):</b><br>
+                고지서상의 당월 검침량과 확정 요금을 그대로 입력합니다.
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                    <label>수도 검침량 (톤)</label>
+                    <input type="number" class="form-control" placeholder="예: 35" required>
+                </div>
+                <div class="form-group">
+                    <label>수도 청구 요금 (원)</label>
+                    <input type="number" class="form-control" placeholder="예: 42500" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>납부 마감 기한일</label>
+                <input type="date" class="form-control" required>
+            </div>
+    
+            <div class="btn-box">
+                <button type="submit" class="btn btn-main">단일 호실 저장</button>
+                <button type="button" class="btn btn-sub">내용수정변경</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- [우측]: 형님의 지시로 전면 재설계한 대량 고속 연속 입력판 및 최하단 5개 검증 시트 -->
+    <div class="right-panel">
+        
+        <!-- 우측 상단: 12세대 동시 입력 구역 (입력 완료 클릭 시 목록에서 자동 삭제처리) -->
+        <div class="right-top-batch">
+            <div class="batch-title">
+                <span>📋 12세대 공과금 고속 연속 입력판 (미입력 호실 목록)</span>
+                <span class="batch-badge">💡 입력 후 [저장]을 누르면 목록에서 사라져 누락 없이 마감할 수 있습니다.</span>
+            </div>
+            <div class="excel-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">호실</th>
+                            <th style="background: #fff5f5; color: #c92a2a;">⚡ 전기 지난달 계량</th>
+                            <th style="background: #fff5f5; color: #c92a2a;">⚡ 전기 이번달 누적값 입력</th>
+                            <th style="background: #e7f5ff; color: #0b7285;">🚰 수도 당월 검침량 입력</th>
+                            <th style="background: #e7f5ff; color: #0b7285;">🚰 수도 청구 금액(원) 입력</th>
+                            <th style="width: 70px; text-align: center;">작업</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 12세대 연속 레이아웃 샘플 (실무 동선 최적화) -->
+                        <tr>
+                            <td><b>201호</b></td>
+                            <td style="color:#888; text-align: right;">14,250</td>
+                            <td><input type="number" class="table-input" placeholder="이번달 누적값"></td>
+                            <td><input type="number" class="table-input" placeholder="수도 톤수"></td>
+                            <td><input type="number" class="table-input" placeholder="원단위 금액"></td>
+                            <td style="text-align: center;"><button type="button" class="btn-table-save">저장</button></td>
+                        </tr>
+                        <tr>
+                            <td><b>202호</b></td>
+                            <td style="color:#888; text-align: right;">9,810</td>
+                            <td><input type="number" class="table-input" placeholder="이번달 누적값"></td>
+                            <td><input type="number" class="table-input" placeholder="수도 톤수"></td>
+                            <td><input type="number" class="table-input" placeholder="원단위 금액"></td>
+                            <td style="text-align: center;"><button type="button" class="btn-table-save">저장</button></td>
+                        </tr>
+                        <tr>
+                            <td><b>203호</b></td>
+                            <td style="color:#888; text-align: right;">21,400</td>
+                            <td><input type="number" class="table-input" placeholder="이번달 누적값"></td>
+                            <td><input type="number" class="table-input" placeholder="수도 톤수"></td>
+                            <td><input type="number" class="table-input" placeholder="원단위 금액"></td>
+                            <td style="text-align: center;"><button type="button" class="btn-table-save">저장</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 우측 하단: 형님이 명하신 직전 입력 성공 5세대 백체크용 시트 -->
+        <div class="right-bottom-history">
+            <div class="history-title">👀 실시간 백체크 (가장 최근 정상 등록 완료된 5개 호실 장부 기록)</div>
+            <div class="excel-table-wrap">
+                <table style="background: #f1f3f5;">
+                    <thead>
+                        <tr style="background: #e9ecef;">
+                            <th>번호</th><th>입력 완료 호실</th><th>전기 이번달 누적</th><th>전기 사용량 계산 결과</th><th>수도 검침량</th><th>수도 요금 총계</th><th>수납 상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 방금 입력하고 목록에서 사라진 방들이 여기 쌓여서 눈대중 대조 가능 -->
+                        <tr>
+                            <td>5501</td><td><b>103호</b></td><td>18,420 kWh</td><td style="color: blue; font-weight: bold;">310 kWh</td><td>18 톤</td><td>24,500원</td><td><span style="color:red;">미납(고지대기)</span></td>
+                        </tr>
+                        <tr>
+                            <td>5500</td><td><b>102호</b></td><td>12,110 kWh</td><td style="color: blue; font-weight: bold;">240 kWh</td><td>22 톤</td><td>31,200원</td><td><span style="color:red;">미납(고지대기)</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+    </div>
+
+</body>
+</html>

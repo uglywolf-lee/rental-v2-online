@@ -1,0 +1,10 @@
+Commit: f82f26a0452ff232517a03df346f1a9ed5509ce0
+TS: 1784442428
+Msg: fix:FIELDS.md Bills bill_type gas_communication Dinterface expansion
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 15:27:08 2026 +0900
+
+    fix:FIELDS.md Bills bill_type gas_communication Dinterface expansion
+
+FIELDS.md

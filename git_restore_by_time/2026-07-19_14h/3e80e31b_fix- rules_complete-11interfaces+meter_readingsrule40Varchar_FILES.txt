@@ -1,0 +1,10 @@
+Commit: 3e80e31b085a2f95a077cec410cac44e22c5e005
+TS: 1784439460
+Msg: fix: rules_complete-11interfaces+meter_readingsrule40Varchar2EMP-001usersemployee_no
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 14:37:40 2026 +0900
+
+    fix: rules_complete-11interfaces+meter_readingsrule40Varchar2EMP-001usersemployee_no
+
+rules.html

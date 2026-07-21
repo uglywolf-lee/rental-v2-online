@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>부동산 자산 및 호실 관리 (엑셀 통합형)</title>
+    <style>
+        :root { --primary: #28a745; --border: #dee2e6; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; background: var(--bg); }
+        .left-panel { width: 35%; background: white; border-right: 1px solid var(--border); padding: 25px; overflow-y: auto; box-sizing: border-box; }
+        .right-panel { width: 65%; padding: 20px; display: flex; flex-direction: column; box-sizing: border-box; background: white; }
+        .panel-title { font-size: 1.1rem; color: var(--primary); margin: 0 0 20px 0; border-bottom: 2px solid var(--primary); padding-bottom: 8px; font-weight: bold; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: #495057; }
+        .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.88rem; box-sizing: border-box; }
+        .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn-box { margin-top: 15px; display: flex; gap: 8px; }
+        .btn { flex: 1; padding: 10px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-main { background: var(--primary); color: white; }
+        .btn-sub { background: #6c757d; color: white; }
+        /* 엑셀 스타일 시트 정의 */
+        .excel-table-wrap { flex: 1; overflow: auto; border: 1px solid #bbc4cc; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 6px 8px; font-weight: 600; position: sticky; top: 0; text-align: left; color: #212529; }
+        td { border: 1px solid #ced4da; padding: 6px 8px; white-space: nowrap; }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        tr:hover { background-color: #e8f4fd; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="panel-title">🏠 A. 부동산자산/호실 인프라등록</div>
+        <form onsubmit="event.preventDefault();">
+            <div class="form-group">
+                <label>건물현장 고유명칭 (buildings.name)</label>
+                <input type="text" class="form-control" placeholder="예: 구로 디지털 타워 A동" required>
+            </div>
+            <div class="form-group">
+                <label>실제 지번/도로명 주소 (buildings.address)</label>
+                <input type="text" class="form-control" placeholder="식별 및 연동 주소 입력" required>
+            </div>
+            <div class="row-grid">
+                <div class="form-group">
+                    <label>총 층수 (buildings.floors)</label>
+                    <input type="number" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>전체 호실 수 (buildings.rooms_count)</label>
+                    <input type="number" class="form-control">
+                </div>
+            </div>
+            <hr style="border:0; border-top:1px dashed var(--border); margin:15px 0;">
+            <div class="row-grid">
+                <div class="form-group">
+                    <label>배정 층수 (rooms.floor_no)</label>
+                    <input type="number" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>호실 번호 (rooms.room_no)</label>
+                    <input type="text" class="form-control" placeholder="예: 101호">
+                </div>
+            </div>
+            <div class="row-grid">
+                <div class="form-group">
+                    <label>전용 면적 ㎡ (rooms.area_sqm)</label>
+                    <input type="number" step="0.001" class="form-control" placeholder="소수점 3자리">
+                </div>
+                <div class="form-group">
+                    <label>현재 가용 상태 (current_room_status)</label>
+                    <select class="form-control">
+                        <option>비어있다</option>
+                        <option>입주중</option>
+                        <option>리모델링</option>
+                    </select>
+                </div>
+            </div>
+            <div class="btn-box">
+                <button type="submit" class="btn btn-main">신규 자산 등록</button>
+                <button type="button" class="btn btn-sub">현황 변경 (수정)</button>
+            </div>
+        </form>
+    </div>
+    <div class="right-panel">
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px;">
+            <input type="text" class="form-control" placeholder="주소 또는 자산 마스터 키워드로 검색...">
+            <button class="btn btn-main" style="flex:none; width:80px;">시트 조회</button>
+        </div>
+        <div class="excel-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>No.</th><th>건물명</th><th>주소</th><th>층수</th><th>호실ID</th><th>면적 (㎡)</th><th>상태</th><th>활성화</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td><td>구로 테크노타운</td><td>서울시 구로구 디지털로 30길 12</td><td>2</td><td>201호</td><td>84.320</td><td>입주중</td><td>1</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

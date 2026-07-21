@@ -1,0 +1,10 @@
+Commit: 5f465a6ebe2292fb758927969a13545bbb274802
+TS: 1784314909
+Msg: database_schema.sql 추가: 층수/호실 unique index | rules.html: 규칙 페이지 생성
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sat Jul 18 04:01:49 2026 +0900
+
+    database_schema.sql 추가: 층수/호실 unique index | rules.html: 규칙 페이지 생성
+
+rules.html

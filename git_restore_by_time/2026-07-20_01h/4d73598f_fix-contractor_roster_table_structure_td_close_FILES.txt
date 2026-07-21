@@ -1,0 +1,10 @@
+Commit: 4d73598f70434514b8428992f71d09d1e48a538a
+TS: 1784479594
+Msg: fix:contractor_roster_table_structure_td_close
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 01:46:34 2026 +0900
+
+    fix:contractor_roster_table_structure_td_close
+
+contractor_roster.html

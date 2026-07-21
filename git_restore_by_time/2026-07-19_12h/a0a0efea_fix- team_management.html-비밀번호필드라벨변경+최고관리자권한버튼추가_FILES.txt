@@ -1,0 +1,10 @@
+Commit: a0a0efeaa9bdd840f0a805c95a4436d9803d447b
+TS: 1784430627
+Msg: fix: team_management.html-비밀번호필드라벨변경+최고관리자권한버튼추가
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 12:10:27 2026 +0900
+
+    fix: team_management.html-비밀번호필드라벨변경+최고관리자권한버튼추가
+
+team_management.html

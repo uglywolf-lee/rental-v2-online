@@ -1,0 +1,12 @@
+Commit: 69ae2c158bb51c59bda1116006be740c20e5957b
+TS: 1784449853
+Msg: feat:rules_html_update real_estate_system_spec
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 17:30:53 2026 +0900
+
+    feat:rules_html_update real_estate_system_spec
+
+RULES_VIEWER.html
+rules.html
+spec_data.js

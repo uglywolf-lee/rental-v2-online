@@ -1,0 +1,12 @@
+Commit: 2af3cfff146bbcff26280f12df7c42f97a6b9e44
+TS: 1784446941
+Msg: feat:rules_html_split spec_data_js MD_viewer
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Sun Jul 19 16:42:21 2026 +0900
+
+    feat:rules_html_split spec_data_js MD_viewer
+
+interfaces.html
+rules.html
+spec_data.js

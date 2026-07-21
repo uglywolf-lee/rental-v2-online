@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>부동산관리시스템 통합메인</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    margin-top: 64px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ===== 최상단 상단바 ===== */
+  #topBar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 64px; z-index: 9999;
+    background: linear-gradient(90deg, #1a1f36 0%, #2d3561 50%, #1a1f36 100%);
+    box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px;
+    border-bottom: 3px solid #3498db;
+  }
+
+  /* 로고영역 */
+  .logo-area {
+    display: flex; align-items: center; gap: 12px; min-width: 220px;
+  }
+  .logo-icon {
+    width: 42px; height: 42px; border-radius: 8px;
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: white; box-shadow: 0 2px 8px rgba(52,152,219,.4);
+  }
+  .logo-text {
+    color: #ecf0f1; font-size: 18px; font-weight: 700; letter-spacing: -.5px;
+  }
+
+  /* 중앙 메뉴 */
+  .menu-area {
+    display: flex; align-items: center; gap: 6px; flex: 1; justify-content: center;
+    overflow-x: auto; padding: 8px 0;
+  }
+  .menu-btn {
+    color: #bdc3c7 !important; text-decoration: none; padding: 8px 14px; border-radius: 6px;
+    font-size: 13.5px; white-space: nowrap; background: transparent;
+    border: 1px solid transparent; transition: all .2s ease; cursor: pointer;
+    position: relative; overflow: hidden;
+  }
+  .menu-btn:hover {
+    background: rgba(52,152,219,.15); color: #ecf0f1 !important; border-color: rgba(52,152,219,.4); transform: translateY(-1px);
+  }
+  .menu-btn.active {
+    background: linear-gradient(135deg, #3498db, #2c85d1) !important; color: white !important;
+    border-color: #2980b9; box-shadow: 0 3px 12px rgba(52,152,219,.4); font-weight: 600;
+  }
+
+  /* 우측 사용자영역 */
+  .user-area {
+    display: flex; align-items: center; gap: 12px; min-width: 240px; justify-content: flex-end;
+  }
+  #empBadge {
+    background: rgba(46,204,113,.15); color: #2ecc71; padding: 6px 10px; border-radius: 20px;
+    font-size: 12.5px; border: 1px solid rgba(46,204,113,.3); white-space: nowrap;
+  }
+  #creatorBadge {
+    background: rgba(155,89,182,.15); color: #9b59b6; padding: 6px 10px; border-radius: 20px;
+    font-size: 11px; border: 1px solid rgba(155,89,182,.3); white-space: nowrap; display: none;
+  }
+  .logout-btn {
+    color: #e74c3c !important; background: transparent; border: 1.5px solid #c0392b;
+    padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    transition: all .2s ease; display: flex; align-items: center; gap: 4px;
+    white-space: nowrap;
+  }
+  .logout-btn:hover {
+    background: #c0392b; color: white !important; border-color: #e74c3c; transform: scale(1.05);
+  }
+
+  /* ===== [★ 버그 수정] iframe 화면전체채우기 ===== */
+  #mainFrame { 
+    position: fixed; top: 64px; left: 0; right: 0 ; bottom: 0;
+    width: 100%; height: calc(100vh - 64px); border: none; background:white;
+  }
+</style>
+</head>
+<body>
+
+<div id="topBar">
+  <!-- 로고영역 -->
+  <div class="logo-area">
+    <div class="logo-icon">🏢</div>
+    <div class="logo-text">부동산관리시스템</div>
+  </div>
+
+  <!-- 중앙 메뉴 (동적생성) -->
+  <div id="menuArea" class="menu-area"></div>
+
+  <!-- 우측 사용자영역 -->
+  <div class="user-area">
+    <span id="empBadge">EMP-001님</span>
+    <span id="creatorBadge">🛠️ 제작자모드</span>
+    <button class="logout-btn" onclick="window.authModule.logout()">
+      <span>⏻</span> 로그아웃
+    </button>
+  </div>
+</div>
+
+<!-- 메인 iframe (CSS 보완 적용) -->
+<iframe id="mainFrame" src="g_h_i_dashboard.html"></iframe>
+
+<script src="auth.js"></script>
+<script>
+(function(){
+  var user = window.authModule.checkLogin();
+  if (!user.loggedIn) return;
+
+  var role = user.role;
+  var emp = user.emp || 'EMP-001';
+  var btns = window.authModule.getButtonsByRole(role);
+
+  var mainFrame = document.getElementById('mainFrame');
+  var menuArea = document.getElementById('menuArea');
+
+  // 상단바에 메뉴 동적 생성
+  btns.forEach(function(b){
+    var a = document.createElement('a');
+    a.href = 'javascript:void(0)';
+    a.className = 'menu-btn';
+    a.textContent = b.l;
+    
+    // 현재 iframe 주소와 페이지명이 일치하면 active 활성화 마킹
+    if(mainFrame.src.indexOf(b.p) !== -1) a.classList.add('active');
+    
+    // 클릭 시 iframe 내부 뷰포트 전환 결합
+    a.onclick = function(){ window.loadPage(b.p, this); };
+    menuArea.appendChild(a);
+  });
+
+  // 제작자 모드 배지 노출 처리
+  if(window.authModule.isCreatorBypass) {
+    document.getElementById('creatorBadge').style.display = 'inline-block';
+  }
+
+  // 사용자 사번 실명 바인딩
+  document.getElementById('empBadge').textContent = emp + '님';
+
+  // 탭 클릭 시 active 클래스 스위칭 처리 함수
+  window.loadPage = function(page, obj) {
+    mainFrame.src = page;
+    var allBtns = document.querySelectorAll('.menu-btn');
+    for(var i=0; i<allBtns.length; i++) allBtns[i].classList.remove('active');
+    if(obj) obj.classList.add('active');
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+Commit: fbced2daeb4ad40d75b00c12236c3d2e6c623044
+TS: 1784522998
+Msg: feat:add_partner_roster_page_and_nav_button
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 13:49:58 2026 +0900
+
+    feat:add_partner_roster_page_and_nav_button
+
+auth.js
+contractor_roster.html
+partner_roster.html

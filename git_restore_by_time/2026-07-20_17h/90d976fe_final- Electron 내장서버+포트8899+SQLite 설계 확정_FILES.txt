@@ -1,0 +1,18 @@
+Commit: 90d976fe1c73207e3bd936be306faf7e30ceae6d
+TS: 1784534600
+Msg: final: Electron 내장서버+포트8899+SQLite 설계 확정
+Files:
+Author: uglywolf-lee <uglywolf@gmail.com>
+Date:   Mon Jul 20 17:03:20 2026 +0900
+
+    final: Electron 내장서버+포트8899+SQLite 설계 확정
+    
+    - RULES.md Section 0 — 실행방식/포트/DB저장소 완전 변경(Electron 내장서버, 포트8899)
+    - interfaces.html 상단 동일 아키텍처 정의 + 포트선정이유 명시
+    - server/main_server.js 신규 — Electron 앱+HTTP엔진+SQLite테이블생성+브라우저기동 전체구현
+    - db.js — ModeA(인덱스DB)/ModeB(GoogleSheets) 분리 엔진 + export/import
+    - GOOGLE_SHEETS_SETUP_GUIDE.md 신규 — 두가지 설정 가이드 추가
+
+RULES.md
+interfaces.html
+server/main_server.js
