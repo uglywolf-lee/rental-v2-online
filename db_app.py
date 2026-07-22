@@ -120,14 +120,14 @@ class Handler(SimpleHTTPRequestHandler):
             
             conn=get_db()
             if building_id and building_id != 'all':
-                query_str = "SELECT r.id,b.name,r.floor_no,r.room_no,r.area_sqm,r.current_room_status FROM rooms r JOIN buildings b ON r.building_id=b.id WHERE r.building_id=? ORDER BY r.building_id,r.floor_no,r.room_no"
+                query_str = "SELECT r.id, b.name, b.address, r.floor_no, r.room_no, r.area_sqm, r.current_room_status FROM rooms r JOIN buildings b ON r.building_id=b.id WHERE r.building_id=? ORDER BY r.building_id,r.floor_no,r.room_no"
                 rows = conn.execute(query_str,(building_id,)).fetchall()
             else:
-                query_str = "SELECT r.id,b.name,r.floor_no,r.room_no,r.area_sqm,r.current_room_status FROM rooms r JOIN buildings b ON r.building_id=b.id ORDER BY r.building_id,r.floor_no,r.room_no"
+                query_str = "SELECT r.id, b.name, b.address, r.floor_no, r.room_no, r.area_sqm, r.current_room_status FROM rooms r JOIN buildings b ON r.building_id=b.id ORDER BY r.building_id,r.floor_no,r.room_no"
                 rows = conn.execute(query_str).fetchall()
             conn.close()
             
-            result = [{'id':r[0],'building_name':r[1],'floor':r[2],'room':r[3],'area':r[4],'status':r[5]} for r in rows]
+            result = [{'id':r[0],'building_name':r[1],'building_address':r[2],'floor':r[3],'room':r[4],'area':r[5],'status':r[6]} for r in rows]
             return self.json_response(200, result if result else [])
 
         # === /api/v1/rooms (POST - 등록) ===
@@ -173,8 +173,6 @@ class Handler(SimpleHTTPRequestHandler):
             email= data.get('email','')
             
             if not name: return self.json_response(400,{'error':'이름 필수'})
-            if len(phone) != 11 or not phone.isdigit():
-                return self.json_response(400,{'error':'연락처 형태 오류 (NN-NNNN-NNNN 권장)'})
             
             conn=get_db()
             cur=conn.execute("INSERT INTO contacts(category,company_or_name,representative_name,contact_info,email) VALUES(?,?,?,?,?)",(cat,name,rep,phone,email))
@@ -185,12 +183,13 @@ class Handler(SimpleHTTPRequestHandler):
         elif path == '/api/v1/contracts' and method=='GET':
             conn=get_db()
             rows = conn.execute("""
-                SELECT c.id,c.room_id,c.host_address_full,c.lease_type,
-                       c.deposit_amount,c.monthly_rent,c.maintenance_fee,c.commission_fee,
-                       c.start_date,c.end_date,c.documents_json,c.broker_id,
-                       r.floor_no,r.room_no,s.company_or_name
+                SELECT c.id, c.room_id, c.host_address_full, c.lease_type,
+                       c.deposit_amount, c.monthly_rent, c.maintenance_fee, c.commission_fee,
+                       c.start_date, c.end_date, c.documents_json, c.broker_id,
+                       r.floor_no, r.room_no, s.company_or_name, b.name AS building_name, b.address AS building_address
                 FROM contracts c 
                 LEFT JOIN rooms r ON c.room_id=r.id 
+                LEFT JOIN buildings b ON r.building_id=b.id
                 LEFT JOIN contacts s ON c.tenant_contact_id=s.id
                 ORDER BY c.id DESC
             """).fetchall()
@@ -203,7 +202,8 @@ class Handler(SimpleHTTPRequestHandler):
                     'monthly_rent':r[5] if r[5] else 0,'maintenance_fee':r[6] if r[6] else 0,
                     'commission_fee':r[7] if r[7] else 0,'start_date':r[8],'end_date':r[9],
                     'documents_json':r[10] if r[10] else '[]','broker_id':r[11],
-                    'floor_no':r[12],'room_no':r[13],'tenant_name':r[14]
+                    'floor_no':r[12],'room_no':r[13],'tenant_name':r[14],
+                    'building_name':r[15] if r[15] else '','building_address':r[16] if r[16] else ''
                 })
             return self.json_response(200, result)
 
@@ -215,16 +215,26 @@ class Handler(SimpleHTTPRequestHandler):
                 data = json.loads(body)
             except: return self.json_response(400,{'error':'JSON parsing failed'})
 
-            room_id     = data.get('room_info')                  # contract_master uses room_info for room ref
-            owner_cid   = int(data.get('owner_contact_id',2))
-            tenant_cid  = int(data.get('tenant_contact_id','0') or 0)
-            broker_id   = int(data.get('broker_id','0') or 0)
+            # 안전한 정수형 변환 (예외 발생 차단)
+            try: room_id = int(data.get('room_id') or 0)
+            except: room_id = 0
+            
+            try: owner_cid = int(data.get('owner_contact_id', 1) or 1)
+            except: owner_cid = 1
+            
+            try: tenant_cid = int(data.get('tenant_contact_id', 0) or 0)
+            except: tenant_cid = 0
+            
+            try: broker_id = int(data.get('broker_id', 0) or 0)
+            except: broker_id = 0
+
+            room_no     = str(data.get('room_no','') or '')
             host_addr   = data.get('host_address_full','')
             lease_type  = str(data.get('lease_type','월세'))
             deposit     = int(data.get('deposit_amount',0) or 0)
             monthly     = int(data.get('monthly_rent',0) or 0)
-            maint_fee   = int(data.get('maintenance_fee','0') or 0)
-            comm_fee    = int(data.get('commission_fee','0') or 0)
+            maint_fee   = int(data.get('maintenance_fee',0) or 0)
+            comm_fee    = int(data.get('commission_fee',0) or 0)
             s_date      = str(data.get('start_date',''))
             e_date      = str(data.get('end_date',''))
             docs_json   = data.get('documents_json') or '[]'
@@ -236,10 +246,10 @@ class Handler(SimpleHTTPRequestHandler):
 
             conn = get_db()
             cur = conn.execute("""
-                INSERT INTO contracts(room_id,host_address_full,owner_contact_id,tenant_contact_id,broker_id,
+                INSERT INTO contracts(room_id,host_address_full,owner_contact_id,tenant_contact_id,broker_id,room_no,
                                       lease_type,deposit_amount,monthly_rent,maintenance_fee,commission_fee,
                                       start_date,end_date,documents_json,is_active)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",(room_id, host_addr, owner_cid, tenant_cid, broker_id,
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",(room_id, host_addr, owner_cid, tenant_cid, broker_id, room_no,
                         lease_type, deposit, monthly, maint_fee, comm_fee, s_date, e_date, docs_json))
             cid = cur.lastrowid; conn.commit(); conn.close()
             return self.json_response(201,{'id':cid,'message':'계약서 등록 완료'})

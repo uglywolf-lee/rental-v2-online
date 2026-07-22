@@ -151,8 +151,12 @@
             
             <div class="grid-2col">
                 <div class="form-group">
-                    <label>호실 번호</label>
-                    <input type="text" id="f_roomInfo" class="form-control" required placeholder="예시: C동 102호">
+                    <label>호실 선택</label>
+                    <select id="f_roomId" class="form-control" required onchange="onRoomSelect()">
+                        <option value="">— 호실 선택 —</option>
+                    </select>
+                    <!-- 순수 원본 룸넘버 보관용 hidden 필드 -->
+                    <input type="hidden" id="f_selectedRoomInfo" value="">
                 </div>
                 <div class="form-group">
                     <label>계약 구분 종류</label>
@@ -318,6 +322,54 @@ function showViewer(file, src){
     r.readAsDataURL(file);
 }
 
+// === rooms API 연동 ===
+var ALL_ROOMS = [];
+
+async function loadRooms(){
+    try {
+        var res = await fetch('/api/v1/rooms');
+        ALL_ROOMS = await res.json() || [];
+        
+        var sel = document.getElementById('f_roomId');
+        sel.innerHTML = '<option value="">— 호실 선택 —</option>';
+        
+        for (var i = 0, len = ALL_ROOMS.length; i < len; i++){
+            var rm = ALL_ROOMS[i];
+            if (!rm.id) continue;
+            
+            var opt = document.createElement('option');
+            opt.value = rm.id; // rooms.id (PK)
+            
+            var roomNoStr = rm.room || rm.room_no || '';
+            var buildingNameStr = rm.building_name || '';
+            opt.textContent = (buildingNameStr + ' ' + roomNoStr).trim();
+            sel.appendChild(opt);
+        }
+    } catch(e) {
+        console.warn('[rooms load 실패]', e);
+    }
+}
+
+// 호실 선택 시: API에서 전달된 원본 room_no 값을 가공 없이 그대로 세팅
+function onRoomSelect(){
+    var selVal = document.getElementById('f_roomId').value;
+    var idx = parseInt(selVal, 10);
+    
+    if (!idx) {
+        document.getElementById('f_selectedRoomInfo').value = '';
+        return;
+    }
+
+    var rm = ALL_ROOMS.find(function(r){ return r.id == idx; });
+    if (rm) {
+        document.getElementById('f_selectedRoomInfo').value = (rm.room || rm.room_no || '').toString();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+    loadRooms();
+});
+
 function searchBroker(){
     var kw = document.getElementById('f_brokerSearch').value.trim();
     if(!kw){
@@ -363,72 +415,104 @@ function searchBroker(){
     }
 }
 
-function collectForm(){
-    return {
-        special_terms: document.getElementById('f_specialTerms').value.trim(),
-        tenant_contact_id: document.getElementById('f_tenantRep').value.trim(),
-        room_info: document.getElementById('f_roomInfo').value.trim(),
-        lease_type: document.getElementById('f_leaseType').value,
-        deposit_amount: parseInt(document.getElementById('f_deposit').value) || 0,
-        monthly_rent: parseInt(document.getElementById('f_monthlyRent').value) || 0,
-        maintenance_fee: parseInt(document.getElementById('f_maintenanceFee').value) || 0,
-        commission_fee: parseInt(document.getElementById('f_commissionFee').value) || 0,
-        start_date: document.getElementById('f_startDate').value,
-        end_date: document.getElementById('f_endDate').value,
-        documents_json: JSON.stringify([{type:'주민증앞면', name:_idPath || null}, {type:'계약서원본', name:_ctrPath || null}]),
-        broker_id: parseInt(document.getElementById('f_brokerId').value) || 0,
-        host_address_full: document.getElementById('f_roomInfo').value.trim() + ' 실제 점유지 입주일',
-        created_at: new Date().toISOString().replace('T',' ').slice(0,19)
-    };
-}
+async function saveContract(){
+    var roomIdVal = parseInt(document.getElementById('f_roomId').value, 10);
+    if (!roomIdVal) {
+        alert('❌ 호실을 선택해 주세요.');
+        document.getElementById('f_roomId').focus();
+        return;
+    }
 
-function saveContract(){
-    var d = collectForm();
-    if(!d.start_date || !d.end_date){
+    var startDate = document.getElementById('f_startDate').value;
+    var endDate = document.getElementById('f_endDate').value;
+    if (!startDate || !endDate) {
         alert('❌ 계약 일정 시작일 및 종료일자는 필수 기입 데이터입니다.');
         return;
     }
-    
-    var checkValue = d.deposit_amount + d.monthly_rent;
-    if(checkValue <= 0){
+
+    var deposit = parseInt(document.getElementById('f_deposit').value, 10) || 0;
+    var monthly = parseInt(document.getElementById('f_monthlyRent').value, 10) || 0;
+    if (deposit + monthly <= 0) {
         alert('❌ 보증금 재원 혹은 월세 임대료 중 하나는 반드시 입력되어야 합니다.');
         return;
     }
 
-    console.log('[R7/R18 감사로그 추적 기록 시스템 실행 - audit_logs]');
-    console.log('상세로그내역JSON: ', JSON.stringify(d));
+    // 1. 임차인 정보 contacts 테이블에 먼저 INSERT하여 FK(id) 취득
+    var tenantName = document.getElementById('f_tenantName').value.trim();
+    var tenantPhone = document.getElementById('f_tenantPhone').value.trim();
+    var tenantRep = document.getElementById('f_tenantRep').value.trim();
+    var tenantEmail = document.getElementById('f_tenantEmail').value.trim();
 
-    // API POST 연동
-    fetch('/api/v1/contracts', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-            room_info: d.room_info,
-            host_address_full: d.host_address_full,
-            lease_type: d.lease_type,
-            deposit_amount: d.deposit_amount,
-            monthly_rent: d.monthly_rent,
-            maintenance_fee: d.maintenance_fee,
-            commission_fee: d.commission_fee,
-            start_date: d.start_date,
-            end_date: d.end_date,
-            documents_json: d.documents_json,
-            broker_id: d.broker_id,
-            tenant_contact_id: d.tenant_contact_id || 0,
-            owner_contact_id: d.owner_contact_id || 1
-        })
-    })
-    .then(r => r.json())
-    .then(res => {
-        if(res.id){
-            alert('✅ 계약서 마스터 인서트 성공!\\n\\n계약 ID: ' + res.id + '\\n임차인명: ' + document.getElementById('f_tenantName').value + '\\n구분: ' + d.lease_type + '\\n보증금: ' + d.deposit_amount.toLocaleString() + '원\\n월세료: ' + d.monthly_rent.toLocaleString() + '원\\n관리비: ' + d.maintenance_fee.toLocaleString() + '원');
-        } else {
-            alert('❌ 계약서 등록 실패: ' + (res.error || JSON.stringify(res)));
+    var tenantContactId = 0;
+    if (tenantName) {
+        try {
+            var cRes = await fetch('/api/v1/contacts', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    category: 'tenant',
+                    company_or_name: tenantName,
+                    representative_name: tenantRep || tenantName,
+                    contact_info: tenantPhone || '010-0000-0000',
+                    email: tenantEmail
+                })
+            });
+            var cData = await cRes.json();
+            if (cData.id) {
+                tenantContactId = cData.id;
+            }
+        } catch(e) {
+            console.warn('[contacts 연동 실패]', e);
         }
-    })
-    .catch(e => {
+    }
+
+    // 2. 호실 및 주소 정보 수집 (가공 없는 원본 결합)
+    var selectedRoom = ALL_ROOMS.find(function(r){ return r.id == roomIdVal; }) || {};
+    
+    // 순수 원본 room_no
+    var roomNoVal = document.getElementById('f_selectedRoomInfo').value.trim();
+    if (!roomNoVal && selectedRoom) {
+        roomNoVal = (selectedRoom.room || selectedRoom.room_no || '').toString().trim();
+    }
+
+    // [도로명 주소] + [공백 1칸] + [건물명] 정직하게 결합
+    var realAddress = (selectedRoom.building_address || '').trim();
+    var buildingName = (selectedRoom.building_name || '').trim();
+    var fullAddress = [realAddress, buildingName].filter(Boolean).join(' ');
+
+    var payload = {
+        room_id: roomIdVal,                             // rooms.id (PK)
+        room_no: roomNoVal,                             // 원본 룸넘버
+        host_address_full: fullAddress,                 // 도로명 주소 + 건물명
+        lease_type: document.getElementById('f_leaseType').value,
+        deposit_amount: deposit,
+        monthly_rent: monthly,
+        maintenance_fee: parseInt(document.getElementById('f_maintenanceFee').value, 10) || 0,
+        commission_fee: parseInt(document.getElementById('f_commissionFee').value, 10) || 0,
+        start_date: startDate,
+        end_date: endDate,
+        documents_json: JSON.stringify([{type:'주민증앞면', name:_idPath || null}, {type:'계약서원본', name:_ctrPath || null}]),
+        broker_id: parseInt(document.getElementById('f_brokerId').value, 10) || 0,
+        tenant_contact_id: tenantContactId,             // 정수형 FK 전달
+        owner_contact_id: 1,
+        special_terms: document.getElementById('f_specialTerms').value.trim()
+    };
+
+    try {
+        var res = await fetch('/api/v1/contracts', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+        var resJson = await res.json();
+        if(resJson.id){
+            alert('✅ 계약서 마스터 저장 성공! (계약 ID: ' + resJson.id + ')');
+        } else {
+            alert('❌ 계약서 등록 실패: ' + (resJson.error || JSON.stringify(resJson)));
+        }
+    } catch(e) {
         alert('❌ API 통신 오류: ' + e.message);
-    });
+    }
 }
 
 function resetAll(){
