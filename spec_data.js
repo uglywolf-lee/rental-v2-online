@@ -47,15 +47,15 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 ### incidents (유지보수 신고) - 최종본 DDL
 * id(Integer/AI), room_id(INTEGER/FK), category(TEXT), reported_at(TEXT/신고일시), completed_at(TEXT/완료일시), description(TEXT), reported_by_name(VARCHAR/담당자실명DB저장용)
 * estimated_cost(INTEGER), status(TEXTDEFAULT'접수중'), photos_json(TEXT)
-**note**: DB에reported_by_id(users.id FK없음. 실명만저장. users테이블존재안함.**
+**node**: DB에reported_by_id(users.id FK없음. 실명만저장. users테이블존재안함.**
 
 ## 3. TEAM_MEMBERS (contacts.category='staff')
-* **별도테이블아니고contacts로동적관리.** DB는 contacts.category=staff 로 필터.
+* **별도테이블아니고contacts로동적관리.** DB는 contacts.category==staff 로 필터.
 * UI(team_management.html): 사번(employee_no→representative_name), 실명(company_or_name), 비밀번호(password_hash), role(role)
 
 ## 4. API_SPECIFICATION (db_app_484줄최종본) - 최종확정본
 ### 인증/AUTH_FLOW
-+ **/api/v1/auth** POST → 무조건 {success:true,token:'master_bypass_token',role:'super_admin',emp:'EMP-001',name:'김자산(최상위관리자)'}반환. DB검증없이모든로그인승인. 백도어용도어로이유로안바꾸는것이다 **서버에서** 고정됨 (db_app.py #217)
++ **/api/v1/auth** POST → 무조건 {success:true,token:'master_bypass_token',role:'super_admin',emp:'EMP-001',name:'김자산(최상위관리자)'}반환. DB검증없이모든로그인승인. 백도어용도로이유로안바꾸는것이다 **서버에서** 고정됨 (db_app.py #217)
 * GET /?access=master_sys_884621 → 서버내부 바이패스토큰
 
 ### REST API Endpoints
@@ -63,13 +63,13 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 |----------|--------|-------------|
 | /api/v1/buildings | GET/POST | 건물목록 조회/신규등록 |
 | /api/v1/rooms | GET/POST 호실조회/신규 등록 |
-| /api/v1/contacts?category=X | GET | contacts 목록 (필터링가능). category별테이블분리아님**동적데이터** |
-| /api/v1/contacts | POST | INSERT신규등록 OR ID기반 UPDATE role/pasword_hash/update지원 **is_active변경도포함**|
+| /api/v1/contacts?category=X | GET | contacts 목록 (필터링가능). category별테이블분리아님**동적데이터**|
+| /api/v1/contacts | POST | INSERT신규등록 OR ID기반 UPDATE role/pasword_hash/update지원 **is_active변경도제공**|
 | /api/v1/bills | GET/POST 공과금 고지목록 조회/등록 (elec_usage/water_cost/gas_cost/net_cost/due_date/status) |
 | /api/v1/incidents | GET/POST incidents CRUD + estimated_cost추적 |
-| /api/v1/contracts | GET/POST contracts CRUD+UPDATE special_terms지원 |
+| /api/v1/contracts | GET/POST contracts CRUD+UPDATE special_terms지원
 
-### API_HEADERS_REQ (Content-Type:application/json)
+### API_HEADERS_REQ (Content-Type:application/json) 
 
 ## 5. INTERFACE_MAPPING (db_app.py 연동확인완료본)
 * [A] 부동산 관리 (interface-a.html): buildings.name/address+rooms.room/floor 검색연동.GET/api/v1/buildings(name,address,floors,rooms_count,is_active)·POST /api/v1/rooms{building_name,floor,room,area,status}._duplicate 체크:buildings name+address조합으로기존건물이면 rooms만 insert.
@@ -79,7 +79,7 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 * [E] 월세 납부: 수납 요약, 보증금 반환 정산, bills.status 수납 확인 처리 및 미납 리스트 자동 추출.
 * [F] 유지보수 신고: 파손신고 접수, 상태값 변경 및 incidents.estimated_cost 수리비 추적 정산.
 * [G/H/I] 실무 대시보드: 월세 총합/만기/갱신 현황 통합 시각화. 행별 메모장 (contracts.special_terms에저장-UPDATE API로반환)자동저장(R35). 권한별 차등 격리.
-* [J] 팀원 관리 (team_management.html): contacts.category='staff'동적처리. 사번식별자고정, 패스워드최소6자 검증(R40).
+* [J] 팀원 관리 (team_management.html): contacts.category=='staff'동적처리. 사번식별자고정, 패스워드최소6자 검증(R40).
 * contacts에role/is_active필드추가완료. role: 'super_admin'|'office_worker'|'maintenance_staff', is_active=1활성/0정지
 
 `;
