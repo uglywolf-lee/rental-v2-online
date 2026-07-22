@@ -19,7 +19,7 @@
         body { 
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; 
             display: flex; 
-            height: calc(100vh - 64px); 
+            height: 100vh; 
             overflow-y: auto; 
             background-color: var(--bg); 
         }
@@ -68,7 +68,7 @@
                 <div class="form-group">
                     <label>구분</label>
                     <select class="form-control" id="partnerCategory" required>
-                        <option value="broker">중개사</option>
+                        <option value="broker" selected>중개사</option>
                         <option value="partner">일반 협력사</option>
                     </select>
                 </div>
@@ -107,8 +107,8 @@
             <div class="form-group">
                 <label>사업자등록증 / 신분증 사본</label>
                 <div class="doc-card">
-                    <div class="doc-card-title">📄 증빙 서류 업로드</div>
-                    <input type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                    <div class="doc-card-title">📄 증빙 서류 업로드 (USB 저장)</div>
+                    <input type="file" id="partnerDocFile" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
                 </div>
             </div>
 
@@ -125,15 +125,6 @@
             </div>
             
             <div class="row-grid-2">
-                <div class="form-group">
-                    <label>호실 필터</label>
-                    <select class="form-control" id="roomFilter" onchange="searchPartner()">
-                        <option value="">(전체)</option>
-                        <option value="A">A동</option>
-                        <option value="B">B동</option>
-                        <option value="C">C동</option>
-                    </select>
-                </div>
                 <div class="form-group">
                     <label>구분 필터</label>
                     <select class="form-control" id="typeFilter" onchange="searchPartner()">
@@ -156,20 +147,14 @@
                         <th>상호명 / 법인명</th>
                         <th>대표자 성명</th>
                         <th>전화번호</th>
-                        <th>사업자등록번호</th>
+                        <th>이메일</th>
                         <th>업종 / 분류</th>
                         <th>관리</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr onclick="loadToForm(this, '공인중개사 팩토리')">
-                        <td class="cell-text-center" data-val="broker">중개사</td>
-                        <td class="cell-text-center td-company">공인중개사 팩토리</td>
-                        <td class="cell-text-center td-rep">김중개</td>
-                        <td class="cell-num-right td-phone">010-9876-5432</td>
-                        <td class="cell-num-right td-bizno">123-45-67890</td>
-                        <td class="cell-text-center td-biztype">부동산중개</td>
-                        <td class="cell-text-center"><button class="actions-btn" onclick="event.stopPropagation(); loadToForm(this.closest('tr'), '공인중개사 팩토리')">수정</button></td>
+                <tbody id="partnerTbody">
+                    <tr>
+                        <td colspan="7" class="cell-text-center">데이터를 불러오는 중입니다...</td>
                     </tr>
                 </tbody>
             </table>
@@ -177,6 +162,8 @@
     </div>
 
     <script>
+        var ALL_PARTNERS = [];
+
         function validatePhoneFormat(obj) {
             let val = obj.value.replace(/[^0-9]/g, '');
             if (val.length > 3 && val.length <= 7) {
@@ -188,20 +175,65 @@
             }
         }
 
-        function loadToForm(row, companyName) {
-            const rows = document.querySelectorAll('#partnerTable tbody tr');
-            rows.forEach(r => r.classList.remove('selected'));
-            row.classList.add('selected');
+        // 1. 백엔드에서 협력사/중개사 목록 로드 (GET /api/v1/contacts)
+        async function loadPartners() {
+            try {
+                const res = await fetch('/api/v1/contacts');
+                const list = await res.json() || [];
+                
+                // broker 및 partner 카테고리만 필터링
+                ALL_PARTNERS = list.filter(item => item.category === 'broker' || item.category === 'partner');
+                renderPartnerTable(ALL_PARTNERS);
+            } catch(e) {
+                console.error('[협력사 로드 오류]', e);
+            }
+        }
 
-            document.getElementById('partnerId').value = companyName;
-            document.getElementById('partnerCategory').value = row.cells[0].getAttribute('data-val');
-            document.getElementById('partnerCompany').value = row.querySelector('.td-company').innerText;
-            document.getElementById('partnerRepName').value = row.querySelector('.td-rep').innerText;
-            document.getElementById('partnerPhone').value = row.querySelector('.td-phone').innerText;
-            document.getElementById('partnerBizNo').value = row.querySelector('.td-bizno').innerText;
-            document.getElementById('partnerBizType').value = row.querySelector('.td-biztype').innerText;
-            
-            document.getElementById('formPanelTitle').innerText = `📝 협력사 정보 수정 (${companyName})`;
+        // 2. 우측 테이블 렌더링
+        function renderPartnerTable(list) {
+            const tbody = document.getElementById('partnerTbody');
+            tbody.innerHTML = '';
+
+            if (!list || list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="cell-text-center">등록된 협력사 정보가 없습니다.</td></tr>';
+                return;
+            }
+
+            list.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.onclick = function() { loadToForm(item, tr); };
+
+                const categoryLabel = item.category === 'broker' ? '중개사' : '일반 협력사';
+
+                tr.innerHTML = `
+                    <td class="cell-text-center" data-val="${item.category}">${categoryLabel}</td>
+                    <td class="cell-text-center td-company"><b>${item.company_or_name || item.name || '-'}</b></td>
+                    <td class="cell-text-center td-rep">${item.representative_name || item.rep || '-'}</td>
+                    <td class="cell-num-right td-phone">${item.phone || '-'}</td>
+                    <td class="cell-text-center td-email">${item.email || '-'}</td>
+                    <td class="cell-text-center td-biztype">${item.role || '일반'}</td>
+                    <td class="cell-text-center">
+                        <button class="actions-btn" onclick="event.stopPropagation(); loadToForm(${JSON.stringify(item).replace(/"/g, '&quot;')}, this.closest('tr'))">수정</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 3. 선택한 행의 데이터를 좌측 폼에 바인딩
+        function loadToForm(item, row) {
+            document.querySelectorAll('#partnerTable tbody tr').forEach(r => r.classList.remove('selected'));
+            if(row) row.classList.add('selected');
+
+            document.getElementById('partnerId').value = item.id;
+            document.getElementById('partnerCategory').value = item.category || 'broker';
+            document.getElementById('partnerCompany').value = item.company_or_name || item.name || '';
+            document.getElementById('partnerRepName').value = item.representative_name || item.rep || '';
+            document.getElementById('partnerPhone').value = item.phone || '';
+            document.getElementById('partnerEmail').value = item.email || '';
+            document.getElementById('partnerBizType').value = item.role || '';
+
+            document.getElementById('formPanelTitle').innerText = `📝 협력사 정보 수정 (${item.company_or_name || item.name})`;
             document.getElementById('btnSubmit').innerText = "변경사항 수정 적용";
         }
 
@@ -213,19 +245,69 @@
             document.querySelectorAll('#partnerTable tbody tr').forEach(r => r.classList.remove('selected'));
         }
 
-        function savePartner() {
-            const companyName = document.getElementById('partnerCompany').value;
+        // 4. 협력사 저장 (POST /api/v1/contacts)
+        async function savePartner() {
             const id = document.getElementById('partnerId').value;
-            alert(id ? `[수정 완료] ${companyName} 정보가 갱신되었습니다.` : `[등록 완료] 신규 협력사 등록 완료`);
-            resetForm();
+            const companyName = document.getElementById('partnerCompany').value.trim();
+            const category = document.getElementById('partnerCategory').value;
+            const repName = document.getElementById('partnerRepName').value.trim();
+            const phone = document.getElementById('partnerPhone').value.trim();
+            const email = document.getElementById('partnerEmail').value.trim();
+            const bizType = document.getElementById('partnerBizType').value.trim();
+
+            if (!companyName || !phone) {
+                return alert('❌ 필수 항목(상호명, 전화번호)을 입력해 주세요.');
+            }
+
+            const payload = {
+                category: category,
+                company_or_name: companyName,
+                representative_name: repName,
+                contact_info: phone,
+                email: email,
+                role: bizType
+            };
+
+            if (id) {
+                payload.id = parseInt(id, 10);
+            }
+
+            try {
+                const res = await fetch('/api/v1/contacts', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    alert(id ? `✅ [수정 완료] ${companyName} 정보가 갱신되었습니다.` : `✅ [등록 완료] 신규 협력사 등록 완료`);
+                    resetForm();
+                    loadPartners();
+                } else {
+                    const err = await res.json();
+                    alert('❌ 저장 실패: ' + (err.error || '알 수 없는 오류'));
+                }
+            } catch(e) {
+                alert('❌ 통신 오류: ' + e.message);
+            }
         }
 
+        // 5. 실시간 검색 및 필터
         function searchPartner() {
-            const query = document.getElementById('globalSearchInput').value.toLowerCase();
-            document.querySelectorAll('#partnerTable tbody tr').forEach(row => {
-                row.style.display = row.innerText.toLowerCase().includes(query) ? '' : 'none';
+            const query = document.getElementById('globalSearchInput').value.toLowerCase().trim();
+            const typeVal = document.getElementById('typeFilter').value;
+
+            const filtered = ALL_PARTNERS.filter(item => {
+                const str = ((item.company_or_name || '') + ' ' + (item.representative_name || '') + ' ' + (item.phone || '') + ' ' + (item.role || '')).toLowerCase();
+                const matchQuery = !query || str.includes(query);
+                const matchType = !typeVal || item.category === typeVal;
+                return matchQuery && matchType;
             });
+
+            renderPartnerTable(filtered);
         }
+
+        document.addEventListener('DOMContentLoaded', loadPartners);
     </script>
 </body>
 </html>

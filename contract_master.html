@@ -17,129 +17,49 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        body, input, select, textarea, button { 
-            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; 
-        }
-        
+        body, input, select, textarea, button { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; }
         body { display: flex; height: 100vh; overflow: hidden; background-color: var(--bg); }
 
-        .left-form-panel { 
-            width: 35%; 
-            background: var(--white); 
-            border-right: 1px solid var(--border); 
-            padding: 16px; 
-            overflow-y: auto; 
-            scrollbar-width: thin; 
-        }
-        .right-viewer-panel { 
-            width: 65%; 
-            display: flex; 
-            flex-direction: column; 
-            height: 100%; 
-            background: var(--white); 
-        }
+        .left-form-panel { width: 35%; background: var(--white); border-right: 1px solid var(--border); padding: 16px; overflow-y: auto; }
+        .right-viewer-panel { width: 65%; display: flex; flex-direction: column; height: 100%; background: var(--white); }
 
         .section-sep { border: 0; border-top: 1px dashed var(--border); margin: 14px 0; }
 
         .panel-title { 
-            font-size: 0.95rem; 
-            color: var(--primary); 
-            margin: 14px 0 8px; 
-            padding-bottom: 5px; 
-            border-bottom: 2px solid var(--primary); 
-            font-weight: bold; 
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            font-size: 0.95rem; color: var(--primary); margin: 14px 0 8px; padding-bottom: 5px; 
+            border-bottom: 2px solid var(--primary); font-weight: bold; display: flex; align-items: center; justify-content: space-between; 
         }
         .panel-title:first-child { margin-top: 0; }
-        .panel-title-sub {
-            font-size: 0.72rem;
-            color: var(--text-muted);
-            font-weight: normal;
-        }
+        .panel-title-sub { font-size: 0.72rem; color: var(--text-muted); font-weight: normal; }
 
-        .grid-2col {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 10px;
-            align-items: flex-start;
-        }
-
-        .form-group { 
-            display: flex; 
-            flex-direction: column;
-            gap: 5px;
-        }
-        .form-group>label { 
-            font-size: 0.78rem; 
-            font-weight: 600; 
-            color: var(--text-dark); 
-        }
-        .form-control { 
-            width: 100%; 
-            padding: 7px 10px; 
-            border: 1px solid var(--border); 
-            border-radius: 4px; 
-            font-size: 0.82rem; 
-            box-sizing: border-box; 
-            line-height: 1.4;
-        }
-        .form-control:focus {
-            border-color: var(--primary);
-            outline: none;
-        }
+        .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; align-items: flex-start; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-group>label { font-size: 0.78rem; font-weight: 600; color: var(--text-dark); }
+        .form-control { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.82rem; box-sizing: border-box; line-height: 1.4; }
+        .form-control:focus { border-color: var(--primary); outline: none; }
 
         .flex-box { display: flex; gap: 4px; width: 100%; }
-
         .btn-box { margin-top: 18px; display: flex; gap: 6px; align-items: center; }
         .btn { padding: 10px 12px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; text-align: center; }
-        .btn-main   { background: var(--primary); color: var(--white); flex: 3; }
-        .btn-sub    { background: var(--text-muted); color: var(--white); flex: 1; font-size: 0.8rem; padding: 10px 6px; }
-        .btn-sec    { background: var(--secondary); color: var(--white); padding: 4px 10px; font-size: 0.75rem; white-space: nowrap; border-radius: 4px; }
+        .btn-main { background: var(--primary); color: var(--white); flex: 3; }
+        .btn-sub { background: var(--text-muted); color: var(--white); flex: 1; font-size: 0.8rem; padding: 10px 6px; }
+        .btn-sec { background: var(--secondary); color: var(--white); padding: 4px 10px; font-size: 0.75rem; white-space: nowrap; border-radius: 4px; }
 
         .doc-card { border: 1px solid var(--border); border-radius: 4px; padding: 10px; background: var(--bg); }
         .doc-card-title { font-weight: 600; font-size: 0.8rem; color: #333; margin-bottom: 6px; }
 
-        .viewer-top-special-frame {
-            padding: 12px 14px;
-            background: var(--white);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
+        .viewer-top-special-frame { padding: 12px 14px; background: var(--white); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
         .viewer-memo-label { font-size: 0.85rem; font-weight: bold; color: var(--primary); }
-        textarea.viewer-memo-textarea { 
-            width: 100%; 
-            height: 4.5rem; 
-            padding: 8px 12px; 
-            border: 1px solid var(--border); 
-            border-radius: 4px; 
-            font-size: 0.85rem; 
-            outline: none; 
-            resize: none;
-            line-height: 1.5;
-        }
-        textarea.viewer-memo-textarea:focus { border-color: var(--primary); }
+        textarea.viewer-memo-textarea { width: 100%; height: 4.5rem; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.85rem; outline: none; resize: none; line-height: 1.5; }
 
-        .viewer-header-mid { 
-            background: #f1f3f5; 
-            padding: 8px 14px; 
-            border-bottom: 1px solid var(--border); 
-            display: flex; 
-            align-items: center; 
-            gap: 10px; 
-        }
+        .viewer-header-mid { background: #f1f3f5; padding: 8px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
         .viewer-header-mid h3 { font-size: 0.85rem; margin: 0; color: #333; }
-        .viewer-badge  { font-size: 0.72rem; padding: 2px 8px; border-radius: 3px; background: #e9ecef; color: #495057; }
+        .viewer-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 3px; background: #e9ecef; color: #495057; }
         
         .viewer-body-bottom { flex: 1; background: #525659; display: flex; justify-content: center; align-items: center; overflow: auto; position: relative; }
-        .placeholder    { color: #aaa; font-size: 0.82rem; text-align: center; line-height: 1.6; }
-        .viewer-img     { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .viewer-iframe  { width: 100%; height: 100%; border: none; background: #fff; }
+        .placeholder { color: #aaa; font-size: 0.82rem; text-align: center; line-height: 1.6; }
+        .viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .viewer-iframe { width: 100%; height: 100%; border: none; background: #fff; }
     </style>
 </head>
 <body>
@@ -155,7 +75,6 @@
                     <select id="f_roomId" class="form-control" required onchange="onRoomSelect()">
                         <option value="">— 호실 선택 —</option>
                     </select>
-                    <!-- 순수 원본 룸넘버 보관용 hidden 필드 -->
                     <input type="hidden" id="f_selectedRoomInfo" value="">
                 </div>
                 <div class="form-group">
@@ -170,19 +89,19 @@
 
             <div class="grid-2col">
                 <div class="form-group">
-                    <label>보증금 금액 (원)</label>
-                    <input type="number" id="f_deposit" class="form-control" value="0" min="0">
+                    <label>보증금 금액 (만원)</label>
+                    <input type="number" id="f_deposit" class="form-control" value="0" min="0" placeholder="예: 1000 (=1,000만원)">
                 </div>
                 <div class="form-group">
-                    <label>월세 임대료 (원)</label>
-                    <input type="number" id="f_monthlyRent" class="form-control" value="0" min="0">
+                    <label>월세 임대료 (만원)</label>
+                    <input type="number" id="f_monthlyRent" class="form-control" value="0" min="0" placeholder="예: 50 (=50만원)">
                 </div>
             </div>
 
             <div class="grid-2col">
                 <div class="form-group">
-                    <label>관리비 금액 (원)</label>
-                    <input type="number" id="f_maintenanceFee" class="form-control" value="0" min="0">
+                    <label>관리비 금액 (만원)</label>
+                    <input type="number" id="f_maintenanceFee" class="form-control" value="0" min="0" placeholder="예: 10 (=10만원)">
                 </div>
                 <div class="form-group">
                     <label>계약 시작일</label>
@@ -233,28 +152,28 @@
                 <div class="form-group">
                     <label>중개사 검색</label>
                     <div class="flex-box">
-                        <input type="text" id="f_brokerSearch" class="form-control" placeholder="명부에 등록된 상호명 입력">
+                        <input type="text" id="f_brokerSearch" class="form-control" placeholder="상호명 입력">
                         <button type="button" class="btn btn-sec" onclick="searchBroker()">검색</button>
                     </div>
                     <input type="hidden" id="f_brokerId" value="0">
                 </div>
                 <div class="form-group">
-                    <label>중개 수수료 (원)</label>
-                    <input type="number" id="f_commissionFee" class="form-control" value="0" min="0">
+                    <label>중개 수수료 (만원)</label>
+                    <input type="number" id="f_commissionFee" class="form-control" value="0" min="0" placeholder="예: 30 (=30만원)">
                 </div>
             </div>
 
             <hr class="section-sep">
             
-            <div class="panel-title">📄 증빙 서류 마스터 통합 업로드</div>
+            <div class="panel-title">📄 증빙 서류 마스터 통합 업로드 (USB 저장)</div>
             <div class="grid-2col">
                 <div class="doc-card">
                     <div class="doc-card-title">주민등록증 앞면 사본</div>
-                    <input type="file" id="f_idFront" class="form-control" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" onchange="onIdUpload(this)">
+                    <input type="file" id="f_idFront" class="form-control" accept=".png,.jpg,.jpeg,.pdf" onchange="onFileSelected(this, '신분증')">
                 </div>
                 <div class="doc-card">
                     <div class="doc-card-title">임대차 계약서 원본 스캔 파일</div>
-                    <input type="file" id="f_contractFile" class="form-control" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" onchange="onContractUpload(this)">
+                    <input type="file" id="f_contractFile" class="form-control" accept=".png,.jpg,.jpeg,.pdf" onchange="onFileSelected(this, '계약서')">
                 </div>
             </div>
 
@@ -266,7 +185,6 @@
     </div>
 
     <div class="right-viewer-panel">
-        
         <div class="viewer-top-special-frame">
             <span class="viewer-memo-label">✍️ 특약사항</span>
             <textarea id="f_specialTerms" class="viewer-memo-textarea" placeholder="계약 관련 특약 사항 내용을 입력하세요."></textarea>
@@ -283,7 +201,9 @@
     </div>
 
 <script>
-var _idPath = null, _ctrPath = null;
+var _idFileObj = null, _ctrFileObj = null;
+var _idSavedRelPath = null, _ctrSavedRelPath = null;
+var ALL_ROOMS = [];
 
 function fmtPhone(el) {
     var v = el.value.replace(/[^0-9]/g,'');
@@ -292,18 +212,14 @@ function fmtPhone(el) {
     else el.value = v;
 }
 
-function onIdUpload(inp){
+function onFileSelected(inp, src){
     var f = inp.files[0];
     if(!f) return;
-    _idPath = f.name;
-    showViewer(f, '신분증');
-}
-
-function onContractUpload(inp){
-    var f = inp.files[0];
-    if(!f) return;
-    _ctrPath = f.name;
-    showViewer(f, '계약서');
+    
+    if(src === '신분증') _idFileObj = f;
+    if(src === '계약서') _ctrFileObj = f;
+    
+    showViewer(f, src);
 }
 
 function showViewer(file, src){
@@ -322,178 +238,132 @@ function showViewer(file, src){
     r.readAsDataURL(file);
 }
 
-// === rooms API 연동 ===
-var ALL_ROOMS = [];
+// 실제 바이너리 파일 서버(USB) 전송 함수
+async function uploadFileToServer(fileObj) {
+    if(!fileObj) return null;
+    try {
+        var res = await fetch('/api/v1/upload', {
+            method: 'POST',
+            headers: {
+                'X-File-Name': encodeURIComponent(fileObj.name)
+            },
+            body: fileObj // File 객체 직접 바이너리 송신
+        });
+        var data = await res.json();
+        return data.filepath || null; // 상대경로 반환 (예: uploads/1721634_sample.png)
+    } catch(e) {
+        console.error('파일 업로드 실패:', e);
+        return null;
+    }
+}
 
 async function loadRooms(){
     try {
         var res = await fetch('/api/v1/rooms');
         ALL_ROOMS = await res.json() || [];
-        
         var sel = document.getElementById('f_roomId');
         sel.innerHTML = '<option value="">— 호실 선택 —</option>';
-        
-        for (var i = 0, len = ALL_ROOMS.length; i < len; i++){
+        for (var i = 0; i < ALL_ROOMS.length; i++){
             var rm = ALL_ROOMS[i];
             if (!rm.id) continue;
-            
             var opt = document.createElement('option');
-            opt.value = rm.id; // rooms.id (PK)
-            
-            var roomNoStr = rm.room || rm.room_no || '';
-            var buildingNameStr = rm.building_name || '';
-            opt.textContent = (buildingNameStr + ' ' + roomNoStr).trim();
+            opt.value = rm.id;
+            opt.textContent = ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim();
             sel.appendChild(opt);
         }
-    } catch(e) {
-        console.warn('[rooms load 실패]', e);
-    }
+    } catch(e) { console.warn('[rooms load 실패]', e); }
 }
 
-// 호실 선택 시: API에서 전달된 원본 room_no 값을 가공 없이 그대로 세팅
 function onRoomSelect(){
     var selVal = document.getElementById('f_roomId').value;
     var idx = parseInt(selVal, 10);
-    
-    if (!idx) {
-        document.getElementById('f_selectedRoomInfo').value = '';
-        return;
-    }
-
+    if (!idx) { document.getElementById('f_selectedRoomInfo').value = ''; return; }
     var rm = ALL_ROOMS.find(function(r){ return r.id == idx; });
-    if (rm) {
-        document.getElementById('f_selectedRoomInfo').value = (rm.room || rm.room_no || '').toString();
-    }
+    if (rm) document.getElementById('f_selectedRoomInfo').value = (rm.room || rm.room_no || '').toString();
 }
 
-document.addEventListener('DOMContentLoaded', function(){
-    loadRooms();
-});
-
-function searchBroker(){
+async function searchBroker(){
     var kw = document.getElementById('f_brokerSearch').value.trim();
-    if(!kw){
-        alert('⚠️ 검색할 중개사 상호명/법인명을 입력하세요.');
-        return;
-    }
-
-    var partnerTable = document.getElementById('partnerTable') || (window.opener ? window.opener.document.getElementById('partnerTable') : null);
-    
-    if(!partnerTable) {
-        if(kw.indexOf('팩토리') >= 0 || kw.indexOf('대박') >= 0){
-            document.getElementById('f_brokerId').value = '1';
-            alert('✅ [임시 매핑] 협력사 명부에서 "' + kw + '" 명칭을 발견하여 연동했습니다. (contacts.id=1)');
+    if(!kw) return alert('⚠️ 검색할 중개사 상호명을 입력하세요.');
+    try {
+        var res = await fetch('/api/v1/contacts?category=broker');
+        var brokers = await res.json() || [];
+        var found = brokers.find(b => (b.company_or_name || b.name || '').toLowerCase().includes(kw.toLowerCase()));
+        if (found) {
+            document.getElementById('f_brokerId').value = found.id;
+            document.getElementById('f_brokerSearch').value = found.company_or_name || found.name;
+            alert('✅ 중개사 연동 완료: ' + (found.company_or_name || found.name));
         } else {
             document.getElementById('f_brokerId').value = '0';
-            alert('❌ 현재 화면 내에서 협력사 명부 데이터베이스 구조(#partnerTable)를 찾을 수 없습니다.');
+            alert('❌ 찾을 수 없어 직접거래(0)로 설정합니다.');
         }
-        return;
-    }
-
-    var rows = partnerTable.querySelectorAll('tbody tr');
-    var found = false;
-
-    for(var i = 0; i < rows.length; i++) {
-        var compTd = rows[i].querySelector('.td-company');
-        if(compTd && compTd.innerText.toLowerCase().includes(kw.toLowerCase())) {
-            var id = rows[i].cells[0].innerText;
-            document.getElementById('f_brokerId').value = id;
-            document.getElementById('f_brokerSearch').value = compTd.innerText;
-            
-            rows.forEach(r => r.classList.remove('selected'));
-            rows[i].classList.add('selected');
-
-            alert('✅ 중개사 명부 연동 완료\n\n상호명: ' + compTd.innerText + '\n고유 식별번호(PK): ' + id);
-            found = true;
-            break;
-        }
-    }
-
-    if(!found) {
-        document.getElementById('f_brokerId').value = '0';
-        alert('❌ 협력사 인적 데이터 명부에서 "' + kw + '" 와(과) 일치하는 상호명을 찾을 수 없습니다.\n직접거래 시 공란으로 진행 가능합니다.');
-    }
+    } catch(e) { alert('중개사 검색 오류: ' + e.message); }
 }
 
 async function saveContract(){
     var roomIdVal = parseInt(document.getElementById('f_roomId').value, 10);
-    if (!roomIdVal) {
-        alert('❌ 호실을 선택해 주세요.');
-        document.getElementById('f_roomId').focus();
-        return;
-    }
+    if (!roomIdVal) return alert('❌ 호실을 선택해 주세요.');
 
     var startDate = document.getElementById('f_startDate').value;
     var endDate = document.getElementById('f_endDate').value;
-    if (!startDate || !endDate) {
-        alert('❌ 계약 일정 시작일 및 종료일자는 필수 기입 데이터입니다.');
-        return;
+    if (!startDate || !endDate) return alert('❌ 계약 시작일 및 종료일자는 필수입니다.');
+
+    var depositMan = parseInt(document.getElementById('f_deposit').value, 10) || 0;
+    var monthlyMan = parseInt(document.getElementById('f_monthlyRent').value, 10) || 0;
+    if (depositMan + monthlyMan <= 0) return alert('❌ 보증금 또는 월세를 입력하세요.');
+
+    // 1. 첨부 파일이 있다면 USB uploads/ 폴더로 실제 파일 전송 업로드
+    var idPathOnUsb = null;
+    var ctrPathOnUsb = null;
+
+    if (_idFileObj) {
+        idPathOnUsb = await uploadFileToServer(_idFileObj);
+    }
+    if (_ctrFileObj) {
+        ctrPathOnUsb = await uploadFileToServer(_ctrFileObj);
     }
 
-    var deposit = parseInt(document.getElementById('f_deposit').value, 10) || 0;
-    var monthly = parseInt(document.getElementById('f_monthlyRent').value, 10) || 0;
-    if (deposit + monthly <= 0) {
-        alert('❌ 보증금 재원 혹은 월세 임대료 중 하나는 반드시 입력되어야 합니다.');
-        return;
-    }
-
-    // 1. 임차인 정보 contacts 테이블에 먼저 INSERT하여 FK(id) 취득
+    // 2. 임차인 정보 contacts 등록
     var tenantName = document.getElementById('f_tenantName').value.trim();
     var tenantPhone = document.getElementById('f_tenantPhone').value.trim();
     var tenantRep = document.getElementById('f_tenantRep').value.trim();
     var tenantEmail = document.getElementById('f_tenantEmail').value.trim();
-
     var tenantContactId = 0;
+
     if (tenantName) {
         try {
             var cRes = await fetch('/api/v1/contacts', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    category: 'tenant',
-                    company_or_name: tenantName,
-                    representative_name: tenantRep || tenantName,
-                    contact_info: tenantPhone || '010-0000-0000',
-                    email: tenantEmail
-                })
+                body: JSON.stringify({ category: 'tenant', company_or_name: tenantName, representative_name: tenantRep || tenantName, contact_info: tenantPhone, email: tenantEmail })
             });
             var cData = await cRes.json();
-            if (cData.id) {
-                tenantContactId = cData.id;
-            }
-        } catch(e) {
-            console.warn('[contacts 연동 실패]', e);
-        }
+            if (cData.id) tenantContactId = cData.id;
+        } catch(e) { console.warn('[contacts 연동 실패]', e); }
     }
 
-    // 2. 호실 및 주소 정보 수집 (가공 없는 원본 결합)
-    var selectedRoom = ALL_ROOMS.find(function(r){ return r.id == roomIdVal; }) || {};
-    
-    // 순수 원본 room_no
-    var roomNoVal = document.getElementById('f_selectedRoomInfo').value.trim();
-    if (!roomNoVal && selectedRoom) {
-        roomNoVal = (selectedRoom.room || selectedRoom.room_no || '').toString().trim();
-    }
+    // 3. 주소 결합
+    var selectedRoom = ALL_ROOMS.find(r => r.id == roomIdVal) || {};
+    var fullAddress = [(selectedRoom.building_address || '').trim(), (selectedRoom.building_name || '').trim(), (selectedRoom.room || selectedRoom.room_no || '').toString().trim()].filter(Boolean).join(' ');
 
-    // [도로명 주소] + [공백 1칸] + [건물명] 정직하게 결합
-    var realAddress = (selectedRoom.building_address || '').trim();
-    var buildingName = (selectedRoom.building_name || '').trim();
-    var fullAddress = [realAddress, buildingName].filter(Boolean).join(' ');
+    // 4. Payload 생성 (USB 상대 경로가 포함된 documents_json)
+    var docsList = [];
+    if (idPathOnUsb) docsList.push({ type: '주민증앞면', path: idPathOnUsb, name: _idFileObj.name });
+    if (ctrPathOnUsb) docsList.push({ type: '계약서원본', path: ctrPathOnUsb, name: _ctrFileObj.name });
 
     var payload = {
-        room_id: roomIdVal,                             // rooms.id (PK)
-        room_no: roomNoVal,                             // 원본 룸넘버
-        host_address_full: fullAddress,                 // 도로명 주소 + 건물명
+        room_id: roomIdVal,
+        host_address_full: fullAddress,
         lease_type: document.getElementById('f_leaseType').value,
-        deposit_amount: deposit,
-        monthly_rent: monthly,
-        maintenance_fee: parseInt(document.getElementById('f_maintenanceFee').value, 10) || 0,
-        commission_fee: parseInt(document.getElementById('f_commissionFee').value, 10) || 0,
+        deposit_amount: depositMan * 10000,
+        monthly_rent: monthlyMan * 10000,
+        maintenance_fee: (parseInt(document.getElementById('f_maintenanceFee').value, 10) || 0) * 10000,
+        commission_fee: (parseInt(document.getElementById('f_commissionFee').value, 10) || 0) * 10000,
         start_date: startDate,
         end_date: endDate,
-        documents_json: JSON.stringify([{type:'주민증앞면', name:_idPath || null}, {type:'계약서원본', name:_ctrPath || null}]),
+        documents_json: JSON.stringify(docsList), // 🌟 USB 내 상대경로 파일 정보 저장
         broker_id: parseInt(document.getElementById('f_brokerId').value, 10) || 0,
-        tenant_contact_id: tenantContactId,             // 정수형 FK 전달
+        tenant_contact_id: tenantContactId,
         owner_contact_id: 1,
         special_terms: document.getElementById('f_specialTerms').value.trim()
     };
@@ -505,25 +375,26 @@ async function saveContract(){
             body: JSON.stringify(payload)
         });
         var resJson = await res.json();
-        if(resJson.id){
-            alert('✅ 계약서 마스터 저장 성공! (계약 ID: ' + resJson.id + ')');
+        if (res.ok && resJson.id) {
+            alert('✅ 파일 USB 저장 및 계약서 등록 성공! (계약 ID: ' + resJson.id + ')');
+            resetAll();
         } else {
-            alert('❌ 계약서 등록 실패: ' + (resJson.error || JSON.stringify(resJson)));
+            alert('❌ 등록 실패: ' + (resJson.error || JSON.stringify(resJson)));
         }
-    } catch(e) {
-        alert('❌ API 통신 오류: ' + e.message);
-    }
+    } catch(e) { alert('❌ API 통신 오류: ' + e.message); }
 }
 
 function resetAll(){
     document.getElementById('contractForm').reset();
     document.getElementById('f_specialTerms').value = ''; 
-    ['_idPath','_ctrPath'].forEach(function(k){ window[k] = null; });
+    _idFileObj = null;
+    _ctrFileObj = null;
     document.getElementById('f_brokerId').value = '0';
-    
-    document.getElementById('viewerArea').innerHTML = '<div class="placeholder" id="viewerPh">신분증 사본 혹은 임대차 계약서 파일을 왼쪽에서 첨부하면<br>고해상도 실시간 렌더링 검침이 통합 시작됩니다.</div>';
+    document.getElementById('viewerArea').innerHTML = '<div class="placeholder">신분증 사본 혹은 임대차 계약서 파일을 왼쪽에서 첨부하면<br>고해상도 실시간 렌더링 검침이 통합 시작됩니다.</div>';
     document.getElementById('vBadge').textContent = '미선택 상태';
 }
+
+document.addEventListener('DOMContentLoaded', loadRooms);
 </script>
 
 </body>

@@ -20,13 +20,13 @@
         body { 
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; 
             display: flex; 
-            height: calc(100vh - 64px); 
-            overflow-y: auto; 
+            height: 100vh; 
+            overflow: hidden; 
             background-color: var(--bg); 
         }
         
-        .left-panel { width: 35%; background: white; border-right: 1px solid var(--border); padding: 25px; box-sizing: border-box; }
-        .right-panel { flex: 1; padding: 20px; display: flex; flex-direction: column; box-sizing: border-box; background: white; }
+        .left-panel { width: 35%; background: white; border-right: 1px solid var(--border); padding: 25px; box-sizing: border-box; overflow-y: auto; }
+        .right-panel { flex: 1; padding: 20px; display: flex; flex-direction: column; box-sizing: border-box; background: white; overflow: hidden; }
         
         .panel-title { font-size: 0.95rem; color: var(--primary); margin: 0 0 20px 0; border-bottom: 2px solid var(--primary); padding-bottom: 8px; font-weight: bold; }
         
@@ -44,7 +44,7 @@
         
         .excel-table-wrap { flex: 1; overflow: auto; border: 1px solid #bbc4cc; margin-top: 15px; }
         table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-        th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 6px 8px; font-weight: 600; position: sticky; top: 0; text-align: center; white-space: nowrap; }
+        th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 8px 8px; font-weight: 600; position: sticky; top: 0; text-align: center; white-space: nowrap; z-index: 10; }
         td { border: 1px solid #ced4da; padding: 6px 8px; white-space: nowrap; color: #333; }
         tr:nth-child(even) { background-color: var(--bg); }
         tr:hover { background-color: #e8f4fd; cursor: pointer; }
@@ -52,12 +52,13 @@
         .cell-text-center { text-align: center; }
         .cell-num-right { text-align: right; }
         
-        .status-badge { font-weight: bold; }
-        .status-active { color: var(--success); }
-        .status-ended { color: var(--danger); }
+        .status-badge { font-weight: bold; padding: 2px 6px; border-radius: 3px; font-size: 0.75rem; }
+        .status-active { color: var(--success); background: #e8f5e9; }
+        .status-ended { color: var(--danger); background: #ffebee; }
         
-        .actions-btn { background: var(--info); color: white; border: none; padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 0.78rem; }
+        .actions-btn { background: var(--info); color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 0.78rem; }
         .file-view-btn { background: var(--success); color: white; text-decoration: none; display: inline-block; padding: 4px 8px; border-radius: 3px; font-size: 0.72rem; }
+        .file-none { color: var(--text-muted); font-size: 0.75rem; }
         
         .display-none { display: none; }
     </style>
@@ -66,38 +67,29 @@
     <div class="left-panel">
         <div class="panel-title">👥 계약자 검색·조회</div>
         
-        <form onsubmit="event.preventDefault(); searchContractor();">
+        <form onsubmit="event.preventDefault(); filterContractors();">
             <div class="form-group">
                 <label>전체 검색</label>
-                <input type="text" class="form-control" id="globalSearchInput" placeholder="이름·전화·호실·상호명 모두 검색">
+                <input type="text" class="form-control" id="globalSearchInput" placeholder="이름·전화·주소·상호명 모두 검색" onkeyup="filterContractors()">
             </div>
 
             <div class="form-group">
                 <label>호실 검색</label>
-                <input type="text" class="form-control" id="roomFilterInput" placeholder="예: C동 102호 또는 102호">
+                <input type="text" class="form-control" id="roomFilterInput" placeholder="예: 101호 또는 201호" onkeyup="filterContractors()">
             </div>
 
             <div class="form-group">
-                <label>계약 잔여 기간 검색 (선택사항)</label>
+                <label>계약 잔여 기간 검색 (계약 종료일 기준)</label>
                 <div class="date-range-box">
-                    <input type="date" class="form-control">
+                    <input type="date" class="form-control" id="startDateFilter" onchange="filterContractors()">
                     <span>~</span>
-                    <input type="date" class="form-control">
+                    <input type="date" class="form-control" id="endDateFilter" onchange="filterContractors()">
                 </div>
             </div>
 
-            <div class="form-group display-none" id="nameFilterGroup">
-                <label>상호명 또는 성명</label>
-                <input type="text" class="form-control" placeholder="계약자 상호이름 또는 성명 입력">
-            </div>
-
-            <div class="form-group display-none" id="idFilterGroup">
-                <label>식별번호 (사업자/주민번호 앞자리)</label>
-                <input type="text" class="form-control" placeholder="예: 123-45-67890">
-            </div>
-            
             <div class="btn-box">
-                <button type="submit" class="btn btn-main">계약자 전체검색</button>
+                <button type="button" class="btn btn-main" onclick="filterContractors()">검색 적용</button>
+                <button type="button" class="btn btn-sub" onclick="resetFilters()">초기화</button>
             </div>
         </form>
     </div>
@@ -109,36 +101,19 @@
             <table>
                 <thead>
                     <tr>
-                        <th>호실</th>
+                        <th>호실 / 주소</th>
                         <th>계약자 상호 / 성명</th>
                         <th>전화번호</th>
                         <th>계약 시작일</th>
                         <th>계약 종료일</th>
                         <th>계약 상태</th>
-                        <th>계약서 파일</th>
+                        <th>증빙 서류</th>
                         <th>관리</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="contractorTableBody">
                     <tr>
-                        <td class="cell-text-center">C동 102호</td>
-                        <td class="cell-text-center">(주)네트웍스 파트너스</td>
-                        <td class="cell-text-center">010-1234-5678</td>
-                        <td class="cell-num-right">2025-01-15 (수)</td>
-                        <td class="cell-num-right">2026-12-31 (목)</td>
-                        <td class="cell-text-center"><span class="status-badge status-active">계약중</span></td>
-                        <td class="cell-text-center"><a href="#" class="file-view-btn">계약서 파일보기</a></td>
-                        <td class="cell-text-center"><button class="actions-btn" onclick="editContractor('C동 102호')">수정</button></td>
-                    </tr>
-                    <tr>
-                        <td class="cell-text-center">A동 201호</td>
-                        <td class="cell-text-center">대한솔루션</td>
-                        <td class="cell-text-center">010-9876-5432</td>
-                        <td class="cell-num-right">2024-01-01 (월)</td>
-                        <td class="cell-num-right">2025-12-31 (수)</td>
-                        <td class="cell-text-center"><span class="status-badge status-ended">계약종료</span></td>
-                        <td class="cell-text-center"><a href="#" class="file-view-btn">계약서 파일보기</a></td>
-                        <td class="cell-text-center"><button class="actions-btn" onclick="editContractor('A동 201호')">수정</button></td>
+                        <td colspan="8" class="cell-text-center">데이터를 불러오는 중입니다...</td>
                     </tr>
                 </tbody>
             </table>
@@ -146,15 +121,128 @@
     </div>
 
     <script>
-        function searchContractor() {
-            const query = document.getElementById('globalSearchInput').value.trim().toLowerCase();
-            const roomQuery = document.getElementById('roomFilterInput').value.trim();
-            alert(`전체검색: '${query}', 호실검색: '${roomQuery}' 실행. (API 연동)`);
+        var ALL_CONTRACTS = [];
+        var TODAY_STR = new Date().toISOString().split('T')[0];
+
+        async function loadContractors() {
+            try {
+                // 1. 계약서 및 연관된 contacts 데이터 조회
+                const res = await fetch('/api/v1/contracts');
+                ALL_CONTRACTS = await res.json() || [];
+                
+                // 2. 임차인 인적사항 조회를 위한 contacts 전체 목록 확보
+                const cRes = await fetch('/api/v1/contacts?category=tenant');
+                const contactsList = await cRes.json() || [];
+                const contactMap = {};
+                contactsList.forEach(c => { contactMap[c.id] = c; });
+
+                // 3. 계약 데이터에 인적사항 매핑
+                ALL_CONTRACTS.forEach(ctr => {
+                    if (ctr.tenant_contact_id && contactMap[ctr.tenant_contact_id]) {
+                        const tc = contactMap[ctr.tenant_contact_id];
+                        ctr.tenant_name = tc.company_or_name || tc.name || ctr.tenant_name;
+                        ctr.tenant_phone = tc.contact_info || tc.phone || '-';
+                    }
+                });
+
+                renderTable(ALL_CONTRACTS);
+            } catch (e) {
+                console.error('[계약자 명부 로드 오류]', e);
+                document.getElementById('contractorTableBody').innerHTML = 
+                    '<tr><td colspan="8" class="cell-text-center" style="color:var(--danger)">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>';
+            }
         }
 
-        function editContractor(room) {
-            alert(`${room} 계약자 정보를 수정합니다.`);
+        function renderTable(dataList) {
+            const tbody = document.getElementById('contractorTableBody');
+            tbody.innerHTML = '';
+
+            if (!dataList || dataList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="cell-text-center">조회된 계약자 내역이 없습니다.</td></tr>';
+                return;
+            }
+
+            dataList.forEach(ctr => {
+                const tr = document.createElement('tr');
+
+                // 계약 상태 판단 (종료일 기준)
+                const isEnded = ctr.end_date && ctr.end_date < TODAY_STR;
+                const statusHtml = isEnded 
+                    ? '<span class="status-badge status-ended">계약종료</span>' 
+                    : '<span class="status-badge status-active">계약중</span>';
+
+                // 서류 파일 열람 링크
+                let docsHtml = '<span class="file-none">미첨부</span>';
+                if (ctr.documents_json) {
+                    try {
+                        const docs = JSON.parse(ctr.documents_json);
+                        if (Array.isArray(docs) && docs.length > 0) {
+                            const validDoc = docs.find(d => d.path || d.name);
+                            if (validDoc) {
+                                const filePath = validDoc.path || ('uploads/' + validDoc.name);
+                                docsHtml = `<a href="/${filePath}" target="_blank" class="file-view-btn">서류 보기</a>`;
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                // 주소 및 호실 조합
+                const roomInfo = ctr.room_no ? `${ctr.room_no}호` : (ctr.host_address_full || '-');
+
+                tr.innerHTML = `
+                    <td class="cell-text-center">${roomInfo}</td>
+                    <td class="cell-text-center"><strong>${ctr.tenant_name || '-'}</strong></td>
+                    <td class="cell-text-center">${ctr.tenant_phone || '-'}</td>
+                    <td class="cell-num-right">${ctr.start_date || '-'}</td>
+                    <td class="cell-num-right">${ctr.end_date || '-'}</td>
+                    <td class="cell-text-center">${statusHtml}</td>
+                    <td class="cell-text-center">${docsHtml}</td>
+                    <td class="cell-text-center">
+                        <button class="actions-btn" onclick="editContractor(${ctr.id})">수정</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
+
+        function filterContractors() {
+            const globalKw = document.getElementById('globalSearchInput').value.trim().toLowerCase();
+            const roomKw = document.getElementById('roomFilterInput').value.trim().toLowerCase();
+            const startDt = document.getElementById('startDateFilter').value;
+            const endDt = document.getElementById('endDateFilter').value;
+
+            const filtered = ALL_CONTRACTS.filter(ctr => {
+                // 1. 전체 검색 (이름, 전화, 주소, 호실)
+                const targetStr = `${ctr.tenant_name || ''} ${ctr.tenant_phone || ''} ${ctr.host_address_full || ''} ${ctr.room_no || ''}`.toLowerCase();
+                if (globalKw && !targetStr.includes(globalKw)) return false;
+
+                // 2. 호실 전용 검색
+                const roomStr = `${ctr.room_no || ''} ${ctr.host_address_full || ''}`.toLowerCase();
+                if (roomKw && !roomStr.includes(roomKw)) return false;
+
+                // 3. 종료일 범위 검색
+                if (startDt && ctr.end_date < startDt) return false;
+                if (endDt && ctr.end_date > endDt) return false;
+
+                return true;
+            });
+
+            renderTable(filtered);
+        }
+
+        function resetFilters() {
+            document.getElementById('globalSearchInput').value = '';
+            document.getElementById('roomFilterInput').value = '';
+            document.getElementById('startDateFilter').value = '';
+            document.getElementById('endDateFilter').value = '';
+            renderTable(ALL_CONTRACTS);
+        }
+
+        function editContractor(contractId) {
+            alert(`[계약 ID: ${contractId}] 수정 기능은 계약서 상세 화면으로 이동하거나 모달 폼으로 연동됩니다.`);
+        }
+
+        document.addEventListener('DOMContentLoaded', loadContractors);
     </script>
 </body>
 </html>

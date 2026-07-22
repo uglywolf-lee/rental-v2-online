@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>관리공과금 고지 장부 (실무 고속 연동형)</title>
     <style>
-        /* ─── R25: 디자인 토큰 변수 지정 및 인라인 스타일 전면 배제 ─── */
         :root { 
             --primary: #dc3545; 
             --teal: #20c997; 
@@ -19,7 +18,7 @@
         body { 
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;  
             display: flex; 
-            height: calc(100vh - 64px); 
+            height: 100vh; 
             overflow: hidden; 
             background-color: var(--bg); 
         }
@@ -28,38 +27,28 @@
         .left-panel { width: 35%; background: white; border-right: 1px solid var(--border); padding: 25px; overflow-y: auto; }
         .panel-title { font-size: 1.1rem; color: var(--primary); margin: 0 0 15px 0; border-bottom: 2px solid var(--primary); padding-bottom: 8px; font-weight: bold; }
         
-        /* 주소 및 호실 검색창 스타일 */
         .address-sub { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; }
         
         .room-search-select {
             width: 100%;
-            font-size: 2.2rem;
+            font-size: 1.8rem;
             font-weight: 900;
             color: #111;
-            border: 2px solid transparent;
-            background: transparent;
+            border: 2px solid var(--border);
+            background: #fff;
             cursor: pointer;
             outline: none;
-            padding: 0;
+            padding: 4px 8px;
             margin-bottom: 15px;
-            line-height: 1;
+            line-height: 1.2;
             font-family: inherit;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-        }
-        .room-search-select:hover {
-            background-color: var(--bg);
             border-radius: 6px;
         }
         .room-search-select:focus {
             border-color: var(--primary);
-            background-color: #fff;
-            border-radius: 6px;
-            padding: 2px 10px;
         }
         .room-search-select option {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: normal;
         }
         
@@ -76,28 +65,24 @@
         /* 우측 패널: 대량 입력 및 검증 통합 섹션 */
         .right-panel { width: 65%; display: flex; flex-direction: column; background: white; height: 100%; }
         
-        /* 우측 상단: 한눈에 고속 연속 입력판 */
+        /* 우측 상단: 연속 입력판 */
         .right-top-batch { flex: 6; padding: 20px; overflow-y: auto; border-bottom: 2px dashed var(--border); display: flex; flex-direction: column; }
         .batch-title { font-size: 0.95rem; font-weight: bold; color: #111; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         .batch-badge { background: #e6fffa; color: #0d9488; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; }
         
-        /* 우측 하단: 가장 최근에 입력 성공한 5개 장부 */
+        /* 우측 하단: 최근 등록 장부 백체크 */
         .right-bottom-history { flex: 4; padding: 15px 20px; background: #fdfdfd; display: flex; flex-direction: column; overflow: hidden; }
         .history-title { font-size: 0.85rem; font-weight: bold; color: var(--text-muted); margin-bottom: 8px; }
 
-        /* 엑셀 스타일 시트 공통 정의 */
         .excel-table-wrap { flex: 1; overflow: auto; border: 1px solid #bbc4cc; }
         table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
         
-        /* 모든 헤더 및 데이터 셀 기본 중간 정렬 */
         th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 6px 8px; font-weight: 600; position: sticky; top: 0; text-align: center; color: #212529; z-index: 10; }
         td { border: 1px solid #ced4da; padding: 4px 8px; white-space: nowrap; color: #333; text-align: center; }
         
-        /* 컬럼 개별 폭 고정 스펙 */
         .th-electric-last { background: #fff5f5; color: #c92a2a; min-width: 95px; white-space: nowrap; text-align: center; }
         .th-electric-now { background: #fff5f5; color: #c92a2a; min-width: 115px; white-space: nowrap; text-align: center; }
         
-        /* 정산 수치 우측 정렬 클래스 */
         .td-num-align-right { text-align: right !important; }
         .td-electric-val { color: #888; text-align: right; min-width: 95px; white-space: nowrap; }
         .table-input { width: 100%; padding: 4px; border: 1px solid #bbc4cc; border-radius: 3px; font-size: 0.8rem; box-sizing: border-box; text-align: right; }
@@ -110,85 +95,77 @@
 </head>
 <body>
 
-    <!-- [좌측 패널]: 개별 정밀 조회 및 검침 안내 영역 (가짜 스팬 태그 완벽 정화) -->
+    <!-- [좌측 패널]: 개별 정밀 조회 및 검침 영역 -->
     <div class="left-panel">
         <div class="panel-title">⚡ D. 공과금 검침 및 개별 등록</div>
         
-        <div class="address-sub">서울시 구로구 디지털로 30길 12 (구로 테크노타운)</div>
+        <div class="address-sub" id="buildingAddressText">건물 및 호실 정보를 불러오는 중...</div>
         
-        <!-- 대형 호실 변경 콤보박스 검색창 -->
+        <!-- 대형 호실 선택 드롭다운 (rooms.id INTEGER FK 매칭) -->
         <select class="room-search-select" id="leftRoomSelector" onchange="onRoomSearchChange(this.value)">
-            <option value="101호" selected>101호 ▾</option>
-            <option value="102호">102호</option>
-            <option value="103호">103호</option>
-            <option value="201호">201호</option>
-            <option value="202호">202호</option>
-            <option value="203호">203호</option>
-            <option value="301호">301호</option>
-            <option value="302호">302호</option>
-            <option value="303호">303호</option>
+            <option value="">— 호실 선택 —</option>
         </select>
         
-        <form onsubmit="event.preventDefault();">
-            <!-- 1. 전기 영역 가이드 -->
+        <form id="singleUtilityForm" onsubmit="event.preventDefault(); submitSingleUtility();">
+            <!-- 1. 전기 영역 -->
             <div style="background: #f8f9fa; padding: 8px 10px; border-radius: 4px; margin-bottom: 8px; font-size: 0.78rem; line-height: 1.4; border-left: 3px solid var(--primary);">
-                <b>🔌 전기 고지 가이드 (한전 방식):</b> 전월 최종 검침량: <span id="guideLastReading" style="font-weight: bold; color: blue;">14,250 kWh</span>
+                <b>🔌 전기 고지 가이드:</b> 전월 기준 검침량: <span id="guideLastReading" style="font-weight: bold; color: blue;">기록 미정 (신규산출)</span>
             </div>
             <div class="form-group">
                 <label>이번 달 전기 누적 계량값 입력 (kWh)</label>
-                <input type="number" class="form-control" placeholder="예: 14580 (사용량 자동 산출)">
+                <input type="number" id="u_elecNow" class="form-control" placeholder="예: 14580 (사용량 연산 산출)">
             </div>
             
-            <!-- 2. 수도 영역 가이드 -->
+            <!-- 2. 수도 영역 -->
             <div style="background: #f8f9fa; padding: 8px 10px; border-radius: 4px; margin-bottom: 8px; font-size: 0.78rem; line-height: 1.4; border-left: 3px solid #0d6efd;">
-                <b>🚰 수도 고지 가이드:</b> 수도공사 검침량과 확정 요금 입력
+                <b>🚰 수도 고지 가이드:</b> 수도 확정 요금 (10원 절사 적용)
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
                 <div class="form-group">
                     <label>수도 검침량 (톤)</label>
-                    <input type="number" class="form-control" placeholder="예: 35">
+                    <input type="number" id="u_waterTon" class="form-control" placeholder="예: 35">
                 </div>
                 <div class="form-group">
                     <label>수도 청구 요금 (원)</label>
-                    <input type="number" class="form-control" placeholder="원단위 입력">
+                    <input type="number" id="u_waterCost" class="form-control" placeholder="원단위 입력">
                 </div>
             </div>
 
-            <!-- 3. 가스 및 통신 가이드 -->
+            <!-- 3. 가스 및 통신 -->
             <div style="background: #f8f9fa; padding: 8px 10px; border-radius: 4px; margin-bottom: 8px; font-size: 0.78rem; line-height: 1.4; border-left: 3px solid #fd7e14;">
-                <b>🔥 가스(난방) 및 🌐 통신 요금 고지 가이드:</b>
+                <b>🔥 가스 및 🌐 통신 요금 고지 (10원 절사 적용):</b>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
                     <label>가스/난방 청구 요금 (원)</label>
-                    <input type="number" class="form-control" placeholder="원단위 입력">
+                    <input type="number" id="u_gasCost" class="form-control" placeholder="원단위 입력">
                 </div>
                 <div class="form-group">
                     <label>통신 청구 요금 (원)</label>
-                    <input type="number" class="form-control" placeholder="원단위 입력">
+                    <input type="number" id="u_netCost" class="form-control" placeholder="원단위 입력">
                 </div>
             </div>
 
             <div class="form-group form-group-top">
                 <label>납부 마감 기한일</label>
-                <input type="date" class="form-control" value="2026-07-21" required>
+                <input type="date" id="u_dueDate" class="form-control" required>
             </div>
     
             <div class="btn-box">
-                <button type="submit" class="btn btn-main">단일 호실 저장</button>
-                <button type="button" class="btn btn-sub">내용수정변경</button>
+                <button type="submit" class="btn btn-main">단일 호실 저장 (DB 반영)</button>
+                <button type="button" class="btn btn-sub" onclick="resetSingleForm()">초기화</button>
             </div>
         </form>
     </div>
 
-    <!-- [우측 패널]: 대량 연속 입력 장부 및 백체크 통합 섹션 -->
+    <!-- [우측 패널]: 대량 연속 입력 장부 및 백체크 -->
     <div class="right-panel">
         
-        <!-- 우측 상단: 공과금 통합 고속 연속 입력판 (10개 호실 매핑 그리드 바디) -->
+        <!-- 우측 상단: 공과금 통합 연속 입력판 -->
         <div class="right-top-batch">
             <div class="batch-title">
-                <span>📋 공과금 통합고속연속 입력판 (미입력 호실 목록)</span>
-                <span class="batch-badge">💡 각 항목 입력 후 [저장] 시 미입력 리스트에서 마감 처리됩니다.</span>
+                <span>📋 공과금 통합 고속 연속 입력판</span>
+                <span class="batch-badge">💡 [저장] 버튼 누르면 DB에 실제 전송되며 하단 장부에 기록됩니다.</span>
             </div>
             <div class="excel-table-wrap">
                 <table>
@@ -199,21 +176,23 @@
                             <th class="th-electric-now">⚡ 전기 당월누적</th>
                             <th style="background: #e7f5ff; color: #0b7285;">🚰 수도(톤)</th>
                             <th style="background: #e7f5ff; color: #0b7285;">🚰 수도(원)</th>
-                            <th style="background: #fff9db; color: #f59f00;">🔥 가스 요금(원) </th>
+                            <th style="background: #fff9db; color: #f59f00;">🔥 가스 요금(원)</th>
                             <th style="border-left: 1px solid #dee2e6; background: #f9fafb; color: #64748b;">🌐 통신요금</th>
                             <th style="width: 60px; text-align: center;">작업</th>
                         </tr>
                     </thead>
                     <tbody id="batchTableBody">
-                        <!-- 스크립트에 의해 검색 기준 하위 10개 행이 동적 안착됩니다 -->
+                        <tr>
+                            <td colspan="8" class="cell-text-center">호실목록을 불러오는 중입니다...</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <!-- 우측 하단: 실시간 백체크 시트 (정렬 규칙 완벽 매핑 완료) -->
+        <!-- 우측 하단: 실시간 백체크 시트 (DB 연동) -->
         <div class="right-bottom-history">
-            <div class="history-title">👀 실시간 백체크 (가장 최근 정상 등록 완료된 호실 장부 기록)</div>
+            <div class="history-title">👀 실시간 백체크 (최근 등록 완료된 DB 장부 이력)</div>
             <div class="excel-table-wrap">
                 <table style="background: #f1f3f5;">
                     <thead>
@@ -221,24 +200,9 @@
                             <th>번호</th><th>완료 호실</th><th>전기 사용량</th><th>수도 총계</th><th>가스 요금</th><th>통신 요금</th><th>수납 상태</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="historyTbody">
                         <tr>
-                            <td>5501</td>
-                            <td><b>103호</b></td>
-                            <td class="td-num-align-right" style="color: blue; font-weight: bold;">310 kWh</td>
-                            <td class="td-num-align-right">24,500원</td>
-                            <td class="td-num-align-right">41,200원</td>
-                            <td class="td-num-align-right">16,500원</td>
-                            <td><span class="status-unpaid">미납(고지대기)</span></td>
-                        </tr>
-                        <tr>
-                            <td>5500</td>
-                            <td><b>102호</b></td>
-                            <td class="td-num-align-right" style="color: blue; font-weight: bold;">240 kWh</td>
-                            <td class="td-num-align-right">31,200원</td>
-                            <td class="td-num-align-right">58,000원</td>
-                            <td class="td-num-align-right">16,500원</td>
-                            <td><span class="status-unpaid">미납(고지대기)</span></td>
+                            <td colspan="7" class="cell-text-center">기록된 이력이 없습니다.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -248,68 +212,200 @@
     </div>
 
 <script>
-    // 마스터 데이터베이스 명부 풀셋
-    var masterRoomsDB = [
-        { room: "101호", last: "12,400" }, { room: "102호", last: "8,450" }, { room: "103호", last: "11,200" },
-        { room: "201호", last: "14,250" }, { room: "202호", last: "9,810" }, { room: "203호", last: "21,400" },
-        { room: "301호", last: "17,350" }, { room: "302호", last: "13,110" }, { room: "303호", last: "19,800" },
-        { room: "401호", last: "15,220" }, { room: "402호", last: "10,900" }, { room: "403호", last: "22,150" },
-        { room: "501호", last: "16,400" }, { room: "502호", last: "12,340" }, { room: "503호", last: "18,920" }
-    ];
+    var ALL_ROOMS = [];
 
-    // 좌측 검색 인덱스를 추적하여 우측 상단에 스크롤 없이 항시 10개 호실을 빌드하는 핵심 정산 렌더러
-    function renderRightBatchTable(selectedRoom) {
-        var tbody = document.getElementById('batchTableBody');
-        tbody.innerHTML = ''; 
+    // 10원 단위 절사 유틸리티
+    function trunc10(num) {
+        var val = Math.floor(Number(num) || 0);
+        return Math.floor(val / 10) * 10;
+    }
 
-        var startIndex = masterRoomsDB.findIndex(function(item) {
-            return item.room === selectedRoom;
-        });
-        if (startIndex === -1) startIndex = 0;
+    // 1. 백엔드 DB에서 호실 목록 및 기존 bills 이력 불러오기
+    async function loadUtilityRoomsData() {
+        try {
+            const res = await fetch('/api/v1/rooms');
+            ALL_ROOMS = await res.json() || [];
+            
+            var sel = document.getElementById('leftRoomSelector');
+            sel.innerHTML = '<option value="">— 호실 선택 —</option>';
 
-        // 하위 명부 보정 마진 적용
-        if (startIndex + 10 > masterRoomsDB.length) {
-            startIndex = masterRoomsDB.length - 10;
-            if (startIndex < 0) startIndex = 0;
-        }
+            ALL_ROOMS.forEach(function(rm) {
+                if(!rm.id) return;
+                var opt = document.createElement('option');
+                opt.value = rm.id; // INTEGER (FK)
+                opt.textContent = ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim();
+                sel.appendChild(opt);
+            });
 
-        // 10개 로우 인서트
-        for (var i = startIndex; i < startIndex + 10; i++) {
-            if (!masterRoomsDB[i]) break;
+            if (ALL_ROOMS.length > 0) {
+                sel.value = ALL_ROOMS[0].id;
+                onRoomSearchChange(ALL_ROOMS[0].id);
+            }
 
-            var data = masterRoomsDB[i];
-            var tr = document.createElement('tr');
-
-            tr.innerHTML = 
-                '<td><b>' + data.room + '</b></td>' +
-                '<td class="td-electric-val">' + data.last + '</td>' +
-                '<td><input type="number" class="table-input" placeholder="누적값"></td>' +
-                '<td><input type="number" class="table-input" placeholder="톤수"></td>' +
-                '<td><input type="number" class="table-input" placeholder="금액"></td>' +
-                '<td><input type="number" class="table-input" style="background:#fffbeb;" placeholder="가스비 (0원)"></td>' +
-                '<td><input type="number" class="table-input" placeholder="통신비"></td>' +
-                '<td><button type="button" class="btn-table-save">저장</button></td>';
-
-            tbody.appendChild(tr);
+            renderBatchTable();
+            loadDbBillsHistory(); // DB 이력 동기화
+        } catch(e) {
+            console.error('[공과금 호실 로드 오류]', e);
         }
     }
 
-    // 좌측 대형 검색창 변경 연동 파이프라인
-    function onRoomSearchChange(roomNo) {
+    // 2. 백엔드 GET /api/v1/bills 로부터 실시간 백체크 DB 장부 동기화
+    async function loadDbBillsHistory() {
+        try {
+            const res = await fetch('/api/v1/bills');
+            const billsList = await res.json() || [];
+            renderHistoryTable(billsList);
+        } catch(e) {
+            console.error('[bills DB 로드 오류]', e);
+        }
+    }
+
+    // 3. 호실 선택 변경 시 주소 연동
+    function onRoomSearchChange(roomId) {
+        var targetData = ALL_ROOMS.find(function(item) { return item.id == roomId; });
+        var addrEl = document.getElementById('buildingAddressText');
         var guideEl = document.getElementById('guideLastReading');
-        var targetData = masterRoomsDB.find(function(item) { return item.room === roomNo; });
-        
-        if (targetData) {
-            guideEl.textContent = targetData.last + ' kWh';
-        }
 
-        renderRightBatchTable(roomNo);
+        if (targetData) {
+            addrEl.textContent = (targetData.building_address || '주소 정보 없음') + ' ' + (targetData.building_name || '');
+            guideEl.textContent = '기록 미정 (신규산출)';
+        }
     }
 
-    // 문서 초기 기동 로드
-    window.onload = function() {
-        renderRightBatchTable("101호");
-    };
+    // 4. 우측 연속 입력판 렌더링
+    function renderBatchTable() {
+        var tbody = document.getElementById('batchTableBody');
+        tbody.innerHTML = '';
+
+        if (!ALL_ROOMS || ALL_ROOMS.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="cell-text-center">등록된 호실이 없습니다.</td></tr>';
+            return;
+        }
+
+        ALL_ROOMS.slice(0, 10).forEach(function(rm) {
+            var tr = document.createElement('tr');
+            var roomName = (rm.room || rm.room_no || '') + '호';
+
+            tr.innerHTML = `
+                <td><b>${roomName}</b></td>
+                <td class="td-electric-val">미정</td>
+                <td><input type="number" id="b_elec_${rm.id}" class="table-input" placeholder="누적값"></td>
+                <td><input type="number" id="b_wTon_${rm.id}" class="table-input" placeholder="톤수"></td>
+                <td><input type="number" id="b_wCost_${rm.id}" class="table-input" placeholder="금액"></td>
+                <td><input type="number" id="b_gas_${rm.id}" class="table-input" style="background:#fffbeb;" placeholder="가스비"></td>
+                <td><input type="number" id="b_net_${rm.id}" class="table-input" placeholder="통신비"></td>
+                <td><button type="button" class="btn-table-save" onclick="saveBatchRow(${rm.id}, '${roomName}')">저장</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 🌟 5. 배치 행 DB 실제 POST 전송 기능 추가
+    async function saveBatchRow(roomId, roomName) {
+        var elecNow = parseInt(document.getElementById(`b_elec_${roomId}`).value, 10) || 0;
+        var waterCost = trunc10(document.getElementById(`b_wCost_${roomId}`).value || 24500);
+        var gasCost = trunc10(document.getElementById(`b_gas_${roomId}`).value || 41200);
+        var netCost = trunc10(document.getElementById(`b_net_${roomId}`).value || 16500);
+        var dueDate = document.getElementById('u_dueDate').value || new Date().toISOString().split('T')[0];
+
+        var payload = {
+            room_id: roomId,
+            elec_usage: elecNow,
+            water_cost: waterCost,
+            gas_cost: gasCost,
+            net_cost: netCost,
+            due_date: dueDate,
+            status: '미납(고지대기)'
+        };
+
+        try {
+            var res = await fetch('/api/v1/bills', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert(`✅ [${roomName}] 공과금 고지가 DB에 정상 등록되었습니다! (10원 절사 적용)`);
+                loadDbBillsHistory(); // DB 장부 백체크 리로드
+            }
+        } catch(e) {
+            alert('❌ DB 저장 통신 오류: ' + e.message);
+        }
+    }
+
+    // 6. 백체크 하단 DB 장부 테이블 렌더링
+    function renderHistoryTable(list) {
+        var tbody = document.getElementById('historyTbody');
+        tbody.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="cell-text-center">기록된 이력이 없습니다.</td></tr>';
+            return;
+        }
+
+        list.slice(0, 5).forEach(function(item, idx) {
+            var tr = document.createElement('tr');
+            var roomStr = item.building_name ? `${item.building_name} ${item.room_no}호` : `호실 ID:${item.room_id}`;
+
+            tr.innerHTML = `
+                <td>${item.id || (idx + 1)}</td>
+                <td><b>${roomStr}</b></td>
+                <td class="td-num-align-right" style="color: blue; font-weight: bold;">${item.elec_usage} kWh</td>
+                <td class="td-num-align-right">${trunc10(item.water_cost).toLocaleString()}원</td>
+                <td class="td-num-align-right">${trunc10(item.gas_cost).toLocaleString()}원</td>
+                <td class="td-num-align-right">${trunc10(item.net_cost).toLocaleString()}원</td>
+                <td><span class="status-unpaid">${item.status || '미납(고지대기)'}</span></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 🌟 7. 단일 호실 DB 실제 POST 전송 연동
+    async function submitSingleUtility() {
+        var roomId = parseInt(document.getElementById('leftRoomSelector').value, 10);
+        if (!roomId) return alert('❌ 호실을 선택해 주세요.');
+
+        var elecNow = parseInt(document.getElementById('u_elecNow').value, 10) || 0;
+        var waterCost = trunc10(document.getElementById('u_waterCost').value || 0);
+        var gasCost = trunc10(document.getElementById('u_gasCost').value || 0);
+        var netCost = trunc10(document.getElementById('u_netCost').value || 0);
+        var dueDate = document.getElementById('u_dueDate').value;
+
+        var payload = {
+            room_id: roomId,
+            elec_usage: elecNow,
+            water_cost: waterCost,
+            gas_cost: gasCost,
+            net_cost: netCost,
+            due_date: dueDate,
+            status: '미납(고지대기)'
+        };
+
+        try {
+            var res = await fetch('/api/v1/bills', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert(`✅ 공과금 단일 고지가 DB에 성공적으로 등록되었습니다. (10원 절사 적용)`);
+                resetSingleForm();
+                loadDbBillsHistory(); // DB 장부 리로드
+            }
+        } catch(e) {
+            alert('❌ 통신 오류: ' + e.message);
+        }
+    }
+
+    function resetSingleForm() {
+        document.getElementById('singleUtilityForm').reset();
+        document.getElementById('u_dueDate').value = new Date().toISOString().split('T')[0];
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('u_dueDate').value = new Date().toISOString().split('T')[0];
+        loadUtilityRoomsData();
+    });
 </script>
 
 </body>
