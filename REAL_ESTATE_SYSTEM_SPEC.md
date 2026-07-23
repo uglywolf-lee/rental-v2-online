@@ -58,7 +58,7 @@
 ### system_snapshots (자동 백업/롤백) - ⚠️ 설계확정, 코드 미구현 (2026-07-23 확인)
 * id(Integer/AI), snapshot_type(VARCHAR50: 'full_backup'|'contract_undo'|'auto_snapshot'), table_name(TEXT/대상테이블), target_id(INTEGER/대상 행 ID), data_snapshot_json(TEXT/JSON: 변경 전 원본 통째 저장), requested_by_id(INTEGER/FK→users.id), is_restored(BIT/0:미회복 1:복구완료), created_at(TEXT)
 * **규칙(R19/R20/R23)**: contacts/bills/contracts/rooms 등 핵심데이터 INSERT아닌 UPDATE·비활성화 직전, 변경 전 행을 data_snapshot_json에 자동 스냅샷 → 실수 시 재INSERT/UPDATE로 1초 복구
-* **구현 필요분(TODO)**: (1) db.py에 위 테이블 CREATE 추가, (2) routes.py의 모든 UPDATE/is_active=0 직전 스냅샷 저장 로직 삽입, (3) 서버 시작 시 building_manager.db 파일 단위 롤링 백업(재해 대비, 행 스냅샷과 별개), (4) 인터페이스 [K] 복구 UI(비전문 사용자용 "되돌리기" 단일 버튼)
+* **구현 현황 (2026-07-23)**: ✅ **파일 단위 롤링 백업 = 구현 완료** — db.py `backup_db()`/`start_auto_backup()`: 서버 시작 시 1회 + 저장/수정(DB mtime 변화) 감지 시 5분마다 `building_manager.db`를 `_backups/auto/db_시각_사유.db`로 SQLite 스냅샷 롤링(최근 30개) 저장. server.py main()에서 호출. ⬜ **미구현**: (1) system_snapshots 테이블 CREATE, (2) routes.py UPDATE/비활성화 직전 행단위 JSON 스냅샷, (4) 인터페이스 [K] "되돌리기" 복구 UI.
 * **오프사이트 백업 = 구글 드라이브 (설계확정, 미구현)**: 대상 사용자(자산가) 본인 구글 드라이브에 DB 사본 자동 백업.
   - **채택 방식**: 구글 드라이브 데스크톱(동기화 폴더)에 파일 복사. 앱이 `~/내 드라이브/부동산백업/db_YYYYMMDD_HHMM.db`로 통째 복사만 하면 드라이브가 자동 업로드. **OAuth·API키·로그인 코드 불필요.** 사용자는 최초 1회 드라이브 데스크톱 설치·로그인만.
   - **근거**: DB 소용량(~70KB)이라 매 저장/수정마다 통째 복사해도 부담 없음. 롤링 보관(최근 N개).
@@ -71,9 +71,10 @@
 * UI(team_management.html): 사번(employee_no→representative_name), 실명(company_or_name), 비밀번호(password_hash), role(role)
 
 ## 4. API_SPECIFICATION (현재 구현본 기준)
-### 인증/AUTH_FLOW
-+ **/api/v1/auth** POST → 무조건 {success:true,token:'master_bypass_token',role:'super_admin',emp:'EMP-001',name:'김자산(최상위관리자)'}반환. DB검증없이모든로그인승인. 백도어용도로이유로안바꾸는것이다 **서버에서** 고정됨 (db_app.py #217)
-* GET /?access=master_bypass_token → 서버내부 바이패스토큰
+### 인증/AUTH_FLOW (2026-07-23 갱신 — 실제 구현 반영)
+* **실제 인증**: /api/v1/auth(/login) POST → routes.py `handle_auth_endpoint`가 contacts에서 사번(representative_name) 조회 후 비밀번호 비교(평문 또는 sha256) → 성공 {status:'success', user, token:'master_sys_884621'}, 실패 401. (구 db_app.py의 "무조건 success" 백도어 서술은 폐기됨 — 현재는 자격증명 검증함)
+* **로그인 게이트(guard.js)** — 신규: 모든 콘텐츠 페이지 <head>에 삽입. sessionStorage.loginOk 없으면 index.html(로그인)로 강제 이동; 로그인됐어도 콘텐츠를 단독(top-level)으로 열면 main.html 셸로 복귀. server.py 루트('/')·404 폴백도 index.html로. main.html은 미로그인 시 index.html로 리다이렉트(기존 무조건통과 제거).
+* **제작자 백도어(유지)**: index.html '관리시스템접속' 링크 ?access=master_sys_884621 → 세션 자동세팅 후 진입. 제작·모의용. **운영 배포 전 제거 대상.**
 
 ### REST API Endpoints
 | Endpoint | Method | Description |
@@ -101,6 +102,8 @@
 * [F] 유지보수 신고: 파손신고 접수, 상태값 변경 및 incidents.estimated_cost 수리비 추적 정산.
 * [G/H/I] 실무 대시보드: 월세 총합/만기/갱신 현황 통합 시각화. 행별 메모장 (contracts.special_terms에저장-UPDATE API로반환)자동저장(R35). 권한별 차등 격리.
 * [J] 팀원 관리 (team_management.html): contacts.category'=='staff'동적처리. 사번식별자고정, 패스워드최소6자 검증(R40).
+* [L] 협력사 (partner_roster.html): contacts.category in ('partner','broker') 명부 관리.
+* [RPT] 금일 관리 현황 (daily_report.html) — 임대인 일일 브리핑/출력물 (2026-07-23 신규, 메뉴 최상단): 상단 카드 4개(이번달 월세 전액수납시·미납·공실·30일내 만기) + 예외 목록 4개(미납·공실·만기임박60일·처리대기 유지보수) + 오늘의 연락 리스트(전화 중복제거). @media print A4 인쇄/PDF 저장 버튼, 별도 라이브러리 없음. rooms/contracts/bills/incidents API 집계. **6장 EXTERNAL_VIEW(옵션 A) 리포트의 "본인 전체용" 구현체.** (임대인별 필터는 6장 TODO)
 
 ## 6. EXTERNAL_VIEW (임대인 외부 열람) - ⚠️ 설계확정(옵션 A), 코드 미구현 (2026-07-23)
 * **목적**: 직원은 로컬에서 사용(원본), 임대인은 자기 물건 현황을 **열람만**. 수정 전면 불가.
@@ -108,4 +111,19 @@
 * **근거(설계 제1원칙 준수)**: "누구나·어르신도 쉽게". 클라우드 미러/터널(옵션 B/C)은 계정·세팅·인터넷 상시연결이 붙어 대전제·어르신 사용성과 충돌 → 제외.
 * **성격**: 임대인이 아무 때나 스스로 접속하는 실시간 셀프열람이 아니라, "최신 리포트를 받아보는" 방식. 소규모·비전문 임대인엔 이걸로 충분.
 * **비채택**: (B/C) 클라우드 읽기 미러·서버 터널 — 실시간이나 계정·인터넷 세팅 필요. (D) 포트포워딩+DDNS — 보안·CGNAT.
-* **구현 필요분(TODO)**: (1) 기존 화면 데이터를 담은 읽기전용 리포트 생성기(PDF 또는 자체완결 HTML 1파일), (2) 임대인별 소유 물건 필터, (3) 리포트에 생성 시각 표기, (4) 전달은 직원이 익숙한 채널(이메일/메신저) 수동 — 자동화는 후순위.
+* **구현 현황(2026-07-23)**: ✅ 본인 전체용 리포트 = daily_report.html([RPT], 5장)로 구현 — (1)읽기전용 리포트+인쇄/PDF, (3)생성시각 표기 완료. ⬜ 미구현: (2) 임대인별 소유 물건 필터, (4) 전달 자동화.
+
+## 7. 구현 이력 / 변경 로그 (2026-07-23 작업 세션)
+* **로그인 게이트**: guard.js 신규 + 전 콘텐츠 페이지 주입, server.py 루트→index.html, main.html 미로그인 차단. (→4장 AUTH_FLOW)
+* **자동 백업(파일 단위)**: db.py backup_db()/start_auto_backup() 구현, `_backups/auto/` 롤링 30개. (→2장 system_snapshots)
+* **금일 관리 현황 리포트**: daily_report.html 신규 + auth.js 메뉴 최상단 등록(super_admin·office_worker). (→5장 [RPT])
+* **UI 정리**:
+  - 계약서(B): 좌상단 안내박스 제거 → 업로드 라벨 옆 "⚠️ 대조확인", 2단 35:65 복원.
+  - 하단 흰 뷰어박스 제거(display:none): 월세납부·유지보수·관리비 3화면.
+  - body 높이 100vh 통일: interface-a·contract_master가 calc(100vh-64px)라 하단 흰띠 나던 것 교정. 부동산 표 컨테이너 flex:0 1 auto로 빈 박스 제거.
+  - 유지보수(F): '연락처(임차인)' 열 추가(계약 조인 tenant_phone, tel:링크), 대상호실 room_id→빌딩명+호실.
+  - 월세납부(E): 대상 호실 주소→빌딩명+호실, 열 폭 축소.
+* **버그 수정**: auth.js '월세납부' 경로 rent_payment_ledger.html(없음)→monthly_rent_collection.html.
+* **더미 데이터(테스트용)**: 건물5·호실10·계약11(전 호실 계약자 연결)·공과금5·유지보수5·직원5·협력사5·임차인13. 옛 더미 이름/전화 정상화.
+* **정리/형상관리**: 미사용 파이썬 5개(db_app.py 등) 삭제, 백업파일 `_backups/` 이동, `.gitignore` 추가. Git 커밋 + GitHub push 완료(origin/main).
+* **미구현 잔여(우선순위)**: ① 수납 장부 테이블(월세 수납률/받은금액 집계) ② system_snapshots 행단위 스냅샷 + [K]복구UI ③ 구글드라이브 오프사이트 백업 ④ 임대인별 리포트 필터 ⑤ 제작자 백도어 제거(운영 전).

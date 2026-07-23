@@ -59,11 +59,12 @@
     if (CFG.validRoles.indexOf(userRole) === -1) userRole = 'super_admin';
 
     var allBtns = [
+      {c:'RPT', l:'📋 금일 관리 현황', p:'daily_report.html'},
       {c:'A', l:'부동산',     p:'interface-a.html'},
       {c:'B', l:'계약서',     p:'contract_master.html'},
       {c:'C', l:'계약자',     p:'contractor_roster.html'},
       {c:'D', l:'공과금검침',  p:'utility_bills.html'},
-      {c:'E', l:'월세납부',   p:'rent_payment_ledger.html'},
+      {c:'E', l:'월세납부',   p:'monthly_rent_collection.html'},
       {c:'F', l:'유지보수',    p:'incidents_maintenance.html'},
       {c:'GHI', l:'통합대시보드', p:'g_h_i_dashboard.html'},
       {c:'K', l:'감사로그',     p:'auditlog.html'},
@@ -72,8 +73,8 @@
     ];
 
     var perm = {
-      super_admin:     ['A','B','C','D','E','F','GHI','K','J','L'],
-      office_worker:   ['A','B','C','E','GHI','L'],
+      super_admin:     ['RPT','A','B','C','D','E','F','GHI','K','J','L'],
+      office_worker:   ['RPT','A','B','C','E','GHI','L'],
       maintenance_staff:['D','F','GHI']
     };
 

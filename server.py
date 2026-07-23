@@ -17,7 +17,12 @@ from db import get_db, init_db_schema, backup_db, start_auto_backup
 from routes import handle_get_api, handle_auth_endpoint, handle_post_api
 
 PORT = 8080
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 패키징(exe) 대응: 얼려진 실행파일이면 exe 폴더, 아니면 스크립트 폴더 기준
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(BASE_DIR)   # 정적 파일 서빙을 앱 폴더 기준으로 고정
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
 
 if not os.path.exists(UPLOAD_DIR):

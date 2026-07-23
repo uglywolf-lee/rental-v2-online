@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>금일 관리 현황</title>
+<script src="guard.js"></script>
+<style>
+  :root{ --line:#cfd6dd; --ink:#222; --muted:#6b7280; --red:#c0392b; --blue:#1a5490; --bg:#f4f6f8; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Malgun Gothic','Segoe UI',sans-serif;background:var(--bg);color:var(--ink);padding:24px}
+  .sheet{max-width:900px;margin:0 auto;background:#fff;padding:32px 34px;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:6px}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid var(--blue);padding-bottom:12px;margin-bottom:20px}
+  .head h1{font-size:1.7rem;color:var(--blue);letter-spacing:-1px}
+  .head .date{font-size:1rem;color:var(--muted);font-weight:600}
+  .btn-print{background:var(--blue);color:#fff;border:none;padding:10px 18px;border-radius:5px;font-size:.95rem;font-weight:bold;cursor:pointer}
+  .btn-print:hover{background:#134070}
+  .toolbar{max-width:900px;margin:0 auto 14px;text-align:right}
+
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+  .card{border:1px solid var(--line);border-radius:8px;padding:14px 12px;text-align:center;background:#fafbfc}
+  .card .lbl{font-size:.82rem;color:var(--muted);margin-bottom:6px;font-weight:600}
+  .card .val{font-size:1.5rem;font-weight:800;color:var(--ink);line-height:1.15}
+  .card .sub{font-size:.75rem;color:var(--muted);margin-top:3px}
+  .card.warn .val{color:var(--red)}
+
+  h2.sec{font-size:1.1rem;margin:22px 0 10px;padding-left:9px;border-left:5px solid var(--blue);color:var(--blue)}
+  table{width:100%;border-collapse:collapse;font-size:.9rem}
+  th{background:#eef2f6;border:1px solid var(--line);padding:8px 9px;text-align:center;font-weight:700}
+  td{border:1px solid var(--line);padding:7px 9px;text-align:center}
+  td.l{text-align:left}
+  td.r{text-align:right}
+  .none{color:var(--muted);text-align:center;padding:12px}
+  .dday{font-weight:800;color:var(--red)}
+  .phone{font-weight:700}
+  .foot{margin-top:26px;font-size:.78rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .toolbar{display:none}
+    .sheet{box-shadow:none;max-width:none;padding:0 6mm}
+    @page{size:A4;margin:12mm}
+    .card{background:#fff}
+    h2.sec{break-after:avoid}
+    table{break-inside:auto}
+    tr{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn-print" onclick="window.print()">🖨 인쇄 / PDF 저장</button>
+  </div>
+
+  <div class="sheet">
+    <div class="head">
+      <h1>📋 금일 관리 현황</h1>
+      <div class="date" id="todayLbl">—</div>
+    </div>
+
+    <div class="cards">
+      <div class="card"><div class="lbl">이번 달 월세 (전액 수납 시)</div><div class="val" id="c_rent">—</div><div class="sub" id="c_rent_sub"></div></div>
+      <div class="card warn"><div class="lbl">미납 (공과금)</div><div class="val" id="c_unpaid">—</div><div class="sub" id="c_unpaid_sub"></div></div>
+      <div class="card warn"><div class="lbl">공실</div><div class="val" id="c_vacant">—</div><div class="sub">비어있는 호실</div></div>
+      <div class="card warn"><div class="lbl">30일 내 만기</div><div class="val" id="c_expire">—</div><div class="sub">갱신/재계약 대비</div></div>
+    </div>
+
+    <h2 class="sec">🔴 미납 내역 (공과금·관리비)</h2>
+    <table><thead><tr><th>호실</th><th>임차인</th><th>항목</th><th>금액</th><th>연락처</th></tr></thead>
+      <tbody id="tb_unpaid"></tbody></table>
+
+    <h2 class="sec">🏠 공실 목록</h2>
+    <table><thead><tr><th>건물</th><th>호실</th><th>면적(㎡)</th><th>상태</th></tr></thead>
+      <tbody id="tb_vacant"></tbody></table>
+
+    <h2 class="sec">📅 계약 만기 임박 (60일 이내)</h2>
+    <table><thead><tr><th>호실</th><th>임차인</th><th>만기일</th><th>남은일</th><th>연락처</th></tr></thead>
+      <tbody id="tb_expire"></tbody></table>
+
+    <h2 class="sec">🔧 긴급 유지보수 (처리 대기)</h2>
+    <table><thead><tr><th>호실</th><th>분류</th><th>내용</th><th>상태</th><th>연락처</th></tr></thead>
+      <tbody id="tb_incident"></tbody></table>
+
+    <h2 class="sec">📞 오늘의 연락 리스트</h2>
+    <table><thead><tr><th>대상</th><th>사유</th><th>연락처</th></tr></thead>
+      <tbody id="tb_call"></tbody></table>
+
+    <div class="foot" id="foot"></div>
+  </div>
+
+<script>
+var won = function(n){ return (Number(n)||0).toLocaleString() + '원'; };
+var pick = function(o, keys){ for(var i=0;i<keys.length;i++){ if(o[keys[i]]!=null && o[keys[i]]!=='') return o[keys[i]]; } return ''; };
+function fmtDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parseDate(s){ if(!s) return null; s=String(s).slice(0,10).replace(/\./g,'-'); var d=new Date(s); return isNaN(d)?null:d; }
+
+async function j(url){ try{ var r=await fetch(url); return await r.json()||[]; }catch(e){ return []; } }
+
+async function build(){
+  var today = new Date(); today.setHours(0,0,0,0);
+  document.getElementById('todayLbl').textContent = fmtDate(today) + ' 기준';
+
+  var rooms = await j('/api/v1/rooms');
+  var contracts = await j('/api/v1/contracts');
+  var bills = await j('/api/v1/bills');
+  var incidents = await j('/api/v1/incidents');
+
+  var roomById = {}; rooms.forEach(function(r){ roomById[r.id]=r; });
+  var roomStr = function(rid){ var r=roomById[rid]; return r ? ((r.building_name||'')+' '+pick(r,['room','room_no'])).trim() : ('호실 '+rid); };
+  // 방별 계약(첫 건) → 임차인/전화
+  var ctByRoom = {};
+  contracts.forEach(function(c){ if(ctByRoom[c.room_id]==null) ctByRoom[c.room_id]=c; });
+  var phoneOf = function(rid){ var c=ctByRoom[rid]; return c?(c.tenant_phone||''):''; };
+  var tenantOf = function(rid){ var c=ctByRoom[rid]; return c?(c.tenant_name||''):''; };
+
+  var callList = []; // {who, reason, phone}
+
+  // ── 카드1: 예상 월세 총액
+  var rentSum = 0, rentN = 0;
+  contracts.forEach(function(c){ var m=Number(c.monthly_rent)||0; if(m>0){ rentSum+=m; rentN++; } });
+  document.getElementById('c_rent').textContent = won(rentSum);
+  document.getElementById('c_rent_sub').textContent = '월세 계약 '+rentN+'건';
+
+  // ── 미납(공과금)
+  var unpaid = bills.filter(function(b){ return String(b.status||'').indexOf('미납')>=0; });
+  var unpaidSum = 0;
+  var tbU = document.getElementById('tb_unpaid');
+  if(!unpaid.length){ tbU.innerHTML='<tr><td colspan="5" class="none">미납 건 없음</td></tr>'; }
+  else unpaid.forEach(function(b){
+    var amt = Number(b.net_cost)|| (Number(b.water_cost||0)+Number(b.gas_cost||0));
+    unpaidSum += amt;
+    var ph = phoneOf(b.room_id), tn = tenantOf(b.room_id);
+    if(ph) callList.push({who:tn||roomStr(b.room_id), reason:'미납', phone:ph});
+    tbU.insertAdjacentHTML('beforeend','<tr><td>'+roomStr(b.room_id)+'</td><td>'+(tn||'-')+'</td><td>'+(b.bill_type||'관리비')+'</td><td class="r">'+won(amt)+'</td><td class="phone">'+(ph||'-')+'</td></tr>');
+  });
+  document.getElementById('c_unpaid').textContent = unpaid.length+'건';
+  document.getElementById('c_unpaid_sub').textContent = won(unpaidSum);
+
+  // ── 공실
+  var vacant = rooms.filter(function(r){ return /공실|비어|빈/.test(String(pick(r,['status','current_room_status']))); });
+  var tbV = document.getElementById('tb_vacant');
+  if(!vacant.length){ tbV.innerHTML='<tr><td colspan="4" class="none">공실 없음</td></tr>'; }
+  else vacant.forEach(function(r){
+    var area = pick(r,['area','area_sqm']);
+    tbV.insertAdjacentHTML('beforeend','<tr><td>'+(r.building_name||'-')+'</td><td>'+pick(r,['room','room_no'])+'</td><td class="r">'+(area?Number(area).toFixed(1):'-')+'</td><td>'+pick(r,['status','current_room_status'])+'</td></tr>');
+  });
+  document.getElementById('c_vacant').textContent = vacant.length+'개';
+
+  // ── 만기 임박 (60일)
+  var soon = [];
+  contracts.forEach(function(c){
+    var ed = parseDate(c.end_date); if(!ed) return;
+    var dday = Math.ceil((ed - today)/86400000);
+    if(dday>=0 && dday<=60) soon.push({c:c, dday:dday, ed:ed});
+  });
+  soon.sort(function(a,b){ return a.dday-b.dday; });
+  var expire30 = soon.filter(function(x){ return x.dday<=30; }).length;
+  document.getElementById('c_expire').textContent = expire30+'건';
+  var tbE = document.getElementById('tb_expire');
+  if(!soon.length){ tbE.innerHTML='<tr><td colspan="5" class="none">60일 내 만기 없음</td></tr>'; }
+  else soon.forEach(function(x){
+    var ph=x.c.tenant_phone||'', tn=x.c.tenant_name||'';
+    if(ph) callList.push({who:tn||roomStr(x.c.room_id), reason:'만기임박(D-'+x.dday+')', phone:ph});
+    tbE.insertAdjacentHTML('beforeend','<tr><td>'+roomStr(x.c.room_id)+'</td><td>'+(tn||'-')+'</td><td>'+(x.c.end_date||'-')+'</td><td class="dday">D-'+x.dday+'</td><td class="phone">'+(ph||'-')+'</td></tr>');
+  });
+
+  // ── 긴급 유지보수 (미완료)
+  var openInc = incidents.filter(function(i){ return String(i.status||'').indexOf('완료')<0; });
+  var tbI = document.getElementById('tb_incident');
+  if(!openInc.length){ tbI.innerHTML='<tr><td colspan="5" class="none">처리 대기 건 없음</td></tr>'; }
+  else openInc.forEach(function(i){
+    var ph=phoneOf(i.room_id), tn=tenantOf(i.room_id);
+    if(ph) callList.push({who:tn||roomStr(i.room_id), reason:'유지보수('+(i.category||'')+')', phone:ph});
+    tbI.insertAdjacentHTML('beforeend','<tr><td>'+roomStr(i.room_id)+'</td><td>'+(i.category||'-')+'</td><td class="l">'+(i.description||'-')+'</td><td>'+(i.status||'접수중')+'</td><td class="phone">'+(ph||'-')+'</td></tr>');
+  });
+
+  // ── 오늘의 연락 리스트 (전화 중복 제거)
+  var seen={}, tbC=document.getElementById('tb_call'), cN=0;
+  callList.forEach(function(x){
+    if(!x.phone) return; var key=x.phone;
+    if(seen[key]){ seen[key].reason += ', '+x.reason; return; }
+    seen[key]={reason:x.reason}; cN++;
+    var rowId='call_'+cN;
+    tbC.insertAdjacentHTML('beforeend','<tr id="'+rowId+'"><td>'+(x.who||'-')+'</td><td class="l">'+x.reason+'</td><td class="phone">'+x.phone+'</td></tr>');
+    seen[key].el=document.getElementById(rowId);
+  });
+  // reason 병합 반영
+  Object.keys(seen).forEach(function(k){ if(seen[k].el) seen[k].el.children[1].textContent=seen[k].reason; });
+  if(!cN){ tbC.innerHTML='<tr><td colspan="3" class="none">오늘 연락할 대상 없음</td></tr>'; }
+
+  document.getElementById('foot').textContent = '생성 시각 '+ new Date().toLocaleString('ko-KR') + ' · 부동산 관리시스템 · 미납/공실/만기/유지보수 예외 항목 자동 집계';
+}
+build();
+</script>
+</body>
+</html>

@@ -6,10 +6,15 @@ db.py - 데이터베이스 관리 모듈
 - 마스터 계정(EMP-001) 강제 보장
 """
 
-import sqlite3, os, shutil, glob, datetime, threading, time
+import sqlite3, os, sys, shutil, glob, datetime, threading, time
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'building_manager.db')
-BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_backups', 'auto')
+# 패키징(exe) 대응: 얼려진 실행파일이면 exe 폴더, 아니면 스크립트 폴더 기준
+if getattr(sys, 'frozen', False):
+    _APP_DIR = os.path.dirname(sys.executable)
+else:
+    _APP_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(_APP_DIR, 'building_manager.db')
+BACKUP_DIR = os.path.join(_APP_DIR, '_backups', 'auto')
 BACKUP_KEEP = 30  # 최신 N개만 롤링 보관
 
 

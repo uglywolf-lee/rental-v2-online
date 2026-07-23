@@ -1,5 +1,5 @@
 window.REAL_ESTATE_SYSTEM_SPEC = `
-# REAL_ESTATE_SYSTEM_SPEC (v2.2 - 2026-07-23 OCR기능 반영본)
+# REAL_ESTATE_SYSTEM_SPEC (v2.3 - 2026-07-23 로그인게이트/자동백업/금일현황리포트 반영본)
 # 서버: server.py(엔트리/정적서빙/업로드) + routes.py(API라우팅) + db.py(DB스키마) | DB: building_manager.db (SQLite)
 # (주: v2.0 문서상 'db_app.py' 명칭 → 실제 구현은 server.py/routes.py/db.py 로 분리 운영)
 
@@ -60,6 +60,7 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 + **응답형식**: 성공 {status:'success', user:{employee_no,name,role}, token} / 실패 {status:'error', message}. 클라이언트는 user.role 로 권한 판정.
 + **비밀번호 검증 적용**: 마스터 계정 포함 저장된 password_hash 와 일치해야 로그인 성공 (이전의 '무조건 승인' 및 db_pw=='admin123' 무조건통과 로직 제거).
 * URL 바이패스: GET /?access=master_sys_884621 → auth.js 가 sessionStorage(creatorBypass=true, userRole=super_admin) 주입 + 제작자모드 배지 노출. 서버 인증과 별개인 클라이언트 우회 경로.
++ **로그인 게이트(guard.js, 2026-07-23 신규)**: 모든 콘텐츠 페이지 <head>에 삽입. sessionStorage.loginOk 없으면 index.html로 강제이동, 로그인됐어도 콘텐츠를 단독(top-level)으로 열면 main.html 셸로 복귀. server.py 루트('/')·404 폴백을 index.html(로그인)으로 변경, main.html 미로그인 차단(기존 무조건통과 제거).
 
 ### REST API Endpoints
 | Endpoint | Method | Description |
@@ -86,6 +87,8 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 * [F] 유지보수 신고: 파손신고 접수, 상태값 변경 및 incidents.estimated_cost 수리비 추적 정산.
 * [G/H/I] 실무 대시보드: 월세 총합/만기/갱신 현황 통합 시각화. 행별 메모장 (contracts.special_terms에저장-UPDATE API로반환)자동저장(R35). 권한별 차등 격리.
 * [J] 팀원 관리 (team_management.html): contacts.category=='staff'동적처리. 사번식별자고정, 패스워드최소6자 검증(R40).
+* [L] 협력사 (partner_roster.html): contacts.category in ('partner','broker') 명부 관리.
+* [RPT] 금일 관리 현황 (daily_report.html) — 임대인 일일 브리핑/출력물(2026-07-23 신규, 메뉴 최상단): 카드4(이번달월세 전액수납시·미납·공실·30일내만기)+예외목록4(미납·공실·만기임박60일·처리대기 유지보수)+오늘의 연락리스트(전화 중복제거). @media print A4 인쇄/PDF 저장버튼, 외부 라이브러리 없음. rooms/contracts/bills/incidents API 집계. 6장 임대인리포트(옵션A)의 '본인 전체용' 구현체.
 * contacts에role/is_active필드추가완료. role: 'super_admin'|'office_worker'|'maintenance_staff', is_active=1활성/0정지
 
 ## 6. FILE_STORAGE (업로드 저장구역) - 2026-07-23 추가
@@ -111,6 +114,17 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 * [파일] /api/v1/upload 종류별 저장구역(photos/documents/etc) 도입. partner_roster 증빙서류 업로드 로직 연결, contacts.documents_json 컬럼/라우트 반영.
 * [정리] property_asset.html 제거 (미사용 구버전 자산등록 페이지).
 * [기능] 계약서 OCR 자동채움 도입: contract_master.html + ocr_engine.py + POST /api/v1/ocr + install_ocr.sh. 계약서/신분증/여권 지원, 추정값→사람검토, 주민번호 마스킹.
+
+### 2026-07-23 (2차 — 로그인게이트 / 자동백업 / 금일현황 리포트 / UI정리)
+* [보안] 로그인 게이트 guard.js 신규 + 전 콘텐츠 페이지 주입. server.py 루트→index.html, main.html 미로그인 차단. (4장 AUTH_FLOW)
+* [백업] db.py backup_db()/start_auto_backup() 구현 — 서버시작 1회 + 저장/수정(mtime변화) 감지 시 5분마다 building_manager.db를 _backups/auto/db_시각_사유.db 로 SQLite 스냅샷 롤링(최근30). server.py main() 호출. (행단위 system_snapshots·[K]복구UI는 미구현)
+* [기능] 금일 관리 현황 리포트 daily_report.html 신규([RPT]) + auth.js 메뉴 최상단 등록(super_admin·office_worker). 인쇄/PDF. 미납·공실·만기·유지보수 예외집계 + 오늘의 연락리스트.
+* [버그] auth.js '월세납부' 경로 rent_payment_ledger.html(없음)→monthly_rent_collection.html 교정.
+* [UI] 계약서(B) 좌상단 안내박스 제거→업로드라벨 옆 "⚠️ 대조확인", 2단 35:65 복원. 월세납부·유지보수·관리비 하단 흰박스 제거. body높이 100vh 통일(하단 흰띠 제거), 부동산 표 flex:0 1 auto(빈박스 제거).
+* [UI] 유지보수(F) '연락처(임차인)' 열 추가(계약 조인 tenant_phone·tel:링크)·대상호실 room_id→빌딩명+호실. 월세납부(E) 대상호실 빌딩명+호실·열폭 축소.
+* [데이터] 테스트 더미 채움(건물5·호실10·계약11·공과금5·유지보수5·직원5·협력사5·임차인13), 옛 더미 이름/전화 정상화.
+* [정리] 미사용 파이썬 5개(db_app.py 등) 삭제, 백업파일 _backups/ 이동, .gitignore 추가, Git 커밋+GitHub push.
+* [잔여TODO] 수납장부 테이블(수납률/받은금액 집계) · system_snapshots 행단위+[K]복구UI · 구글드라이브 오프사이트 백업 · 임대인별 리포트필터 · 제작자 백도어 제거(운영전).
 
 ## 8. OCR_AUTOFILL (계약서/신분증/여권 자동채움) - 2026-07-23 추가
 * 목적: 계약서(B) 화면에서 원본(PDF/사진) 업로드 시 OCR로 칸을 채우고 사람이 확인·수정 후 저장
