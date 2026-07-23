@@ -62,6 +62,7 @@
         
         .display-none { display: none; }
     </style>
+<script src="guard.js"></script>
 </head>
 <body>
     <div class="left-panel">
@@ -81,8 +82,7 @@
             <div class="form-group">
                 <label>계약 잔여 기간 검색 (계약 종료일 기준)</label>
                 <div class="date-range-box">
-                    <input type="date" class="form-control" id="startDateFilter" onchange="filterContractors()">
-                    <span>~</span>
+                    <input type="text" class="form-control" id="startDateFilter" placeholder="YYYY-MM-DD" maxlength="10" onchange="filterContractors()" />                    <span>~</span>
                     <input type="date" class="form-control" id="endDateFilter" onchange="filterContractors()">
                 </div>
             </div>

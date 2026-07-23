@@ -62,7 +62,7 @@
         .btn-search { padding: 0 15px; }
         .table-shadow-wrap { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         
-        .verify-bottom-area { height: 40%; background: var(--dark-viewer); display: flex; flex-direction: column; }
+        .verify-bottom-area { display: none; }
         .viewer-header-bar { background: var(--border); padding: 6px 15px; font-size: 0.8rem; font-weight: bold; color: var(--text-dark); }
         .viewer-content-center { flex: 1; display: flex; justify-content: center; align-items: center; padding: 15px; overflow: hidden; }
         .viewer-paper-sheet { width: 85%; height: 95%; background: var(--white); color: var(--text-dark-main); padding: 20px; box-sizing: border-box; font-size: 0.78rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); overflow-y: auto; }
@@ -76,7 +76,10 @@
         .cell-text-center { text-align: center; } 
         .cell-num-right { text-align: right; }    
         .status-paid-complete { color: #0056b3; font-weight: bold; }
+        /* 대상 호실 열: 주소 대신 빌딩명+호실만 → 폭 축소 */
+        table th:first-child, #paymentLedgerTbody td:first-child { width: 130px; max-width: 130px; white-space: normal; word-break: keep-all; }
     </style>
+<script src="guard.js"></script>
 </head>
 <body>
 
@@ -94,7 +97,7 @@
             <div class="row-grid">
                 <div class="form-group">
                     <label>실제 수납 일자</label>
-                    <input type="date" id="payDate" class="form-control" required>
+                    <input type="text" inputmode="numeric" id="payDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD (예: 20260723)" required>
                 </div>
                 <div class="form-group">
                     <label>약정 기본 월세 (만원)</label>
@@ -200,6 +203,7 @@
         </div>
     </div>
 
+<script src="date8.js"></script>
 <script>
 var ALL_CONTRACTS = [];
 var ALL_ROOMS = [];
@@ -309,7 +313,8 @@ function renderLedgerTable(list) {
         var vat = trunc10(rent * 0.1);
         var total = trunc10(rent + admin + vat + 45200 + 24500 + 58000 + 16500);
 
-        var roomStr = item.host_address_full || (item.building_name ? `${item.building_name} ${item.room_no}호` : '미지정');
+        var rm = ALL_ROOMS.find(function(r){ return r.id == item.room_id; });
+        var roomStr = rm ? ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim() : '미지정';
 
         tr.innerHTML = `
             <td class="cell-text-center"><b>${roomStr}</b></td>

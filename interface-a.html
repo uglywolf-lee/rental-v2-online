@@ -16,9 +16,9 @@
         
         body { 
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;  
-            display: flex; 
-            height: calc(100vh - 64px); 
-            overflow: hidden; 
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
             background: var(--bg); 
         }
         
@@ -36,7 +36,7 @@
         .btn-main { background: var(--primary); color: white; }
         .btn-sub { background: #6c757d; color: white; }
         
-        .excel-table-wrap { flex: 1; overflow: auto; border: 1px solid #bbc4cc; margin-top: 15px; }
+        .excel-table-wrap { flex: 0 1 auto; min-height: 0; overflow: auto; border: 1px solid #bbc4cc; margin-top: 15px; }
         table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
         th { background: #f1f3f5; border: 1px solid #bbc4cc; padding: 6px 8px; font-weight: 600; position: sticky; top: 0; text-align: center; color: #212529; white-space: nowrap; }
         td { border: 1px solid #ced4da; padding: 4px 8px; white-space: nowrap; }
@@ -51,6 +51,7 @@
         .col-active { min-width: 55px; max-width: 70px; width: 60px; text-align: right; }
         .th-active { min-width: 55px; max-width: 70px; width: 60px; text-align: center; }
     </style>
+<script src="guard.js"></script>
 </head>
 <body>
 
@@ -66,12 +67,12 @@
                 <input type="text" class="form-control" id="actualAddress" placeholder="식별 및 연동 주소 입력" required>
             </div>
             <div class="form-group">
-                <label>배정 층수</label>
-                <input type="number" class="form-control" id="assignedFloor">
+                <label>호실 번호</label>
+                <input type="text" class="form-control" id="roomNumber" placeholder="예: 440 (4층 40호)" oninput="autoFillFloor()" required>
             </div>
             <div class="form-group">
-                <label>호실 번호</label>
-                <input type="text" class="form-control" id="roomNumber" placeholder="예: 101호" required>
+                <label>층 <span style="font-weight:400;color:#888;">(호실번호에서 자동 · 지하/비정형이면 수정)</span></label>
+                <input type="number" class="form-control" id="assignedFloor" placeholder="자동 산출">
             </div>
             <div class="form-group">
                 <label>전용 면적 ㎡</label>
@@ -122,12 +123,42 @@
     </div>
 
 <script src="auth.js"></script>
+<script src="date8.js"></script>
 <script>
+// 층 숫자를 화면 표시용으로 변환: 음수=지하(B), 양수=지상
+function floorLabel(f) {
+    var n = parseInt(f, 10);
+    if (isNaN(n) || n === 0) return '';
+    return n < 0 ? ('B' + Math.abs(n)) : String(n);
+}
+
+// 한국 호수 규칙: 뒤 2자리=호, 나머지 앞자리=층 (예 440->4층, 1502->15층)
+function deriveFloor(roomNo) {
+    var s = String(roomNo || '').trim();
+    if (/^(b|B|지하|-)/.test(s)) {              // 지하
+        var bd = (s.match(/\d+/) || [''])[0];
+        return bd ? -parseInt(bd.slice(0, 1), 10) : '';
+    }
+    var d = s.replace(/\D/g, '');
+    if (!d) return '';
+    if (d.length <= 2) return 1;                 // 한두자리 호실은 1층
+    return parseInt(d.slice(0, -2), 10) || 1;
+}
+
+// 호실번호 입력 시 층 자동채움 (사용자가 직접 고친 경우는 건드리지 않음)
+function autoFillFloor() {
+    var fEl = document.getElementById('assignedFloor');
+    if (fEl.dataset.userEdited === '1') return;
+    var f = deriveFloor(document.getElementById('roomNumber').value);
+    fEl.value = (f === '' ? '' : f);
+}
+
 async function handleAssetSubmit(event) {
     event.preventDefault();
     const name = document.getElementById('buildingName').value.trim();
     const addr = document.getElementById('actualAddress').value.trim();
-    const floors = parseInt(document.getElementById('assignedFloor').value) || 1;
+    const roomNo0 = document.getElementById('roomNumber').value.trim();
+    const floors = parseInt(document.getElementById('assignedFloor').value) || parseInt(deriveFloor(roomNo0)) || 1;
     const roomNo = document.getElementById('roomNumber').value.trim() || '';
     const area   = parseFloat(document.getElementById('roomArea').value) || 0;
 
@@ -135,11 +166,12 @@ async function handleAssetSubmit(event) {
     try {
         const existingRes = await fetch('/api/v1/buildings');
         const existing = await existingRes.json();
+        // 건물 식별은 '주소' 기준 (R1: 부동산 근원은 주소지). 같은 주소면 동일 건물로 보고 호실만 추가.
+        const normAddr = a => (a || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        const key = normAddr(addr);
         let bldgId = null;
         for (const b of existing) {
-            if (b.name === name && b.address === addr) {
-                bldgId = b.id; break;
-            }
+            if (normAddr(b.address) === key) { bldgId = b.id; break; }
         }
 
         // 신규 등록
@@ -177,54 +209,59 @@ function handleAssetUpdate() {
 function clearRoomInputs() {
     document.getElementById('roomNumber').value = '';
     document.getElementById('roomArea').value = '';
+    // 층 자동채움 재개(다음 호실 입력 대비): 사용자수정 플래그 해제하지 않음(같은 층 연속등록 편의)
     document.getElementById('roomNumber').focus();
 }
+
+// 층칸 직접 수정 감지
+document.addEventListener('DOMContentLoaded', function(){
+    var fEl = document.getElementById('assignedFloor');
+    if (fEl) fEl.addEventListener('input', function(){ fEl.dataset.userEdited = '1'; });
+});
 
 async function loadBuildings(){
     try {
         const kw = (document.getElementById('searchKeyword')?.value || '').trim().toLowerCase();
         
-        const res = await fetch('/api/v1/buildings');
-        const buildings = await res.json();
-        if (!buildings.length) { alert('등록된 건물이 없습니다.'); return; }
-        
         const roomRes = await fetch('/api/v1/rooms');
         const allRooms = await roomRes.json() || [];
-        
+        if (!allRooms.length) { alert('등록된 호실이 없습니다.'); return; }
+
         const tbody = document.querySelector('.excel-table-wrap tbody');
         tbody.innerHTML = '';
-        
+
         let matchCount = 0;
-        
-        // buildings → rooms 매칭해서 모든 row 후보 수집
-        for (const b of buildings) {
-            for (const rm of allRooms) {
-                if (rm.building_name !== b.name) continue;
-                
-                const kwMatch = !kw || 
-                    b.name.toLowerCase().includes(kw) || 
-                    b.address.toLowerCase().includes(kw) ||
-                    (rm.room || '').toLowerCase().includes(kw);
-                
-                if (!kwMatch) continue;
-                
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="col-no">${rm.id}</td>
-                    <td class="cell-text-center">${b.name}</td>
-                    <td class="cell-text-center">${b.address}</td>
-                    <td class="cell-text-center">${rm.floor || ''}</td>
-                    <td class="cell-text-center">${rm.room || rm.room_no || '-'}</td>
-                    <td class="cell-num-right">${rm.area ? rm.area.toFixed(3) : '-'}</td>
-                    <td class="cell-text-center">-</td>
-                    <td class="cell-text-center">${rm.status || '-'}</td>
-                    <td class="col-active">1</td>
-                `;
-                tbody.appendChild(tr);
-                matchCount++;
-            }
+
+        // 호실 기준 렌더 — 건물정보는 rooms API의 building_id 조인 결과를 그대로 사용.
+        // 건물명이 아니라 FK로 묶이므로 주소/호실이 잘못 묶이거나 분리되지 않는다.
+        for (const rm of allRooms) {
+            const bname = rm.building_name || '(건물 미지정)';
+            const baddr = rm.building_address || '-';
+            const roomNo = String(rm.room || rm.room_no || '');
+            const areaVal = rm.area != null ? rm.area : rm.area_sqm;
+
+            const kwMatch = !kw ||
+                bname.toLowerCase().includes(kw) ||
+                baddr.toLowerCase().includes(kw) ||
+                roomNo.toLowerCase().includes(kw);
+            if (!kwMatch) continue;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="col-no">${rm.id}</td>
+                <td class="cell-text-center">${bname}</td>
+                <td class="cell-text-center">${baddr}</td>
+                <td class="cell-text-center">${floorLabel(rm.floor != null ? rm.floor : rm.floor_no)}</td>
+                <td class="cell-text-center">${roomNo || '-'}</td>
+                <td class="cell-num-right">${areaVal ? Number(areaVal).toFixed(3) : '-'}</td>
+                <td class="cell-text-center">-</td>
+                <td class="cell-text-center">${rm.status || rm.current_room_status || '-'}</td>
+                <td class="col-active">1</td>
+            `;
+            tbody.appendChild(tr);
+            matchCount++;
         }
-        
+
         if (!matchCount) {
             const tr = document.createElement('tr');
             tr.innerHTML = '<td colspan="9" class="cell-text-center">검색 결과가 없습니다</td>';

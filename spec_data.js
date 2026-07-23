@@ -1,10 +1,11 @@
 window.REAL_ESTATE_SYSTEM_SPEC = `
-# REAL_ESTATE_SYSTEM_SPEC (v2.0 - 2026-07-22 최종확정본)
-# 서버: db_app.py 484줄 | DB: building_manager.db (SQLite)
+# REAL_ESTATE_SYSTEM_SPEC (v2.2 - 2026-07-23 OCR기능 반영본)
+# 서버: server.py(엔트리/정적서빙/업로드) + routes.py(API라우팅) + db.py(DB스키마) | DB: building_manager.db (SQLite)
+# (주: v2.0 문서상 'db_app.py' 명칭 → 실제 구현은 server.py/routes.py/db.py 로 분리 운영)
 
 ## 0. GLOBAL_STANDARDS
 * AUTH: 모든 접근은 /api/v1/ 라우팅으로 통일
-* DATETIME: DB=TEXT('YYYY-MM-DD HH:MM:SS') | UI=TEXT('YYYY-MM-DD')
+* DATETIME: DB=TEXT('YYYY-MM-DD HH:MM:SS') | UI표시=TEXT('YYYY-MM-DD') | UI입력=숫자8자리(YYYYMMDD) — 공용모듈 date8.js 가 8자리로 입력받아 저장 시 'YYYY-MM-DD'로 변환
 * PHONE_FORMAT: 'NN-NNNN-NNNN' (14자 고정)
 * EMAIL: lowercase_only @domain.tld
 * AMOUNT_BILL: DB=INTEGER(원단위) | UI='원단위' 고정
@@ -54,9 +55,11 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 * UI(team_management.html): 사번(employee_no→representative_name), 실명(company_or_name), 비밀번호(password_hash), role(role)
 
 ## 4. API_SPECIFICATION (db_app_484줄최종본) - 최종확정본
-### 인증/AUTH_FLOW
-+ **/api/v1/auth** POST → 무조건 {success:true,token:'master_bypass_token',role:'super_admin',emp:'EMP-001',name:'김자산(최상위관리자)'}반환. DB검증없이모든로그인승인. 백도어용도로이유로안바꾸는것이다 **서버에서** 고정됨 (db_app.py #217)
-* GET /?access=master_sys_884621 → 서버내부 바이패스토큰
+### 인증/AUTH_FLOW (2026-07-23 패치)
++ **로그인 엔드포인트**: POST /api/v1/auth/login {emp, password} (프론트 index.html 연동). 별칭 경로 /api/v1/login, /api/v1/auth 도 동일 처리.
++ **응답형식**: 성공 {status:'success', user:{employee_no,name,role}, token} / 실패 {status:'error', message}. 클라이언트는 user.role 로 권한 판정.
++ **비밀번호 검증 적용**: 마스터 계정 포함 저장된 password_hash 와 일치해야 로그인 성공 (이전의 '무조건 승인' 및 db_pw=='admin123' 무조건통과 로직 제거).
+* URL 바이패스: GET /?access=master_sys_884621 → auth.js 가 sessionStorage(creatorBypass=true, userRole=super_admin) 주입 + 제작자모드 배지 노출. 서버 인증과 별개인 클라이언트 우회 경로.
 
 ### REST API Endpoints
 | Endpoint | Method | Description |
@@ -67,7 +70,10 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 | /api/v1/contacts | POST | INSERT신규등록 OR ID기반 UPDATE role/pasword_hash/update지원 **is_active변경도제공**|
 | /api/v1/bills | GET/POST 공과금 고지목록 조회/등록 (elec_usage/water_cost/gas_cost/net_cost/due_date/status) |
 | /api/v1/incidents | GET/POST incidents CRUD + estimated_cost추적 |
-| /api/v1/contracts | GET/POST contracts CRUD+UPDATE special_terms지원
+| /api/v1/contracts | GET/POST contracts CRUD+UPDATE special_terms지원 |
+| /api/v1/auth/login | POST | 로그인 검증 {emp,password}. 별칭 /api/v1/login · /api/v1/auth |
+| /api/v1/upload | POST | 파일 업로드(헤더 X-File-Name, body=바이너리). 종류별 저장구역 분류 후 {filepath,filename,category} 반환 |
+| /api/v1/ocr | POST | 업로드 문서 OCR 필드 추정 {filepath,doc_type} → {engine,fields,confidence,raw_text,warnings}. 사람 검토 전제 |
 
 ### API_HEADERS_REQ (Content-Type:application/json) 
 
@@ -81,5 +87,44 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 * [G/H/I] 실무 대시보드: 월세 총합/만기/갱신 현황 통합 시각화. 행별 메모장 (contracts.special_terms에저장-UPDATE API로반환)자동저장(R35). 권한별 차등 격리.
 * [J] 팀원 관리 (team_management.html): contacts.category=='staff'동적처리. 사번식별자고정, 패스워드최소6자 검증(R40).
 * contacts에role/is_active필드추가완료. role: 'super_admin'|'office_worker'|'maintenance_staff', is_active=1활성/0정지
+
+## 6. FILE_STORAGE (업로드 저장구역) - 2026-07-23 추가
+* 엔드포인트: POST /api/v1/upload | 헤더 X-File-Name(URL인코딩 원본파일명) | body=파일 바이너리
+* 저장 루트: <서버폴더>/uploads/ 하위를 파일 종류별 구역으로 분류
+  - 사진(.jpg/.jpeg/.png/.gif/.webp/.bmp) → uploads/photos/
+  - 문서(.pdf) → uploads/documents/
+  - 기타 → uploads/etc/
+* 파일명 규칙: '<epoch초>_<원본파일명>' (중복 방지, 한글 파일명 허용)
+* 응답: {message, filepath:'uploads/<구역>/<파일명>', filename, category}
+* 저장된 파일은 정적 URL(/uploads/...)로 즉시 열람 가능
+* 연동: 협력사 증빙서류(partner_roster→contacts.documents_json), 유지보수 사진(incidents.photos_json)이 이 구역에 저장되고 경로만 DB에 기록
+
+## 7. PATCH_HISTORY
+### 2026-07-23 (오류수정 및 기능추가)
+* [로그인] 프론트 호출 경로 POST /api/v1/auth/login 을 서버 인증 핸들러가 처리하도록 추가 (이전 404 → 로그인 불가).
+* [로그인] index.html 응답 파싱을 user.role/user.employee_no 기준으로 교정 (이전 data.role 부재로 office_worker 폴백 → 마스터도 메뉴 축소되던 버그).
+* [보안] routes.py 인증에서 db_pw=='admin123' 무조건통과 조건 제거 → 비밀번호 일치 필수.
+* [데이터] GET /api/v1/contracts 조인 컬럼 c.contact_id → c.tenant_contact_id 수정 (이전 500으로 대시보드 데이터 미표시).
+* [데이터] GET /api/v1/rooms 를 buildings 조인 + 별칭(building_name/building_address/room/floor/area/status) 반환으로 정합화 → 자산목록/호실 드롭다운 표시 정상화.
+* [UI] main.html 상단 메뉴를 window.authModule.getButtonsByRole 로 #menuArea 에 렌더, 클릭 시 iframe 로드. 사용자/제작자모드 배지 연동.
+* [입력] 전 페이지 날짜 입력을 숫자8자리(YYYYMMDD) 방식으로 통일 (공용 date8.js). 화면은 8자리, 스크립트/DB는 'YYYY-MM-DD' 유지.
+* [파일] /api/v1/upload 종류별 저장구역(photos/documents/etc) 도입. partner_roster 증빙서류 업로드 로직 연결, contacts.documents_json 컬럼/라우트 반영.
+* [정리] property_asset.html 제거 (미사용 구버전 자산등록 페이지).
+* [기능] 계약서 OCR 자동채움 도입: contract_master.html + ocr_engine.py + POST /api/v1/ocr + install_ocr.sh. 계약서/신분증/여권 지원, 추정값→사람검토, 주민번호 마스킹.
+
+## 8. OCR_AUTOFILL (계약서/신분증/여권 자동채움) - 2026-07-23 추가
+* 목적: 계약서(B) 화면에서 원본(PDF/사진) 업로드 시 OCR로 칸을 채우고 사람이 확인·수정 후 저장
+* 방식: 오프라인 엔진(Tesseract, 한글 kor + eng). 개인정보 외부전송 없음. PDF는 poppler(pdftoppm)로 이미지 변환 후 인식
+* 구성요소
+  - contract_master.html : 업로드→[OCR 채우기]→추정값(노란칸+신뢰도 배지)→우측 원본뷰어 대조→저장. 날짜는 date8(8자리)
+  - ocr_engine.py : 표준 임대차계약서 라벨앵커 필드추출, 여권 MRZ 파싱, 신분증 기본필드, 주민번호 마스킹
+  - POST /api/v1/ocr : {filepath, doc_type('lease'|'id'|'passport')} → {engine, fields, confidence, raw_text, warnings}. BASE_DIR 하위 경로만 허용(경로탈출 방지)
+  - install_ocr.sh / OCR_README.md : 구동 PC 엔진 설치(tesseract+kor+poppler) 및 사용안내
+* 추출 필드(계약서): lease_type, host_address_full, room_no, deposit_amount, monthly_rent, maintenance_fee, start_date, end_date, owner/tenant rrn(마스킹)·phone, special_terms
+* 추출 필드(여권): surname_en, given_names_en, passport_no, nationality, birth_date (MRZ 기반)
+* 저장 연동: 계약필드는 /api/v1/contracts 로 저장, 당사자·여권·원본문서 메타는 documents_json(JSON)에 함께 보관(스키마 변경 없음)
+* 원칙(R): 모든 OCR 값은 '추정치'이며 저장 전 사람이 원본과 대조·수정 필수. 주민등록번호는 뒷자리 자동 마스킹(예 480910-1******)
+* 폴백: OCR 엔진 미설치 시 서버는 정상 동작하고 {engine.ready:false} 안내만 반환(무설치 포터블 성격은 OCR 기능에 한해서만 예외)
+
 
 `;

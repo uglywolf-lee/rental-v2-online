@@ -1,0 +1,19 @@
+# 자동 백업 (로컬 전용, 올리지 않음)
+_backups/
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
+
+# SQLite 저널/임시
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 맥 시스템 파일
+.DS_Store
+
+# 오래된 수동 백업 파일
+*.bak
+*.bak.*
+*.orig

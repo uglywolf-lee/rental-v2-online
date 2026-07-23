@@ -13,14 +13,14 @@ from db import get_db
 def handle_get_api(path):
     """GET API 라우팅 - 모든 /api/v1/* 엔드포인트 처리"""
     
-    endpoint = path.replace('/api/v1/', '')
+    from urllib.parse import urlparse, parse_qs
+    parsed_url = urlparse(path)
+    endpoint = parsed_url.path.replace('/api/v1/', '')
+    qs = parse_qs(parsed_url.query)
     conn = get_db()
     cur = conn.cursor()
     try:
         if endpoint.startswith('contacts'):
-            from urllib.parse import urlparse, parse_qs
-            parsed_url = urlparse(path)
-            qs = parse_qs(parsed_url.query)
             cat = qs.get('category', [None])[0]
             if cat:
                 cur.execute("SELECT * FROM contacts WHERE category = ?", (cat,))
@@ -156,7 +156,7 @@ def handle_post_api(path, data):
                     return 200, {'id': cid, 'message': '비밀번호 변경 완료'}
 
                 fields, vals = [], []
-                for k in ['category', 'company_or_name', 'representative_name', 'contact_info', 'email', 'password_hash', 'role', 'role_name', 'is_active']:
+                for k in ['category', 'company_or_name', 'representative_name', 'contact_info', 'email', 'password_hash', 'role', 'role_name', 'is_active', 'documents_json']:
                     if k in data:
                         fields.append(f"{k}=?")
                         vals.append(data[k])
@@ -173,10 +173,11 @@ def handle_post_api(path, data):
                 email = data.get('email', '')
                 pw = data.get('password_hash') or data.get('password', '')
                 role = data.get('role', 'office_worker')
+                docs = data.get('documents_json', '[]')
                 cur.execute("""
-                    INSERT INTO contacts (category, company_or_name, representative_name, contact_info, email, password_hash, role, role_name, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-                """, (cat, name, rep, phone, email, pw, role, role))
+                    INSERT INTO contacts (category, company_or_name, representative_name, contact_info, email, password_hash, role, role_name, is_active, documents_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                """, (cat, name, rep, phone, email, pw, role, role, docs))
                 new_cid = cur.lastrowid
                 conn.commit()
                 return 201, {'id': new_cid, 'success': True, 'message': '연락처/팀원 등록 완료'}

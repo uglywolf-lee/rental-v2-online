@@ -56,10 +56,15 @@ function doLogin(){
   })
   .then(r => r.json())
   .then(data => {
-    if (data.error) { alert(data.error); return; }
+    // 서버는 실패 시 {status:'error', message}, 성공 시 {status:'success', user:{...}} 를 반환
+    if (data.status === 'error' || data.error) {
+      alert(data.message || data.error || '로그인에 실패했습니다.');
+      return;
+    }
+    var u = data.user || {};
     sessionStorage.setItem('loginOk','true');
-    sessionStorage.setItem('userEmp', data.emp || emp);
-    sessionStorage.setItem('userRole', data.role || 'office_worker');
+    sessionStorage.setItem('userEmp', u.employee_no || data.emp || emp);
+    sessionStorage.setItem('userRole', u.role || data.role || 'office_worker');
     sessionStorage.setItem('_sess', Date.now());
     location.href='main.html';
   })

@@ -13,7 +13,7 @@ from socketserver import ThreadingMixIn
 import json, urllib.parse, hashlib
 import urllib as urllib_module
 
-from db import get_db, init_db_schema
+from db import get_db, init_db_schema, backup_db, start_auto_backup
 from routes import handle_get_api, handle_auth_endpoint, handle_post_api
 
 PORT = 8080
@@ -63,14 +63,14 @@ class Handler(SimpleHTTPRequestHandler):
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
 
-        # API GET 요청 처리
+        # API GET 요청 처리 (쿼리스트링 포함 전체 경로 전달 → category 등 필터 유지)
         if path.startswith('/api/v1/'):
-            status, body = handle_get_api(path)
+            status, body = handle_get_api(self.path)
             return json_response(self, status, body)
 
         # 정적 파일 서빙
         if path == '/' or path == '':
-            filename = 'g_h_i_dashboard.html'
+            filename = 'index.html'
         else:
             filename = path.lstrip('/')
 
@@ -87,11 +87,11 @@ class Handler(SimpleHTTPRequestHandler):
             with open(filename, 'rb') as f:
                 self.wfile.write(f.read())
         else:
-            if os.path.exists('g_h_i_dashboard.html'):
+            if os.path.exists('index.html'):
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html; charset=utf-8')
                 self.end_headers()
-                with open('g_h_i_dashboard.html', 'rb') as f:
+                with open('index.html', 'rb') as f:
                     self.wfile.write(f.read())
             else:
                 self.send_error(404, "File Not Found: {}".format(path))
@@ -112,15 +112,30 @@ class Handler(SimpleHTTPRequestHandler):
                 raw_filename = self.headers.get('X-File-Name', 'file.dat')
                 filename = urllib.parse.unquote(raw_filename)
                 import time
+
+                # 파일 종류별 저장 구역(subdir) 분류
+                ext = os.path.splitext(filename)[1].lower()
+                IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')
+                if ext in IMAGE_EXTS:
+                    subdir = 'photos'        # 사진 저장 구역
+                elif ext == '.pdf':
+                    subdir = 'documents'     # PDF 문서 저장 구역
+                else:
+                    subdir = 'etc'           # 기타 파일 저장 구역
+
+                target_dir = os.path.join(UPLOAD_DIR, subdir)
+                os.makedirs(target_dir, exist_ok=True)
+
                 safe_filename = "{}_{}".format(int(time.time()), filename)
-                save_path = os.path.join(UPLOAD_DIR, safe_filename)
+                save_path = os.path.join(target_dir, safe_filename)
                 file_data = self.rfile.read(length)
                 with open(save_path, 'wb') as f:
                     f.write(file_data)
                 return json_response(self, 201, {
                     'message': '업로드 성공',
-                    'filepath': "uploads/{}".format(safe_filename),
-                    'filename': filename
+                    'filepath': "uploads/{}/{}".format(subdir, safe_filename),
+                    'filename': filename,
+                    'category': subdir
                 })
             except Exception as e:
                 return json_response(self, 500, {'error': '파일 저장 실패: {}'.format(str(e))})
@@ -132,6 +147,28 @@ class Handler(SimpleHTTPRequestHandler):
             data = json.loads(body)
         except Exception:
             data = {}
+
+        # OCR API: 업로드된 계약서/신분증/여권에서 필드 추정 (사람 검토 전제)
+        if path == '/api/v1/ocr':
+            try:
+                import ocr_engine
+            except Exception as e:
+                return json_response(self, 500, {'error': 'OCR 모듈 로드 실패: {}'.format(e)})
+            rel = (data.get('filepath') or '').lstrip('/')
+            doc_type = data.get('doc_type', 'lease')
+            if not rel:
+                return json_response(self, 400, {'error': 'filepath 가 필요합니다.'})
+            # 경로 탈출 방지: BASE_DIR 하위만 허용
+            target = os.path.normpath(os.path.join(BASE_DIR, rel))
+            if not target.startswith(BASE_DIR):
+                return json_response(self, 400, {'error': '허용되지 않은 경로입니다.'})
+            if not os.path.isfile(target):
+                return json_response(self, 404, {'error': '파일을 찾을 수 없습니다: {}'.format(rel)})
+            try:
+                result = ocr_engine.run_ocr(target, doc_type)
+                return json_response(self, 200, result)
+            except Exception as e:
+                return json_response(self, 500, {'error': 'OCR 처리 오류: {}'.format(e)})
 
         # 로그인/인증 API
         auth_result = handle_auth_endpoint(path, data)
@@ -145,6 +182,10 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     init_db_schema()
+    bpath = backup_db('startup')      # 실행 시 복원지점 1개 자동 생성
+    start_auto_backup(300)            # 저장/수정 감지되면 5분마다 자동 백업
+    if bpath:
+        print("🛟 시작 백업 생성: {}".format(os.path.relpath(bpath, BASE_DIR)))
     print("\n🏢 부동산 관리 시스템 포터블 통합 서버 실행 완료 (Port: {})".format(PORT))
     print("🔗 접속 주소: http://localhost:{}".format(PORT))
     print("🔑 마스터 계정: ID 999 (사번: EMP-001) / 비밀번호: admin123\n")

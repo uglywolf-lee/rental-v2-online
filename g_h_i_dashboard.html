@@ -1,11 +1,4 @@
-제대로 이해했습니다! 올려주신 g_h_i_dashboard.html (전사 데이터 통합 조회 대시보드) 파일 1개만 정밀하게 다루겠습니다.
-이번 대시보드 화면에 적용된 핵심 반영사항은 다음과 같습니다:
-🛑 g_h_i_dashboard.html 핵심 개선 사항
-1. 공과금 및 수납 정산 10원 단위 절사(trunc10) 및 부가세 자동 계산: • 공과금 합산 및 부가세(10\%) 계산 시 10원 미만 원단위 절사(trunc10)를 적용하여 실무 정산 방식에 맞췄습니다.
-2. 실시간 수납 진행 상황 메모 자동 영속화: • 테이블의 메모 입력창에서 내용 변경(onchange) 발생 시 백엔드 계약 API(/api/v1/contracts)로 즉시 POST/PATCH 요청을 날려 DB(special_terms)에 자동 기록되도록 연동했습니다.
-3. 백엔드 API 동적 바인딩 및 렌더링: • 정적 HTML 텍스트로 고정되어 있던 수납 명부를 GET /api/v1/contracts API 결과와 연동하여 자동으로 dynamic 렌더링하도록 모듈화했습니다.
-📄 g_h_i_dashboard.html (전체 소스코드)
-이 파일 전체를 복사해서 기존 파일에 그대로 덮어씌우시면 됩니다.
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -138,6 +131,7 @@
         .ledger-memo-input { width: 100%; padding: 4px 8px; border: 1px solid #ced4da; border-radius: 3px; font-size: 0.8rem; font-family: inherit; box-sizing: border-box; background: #fff; color: #000; }
         .ledger-memo-input:focus { border-color: var(--teal); outline: none; background: #fdfdfd; box-shadow: 0 0 3px rgba(32, 201, 151, 0.3); }
     </style>
+<script src="guard.js"></script>
 </head>
 <body>
 
@@ -200,6 +194,7 @@
         </div>
     </div>
 
+<script src="date8.js"></script>
 <script>
 var CONTRACT_LIST = [];
 

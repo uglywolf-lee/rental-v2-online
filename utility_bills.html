@@ -71,7 +71,7 @@
         .batch-badge { background: #e6fffa; color: #0d9488; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; }
         
         /* 우측 하단: 최근 등록 장부 백체크 */
-        .right-bottom-history { flex: 4; padding: 15px 20px; background: #fdfdfd; display: flex; flex-direction: column; overflow: hidden; }
+        .right-bottom-history { display: none; }
         .history-title { font-size: 0.85rem; font-weight: bold; color: var(--text-muted); margin-bottom: 8px; }
 
         .excel-table-wrap { flex: 1; overflow: auto; border: 1px solid #bbc4cc; }
@@ -92,6 +92,7 @@
         
         .status-unpaid { color: var(--primary); font-weight: bold; }
     </style>
+<script src="guard.js"></script>
 </head>
 <body>
 
@@ -101,10 +102,12 @@
         
         <div class="address-sub" id="buildingAddressText">건물 및 호실 정보를 불러오는 중...</div>
         
-        <!-- 대형 호실 선택 드롭다운 (rooms.id INTEGER FK 매칭) -->
-        <select class="room-search-select" id="leftRoomSelector" onchange="onRoomSearchChange(this.value)">
-            <option value="">— 호실 선택 —</option>
-        </select>
+        <!-- 호실번호 직접 입력 + 자동완성 (100개 규모 대응, rooms.id FK는 내부 매칭) -->
+        <input class="room-search-select" id="leftRoomSelector" list="roomsDatalist"
+               placeholder="호실번호 입력 (예: 443)" autocomplete="off"
+               oninput="onRoomSearchChange(this.value)">
+        <datalist id="roomsDatalist"></datalist>
+        <input type="hidden" id="leftRoomId" value="">
         
         <form id="singleUtilityForm" onsubmit="event.preventDefault(); submitSingleUtility();">
             <!-- 1. 전기 영역 -->
@@ -148,7 +151,7 @@
 
             <div class="form-group form-group-top">
                 <label>납부 마감 기한일</label>
-                <input type="date" id="u_dueDate" class="form-control" required>
+                <input type="text" inputmode="numeric" id="u_dueDate" class="form-control date8" placeholder="YYYYMMDD (예: 20260320)" maxlength="8" required>
             </div>
     
             <div class="btn-box">
@@ -211,6 +214,7 @@
         
     </div>
 
+<script src="date8.js"></script>
 <script>
     var ALL_ROOMS = [];
 
@@ -227,19 +231,20 @@
             ALL_ROOMS = await res.json() || [];
             
             var sel = document.getElementById('leftRoomSelector');
-            sel.innerHTML = '<option value="">— 호실 선택 —</option>';
+            var dl = document.getElementById('roomsDatalist');
+            dl.innerHTML = '';
 
             ALL_ROOMS.forEach(function(rm) {
                 if(!rm.id) return;
                 var opt = document.createElement('option');
-                opt.value = rm.id; // INTEGER (FK)
-                opt.textContent = ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim();
-                sel.appendChild(opt);
+                opt.value = String(rm.room || rm.room_no || '');           // 호실번호만 매칭
+                opt.label = ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim(); // 힌트 표시
+                dl.appendChild(opt);
             });
 
             if (ALL_ROOMS.length > 0) {
-                sel.value = ALL_ROOMS[0].id;
-                onRoomSearchChange(ALL_ROOMS[0].id);
+                sel.value = String(ALL_ROOMS[0].room || ALL_ROOMS[0].room_no || '');
+                onRoomSearchChange(sel.value);
             }
 
             renderBatchTable();
@@ -261,14 +266,24 @@
     }
 
     // 3. 호실 선택 변경 시 주소 연동
-    function onRoomSearchChange(roomId) {
-        var targetData = ALL_ROOMS.find(function(item) { return item.id == roomId; });
+    function onRoomSearchChange(roomNoStr) {
+        var q = (roomNoStr || '').trim();
+        // 호실번호로 매칭 (같은 번호가 여러 건이면 첫 번째)
+        var targetData = ALL_ROOMS.find(function(item) {
+            return String(item.room || item.room_no || '') === q;
+        });
         var addrEl = document.getElementById('buildingAddressText');
         var guideEl = document.getElementById('guideLastReading');
+        var hid = document.getElementById('leftRoomId');
 
         if (targetData) {
-            addrEl.textContent = (targetData.building_address || '주소 정보 없음') + ' ' + (targetData.building_name || '');
+            hid.value = targetData.id; // 내부 FK 확정
+            addrEl.textContent = (targetData.building_address || '주소 정보 없음') + ' '
+                + (targetData.building_name || '') + ' / ' + (targetData.room || targetData.room_no || '') + '호';
             guideEl.textContent = '기록 미정 (신규산출)';
+        } else {
+            hid.value = '';
+            addrEl.textContent = q ? ('⚠️ 호실번호 "' + q + '" 를 찾을 수 없습니다.') : '호실번호를 입력하세요.';
         }
     }
 
@@ -362,8 +377,8 @@
 
     // 🌟 7. 단일 호실 DB 실제 POST 전송 연동
     async function submitSingleUtility() {
-        var roomId = parseInt(document.getElementById('leftRoomSelector').value, 10);
-        if (!roomId) return alert('❌ 호실을 선택해 주세요.');
+        var roomId = parseInt(document.getElementById('leftRoomId').value, 10);
+        if (!roomId) return alert('❌ 유효한 호실번호를 입력해 주세요. (자동완성 목록에서 확인)');
 
         var elecNow = parseInt(document.getElementById('u_elecNow').value, 10) || 0;
         var waterCost = trunc10(document.getElementById('u_waterCost').value || 0);
@@ -402,8 +417,22 @@
         document.getElementById('u_dueDate').value = new Date().toISOString().split('T')[0];
     }
 
+    // 숫자 연속 입력 시 YYYY-MM-DD 포맷 자동 변환 함수
+    function autoFormatDate(input) {
+        let val = input.value.replace(/\D/g, '');
+        if (val.length >= 8) {
+            input.value = val.substring(0, 4) + '-' + val.substring(4, 6) + '-' + val.substring(6, 8);
+        } else if (val.length >= 6) {
+            input.value = val.substring(0, 4) + '-' + val.substring(4, 6) + '-' + val.substring(6);
+        } else if (val.length >= 4) {
+            input.value = val.substring(0, 4) + '-' + val.substring(4);
+        } else {
+            input.value = val;
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('u_dueDate').value = new Date().toISOString().split('T')[0];
+        // loadUtilityRoomsData 내부에서 호실 로드 + bills 이력까지 동기화한다
         loadUtilityRoomsData();
     });
 </script>

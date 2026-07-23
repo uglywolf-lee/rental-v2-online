@@ -6,15 +6,61 @@ db.py - 데이터베이스 관리 모듈
 - 마스터 계정(EMP-001) 강제 보장
 """
 
-import sqlite3, os
+import sqlite3, os, shutil, glob, datetime, threading, time
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'building_manager.db')
+BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_backups', 'auto')
+BACKUP_KEEP = 30  # 최신 N개만 롤링 보관
 
 
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def backup_db(reason='auto'):
+    """building_manager.db를 일관된 스냅샷으로 _backups/auto에 롤링 저장. 반환: 백업 경로 or None"""
+    if not os.path.exists(DB_PATH):
+        return None
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+    except Exception:
+        return None
+    ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    dst = os.path.join(BACKUP_DIR, 'db_{}_{}.db'.format(ts, reason))
+    try:
+        s = sqlite3.connect(DB_PATH); d = sqlite3.connect(dst)
+        with s, d:
+            s.backup(d)                # 쓰기 도중에도 일관된 스냅샷
+        d.close(); s.close()
+    except Exception:
+        try:
+            shutil.copy2(DB_PATH, dst)  # 폴백: 단순 복사
+        except Exception:
+            return None
+    try:                               # 롤링: 오래된 것 삭제
+        for old in sorted(glob.glob(os.path.join(BACKUP_DIR, 'db_*.db')))[:-BACKUP_KEEP]:
+            try: os.remove(old)
+            except Exception: pass
+    except Exception:
+        pass
+    return dst
+
+
+def start_auto_backup(interval=300):
+    """DB 파일이 바뀌면(=저장/수정 발생) interval초마다 자동 백업하는 데몬 스레드."""
+    def _loop():
+        last = os.path.getmtime(DB_PATH) if os.path.exists(DB_PATH) else 0
+        while True:
+            time.sleep(interval)
+            try:
+                m = os.path.getmtime(DB_PATH) if os.path.exists(DB_PATH) else 0
+                if m and m != last:
+                    backup_db('auto'); last = m
+            except Exception:
+                pass
+    threading.Thread(target=_loop, daemon=True).start()
 
 
 def init_db_schema():
@@ -123,6 +169,7 @@ def init_db_schema():
             ("contacts", "password_hash", "TEXT"),
             ("contacts", "role", "TEXT DEFAULT 'office_worker'"),
             ("contacts", "is_active", "INTEGER DEFAULT 1"),
+            ("contacts", "documents_json", "TEXT"),
             ("contracts", "special_terms", "TEXT"),
             ("contracts", "tenant_contact_id", "INTEGER DEFAULT 0"),
             ("contracts", "owner_contact_id", "INTEGER DEFAULT 1"),
