@@ -64,6 +64,10 @@
       <div class="card warn"><div class="lbl">30일 내 만기</div><div class="val" id="c_expire">—</div><div class="sub">갱신/재계약 대비</div></div>
     </div>
 
+    <h2 class="sec">💰 월세 미납 (이번 달 미수납)</h2>
+    <table><thead><tr><th>호실</th><th>임차인</th><th>월세</th><th>연락처</th></tr></thead>
+      <tbody id="tb_rentunpaid"></tbody></table>
+
     <h2 class="sec">🔴 미납 내역 (공과금·관리비)</h2>
     <table><thead><tr><th>호실</th><th>임차인</th><th>항목</th><th>금액</th><th>연락처</th></tr></thead>
       <tbody id="tb_unpaid"></tbody></table>
@@ -103,6 +107,7 @@ async function build(){
   var contracts = await j('/api/v1/contracts');
   var bills = await j('/api/v1/bills');
   var incidents = await j('/api/v1/incidents');
+  var payments = await j('/api/v1/payments');
 
   var roomById = {}; rooms.forEach(function(r){ roomById[r.id]=r; });
   var roomStr = function(rid){ var r=roomById[rid]; return r ? ((r.building_name||'')+' '+pick(r,['room','room_no'])).trim() : ('호실 '+rid); };
@@ -118,7 +123,23 @@ async function build(){
   var rentSum = 0, rentN = 0;
   contracts.forEach(function(c){ var m=Number(c.monthly_rent)||0; if(m>0){ rentSum+=m; rentN++; } });
   document.getElementById('c_rent').textContent = won(rentSum);
-  document.getElementById('c_rent_sub').textContent = '월세 계약 '+rentN+'건';
+  // 이번 달 수납/미납 (payments 기준)
+  var thisMonth = fmtDate(today).substring(0,7);
+  var paidRooms = {}, received = 0;
+  payments.forEach(function(p){
+    if (String(p.period||'').substring(0,7) === thisMonth) { paidRooms[p.room_id] = true; received += Number(p.amount)||0; }
+  });
+  var rate = rentSum > 0 ? Math.round(received/rentSum*100) : 0;
+  document.getElementById('c_rent_sub').textContent = '받은 ' + won(received) + ' · 수납률 ' + rate + '%';
+  // 월세 미납: 이번 달 수납기록 없는 계약
+  var tbR = document.getElementById('tb_rentunpaid');
+  var rentUnpaid = contracts.filter(function(c){ return (Number(c.monthly_rent)||0) > 0 && !paidRooms[c.room_id]; });
+  if(!rentUnpaid.length){ tbR.innerHTML='<tr><td colspan="4" class="none">이번 달 월세 미납 없음</td></tr>'; }
+  else rentUnpaid.forEach(function(c){
+    var ph=c.tenant_phone||'';
+    if(ph) callList.push({who:c.tenant_name||roomStr(c.room_id), reason:'월세미납', phone:ph});
+    tbR.insertAdjacentHTML('beforeend','<tr><td>'+roomStr(c.room_id)+'</td><td>'+(c.tenant_name||'-')+'</td><td class="r">'+won(c.monthly_rent)+'</td><td class="phone">'+(ph||'-')+'</td></tr>');
+  });
 
   // ── 미납(공과금)
   var unpaid = bills.filter(function(b){ return String(b.status||'').indexOf('미납')>=0; });

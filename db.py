@@ -15,13 +15,75 @@ else:
     _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(_APP_DIR, 'building_manager.db')
 BACKUP_DIR = os.path.join(_APP_DIR, '_backups', 'auto')
-BACKUP_KEEP = 30  # 최신 N개만 롤링 보관
+BACKUP_KEEP = 30       # 자동(5분 단위) 최신 N개 롤링 보관
+DAILY_DIR = os.path.join(_APP_DIR, '_backups', 'daily')
+DAILY_KEEP = 30        # 일자별 최근 N일치 보관
+# PC 내장 드라이브(사용자 폴더) 사본 — USB 유실/손상 대비 (앱이 USB에서 돌아도 PC에 사본 유지)
+PC_BACKUP_DIR = os.path.join(os.path.expanduser('~'), '부동산백업')
 
 
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _resolve_drive_dir():
+    """구글 드라이브 동기화 폴더 찾기: 설정파일(drive_backup_path.txt) 우선, 없으면 자동탐지."""
+    cfg = os.path.join(_APP_DIR, 'drive_backup_path.txt')
+    try:
+        if os.path.exists(cfg):
+            for line in open(cfg, encoding='utf-8'):
+                line = line.strip().strip('"')
+                if line and not line.startswith('#') and os.path.isdir(line):
+                    return line
+    except Exception:
+        pass
+    home = os.path.expanduser('~')
+    for c in [os.path.join(home, 'My Drive'), os.path.join(home, 'Google Drive'),
+              'G:\\My Drive', 'G:\\내 드라이브', 'H:\\My Drive']:
+        try:
+            if os.path.isdir(c):
+                return c
+        except Exception:
+            pass
+    return None
+
+
+def backup_to_drive(src_file):
+    """일자별 백업 파일을 드라이브 동기화 폴더(<드라이브>/부동산백업)로 복사. 폴더 없으면 조용히 통과."""
+    base = _resolve_drive_dir()
+    if not base or not src_file or not os.path.exists(src_file):
+        return None
+    try:
+        target = os.path.join(base, '부동산백업')
+        os.makedirs(target, exist_ok=True)
+        dst = os.path.join(target, os.path.basename(src_file))
+        if not os.path.exists(dst):
+            shutil.copy2(src_file, dst)
+        return dst
+    except Exception:
+        return None
+
+
+def backup_to_pc(src_file):
+    """USB 유실 대비: 백업 사본을 PC 내장 드라이브(사용자폴더\\부동산백업)에도 보관. 최근 DAILY_KEEP개."""
+    if not src_file or not os.path.exists(src_file):
+        return None
+    try:
+        # 앱이 이미 그 폴더 안에서 실행 중이면 중복 불필요 → 스킵
+        if os.path.abspath(_APP_DIR) == os.path.abspath(PC_BACKUP_DIR):
+            return None
+        os.makedirs(PC_BACKUP_DIR, exist_ok=True)
+        dst = os.path.join(PC_BACKUP_DIR, os.path.basename(src_file))
+        if not os.path.exists(dst):
+            shutil.copy2(src_file, dst)
+            for old in sorted(glob.glob(os.path.join(PC_BACKUP_DIR, 'db_*.db')))[:-DAILY_KEEP]:
+                try: os.remove(old)
+                except Exception: pass
+        return dst
+    except Exception:
+        return None
 
 
 def backup_db(reason='auto'):
@@ -48,6 +110,20 @@ def backup_db(reason='auto'):
         for old in sorted(glob.glob(os.path.join(BACKUP_DIR, 'db_*.db')))[:-BACKUP_KEEP]:
             try: os.remove(old)
             except Exception: pass
+    except Exception:
+        pass
+    # 일자별 백업: 하루 1개만 (오늘 것 없으면 생성, 최근 DAILY_KEEP일치 유지)
+    try:
+        os.makedirs(DAILY_DIR, exist_ok=True)
+        today = datetime.datetime.now().strftime('%Y%m%d')
+        daily_dst = os.path.join(DAILY_DIR, 'db_%s.db' % today)
+        if not os.path.exists(daily_dst) and os.path.exists(dst):
+            shutil.copy2(dst, daily_dst)
+            for old in sorted(glob.glob(os.path.join(DAILY_DIR, 'db_*.db')))[:-DAILY_KEEP]:
+                try: os.remove(old)
+                except Exception: pass
+        backup_to_drive(daily_dst)   # 드라이브 동기화 폴더로도 하루 1개(폴더 있을 때만)
+        backup_to_pc(daily_dst)      # PC 내장드라이브(사용자폴더)에도 사본 — USB 유실 대비
     except Exception:
         pass
     return dst
@@ -87,6 +163,7 @@ def init_db_schema():
             role TEXT DEFAULT 'office_worker',
             role_name TEXT DEFAULT 'office_worker',
             is_active INTEGER DEFAULT 1,
+            account_no TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )""")
 
@@ -142,6 +219,7 @@ def init_db_schema():
             contact_id INTEGER DEFAULT 0,
             bill_type TEXT,
             elec_usage INTEGER DEFAULT 0,
+            elec_cost INTEGER DEFAULT 0,
             water_cost INTEGER DEFAULT 0,
             gas_cost INTEGER DEFAULT 0,
             net_cost INTEGER DEFAULT 0,
@@ -167,6 +245,33 @@ def init_db_schema():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )""")
 
+        # 7. payments (월세 수납 장부) — 수납률/받은금액 집계용
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id INTEGER,
+            room_id INTEGER,
+            period TEXT,
+            pay_date TEXT,
+            amount INTEGER DEFAULT 0,
+            pay_type TEXT DEFAULT '정상완납',
+            memo TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )""")
+
+        # 8. system_snapshots (행단위 스냅샷/되돌리기) — 수정 전 원본 JSON 보관
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS system_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_type TEXT DEFAULT 'auto_snapshot',
+            table_name TEXT,
+            target_id INTEGER,
+            data_snapshot_json TEXT,
+            requested_by_id INTEGER,
+            is_restored INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )""")
+
         # 기존 DB 스키마 꼬임 대비 동적 컬럼 마이그레이션 (데이터 손실 없음)
         migrations = [
             ("contacts", "category", "TEXT DEFAULT 'staff'"),
@@ -175,6 +280,8 @@ def init_db_schema():
             ("contacts", "role", "TEXT DEFAULT 'office_worker'"),
             ("contacts", "is_active", "INTEGER DEFAULT 1"),
             ("contacts", "documents_json", "TEXT"),
+            ("contacts", "account_no", "TEXT"),
+            ("bills", "elec_cost", "INTEGER DEFAULT 0"),
             ("contracts", "special_terms", "TEXT"),
             ("contracts", "tenant_contact_id", "INTEGER DEFAULT 0"),
             ("contracts", "owner_contact_id", "INTEGER DEFAULT 1"),
@@ -195,19 +302,22 @@ def init_db_schema():
             except sqlite3.OperationalError:
                 pass
 
-        # 마스터 계정 (id=999 / EMP-001 / admin123) 강제 보장
-        cur.execute("SELECT id FROM contacts WHERE id = 999 OR representative_name = 'EMP-001'")
+        # 마스터(최고관리자) 계정 강제 보장 — id=999 고정
+        # 보안: 비밀번호는 평문 저장 금지 → sha256 해시만 저장(소스에도 평문 없음)
+        MASTER_ID = 'uglywolf@gmail.com'
+        MASTER_PW_HASH = '4c93ef3e7f6aebdf3860c8dad6e0921b6eca104587d1f00fae18f4eb5dd12753'  # sha256(마스터 비밀번호)
+        cur.execute("SELECT id FROM contacts WHERE id = 999")
         if not cur.fetchone():
             cur.execute("""
                 INSERT INTO contacts (id, category, company_or_name, representative_name, contact_info, password_hash, role, role_name, is_active)
-                VALUES (999, 'staff', '김자산(최상위관리자)', 'EMP-001', '010-0000-0000', 'admin123', 'super_admin', 'super_admin', 1)
-            """)
+                VALUES (999, 'staff', '최고관리자', ?, '', ?, 'super_admin', 'super_admin', 1)
+            """, (MASTER_ID, MASTER_PW_HASH))
         else:
             cur.execute("""
-                UPDATE contacts 
-                SET password_hash = 'admin123', role = 'super_admin', role_name = 'super_admin', is_active = 1 
-                WHERE id = 999 OR representative_name = 'EMP-001'
-            """)
+                UPDATE contacts
+                SET representative_name = ?, password_hash = ?, role = 'super_admin', role_name = 'super_admin', is_active = 1
+                WHERE id = 999
+            """, (MASTER_ID, MASTER_PW_HASH))
         conn.commit()
     finally:
         conn.close()

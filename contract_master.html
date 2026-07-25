@@ -111,6 +111,11 @@
           <div class="form-group"><label>주민번호(마스킹)</label><input type="text" id="tenantRrn" class="form-control"></div>
           <div class="form-group"><label>전화</label><input type="text" id="tenantPhone" class="form-control"></div>
         </div>
+        <div class="form-group">
+          <label>🪪 임차인 신분증(앞면) 사본 저장</label>
+          <input type="file" id="tenantIdFront" class="form-control" accept="image/*,.pdf" onchange="uploadTenantIdFront()">
+          <div class="hint" id="tenantIdFrontStatus"></div>
+        </div>
       </fieldset>
 
       <fieldset id="passportBox" style="display:none">
@@ -146,6 +151,7 @@
 <script src="date8.js"></script>
 <script>
 var UPLOADED = null;   // {name, path}
+var TENANT_ID_FRONT = null;   // 임차인 신분증 앞면 {name, path}
 var ALL_ROOMS = [];
 
 function setStatus(msg, cls){
@@ -168,6 +174,22 @@ async function handleFilePicked(){
     document.getElementById('btnOcr').disabled=false;
     setStatus('업로드 완료. [OCR 채우기]를 누르세요.','st-ok');
   }catch(e){ setStatus('업로드 통신 오류: '+e.message,'st-err'); }
+}
+
+// 임차인 신분증(앞면) 사본 업로드 → documents_json에 함께 저장
+async function uploadTenantIdFront(){
+  var fi=document.getElementById('tenantIdFront');
+  if(!fi.files || !fi.files[0]) return;
+  var f=fi.files[0];
+  var st=document.getElementById('tenantIdFrontStatus');
+  st.textContent='업로드 중...';
+  try{
+    var res=await fetch('/api/v1/upload',{method:'POST',headers:{'X-File-Name':encodeURIComponent(f.name)},body:f});
+    var d=await res.json();
+    if(d.filepath){ TENANT_ID_FRONT={name:f.name, path:d.filepath};
+      st.innerHTML='✅ 신분증 앞면 저장됨: <a href="/'+d.filepath+'" target="_blank">'+f.name+'</a>'; }
+    else st.textContent='❌ 업로드 실패: '+(d.error||'');
+  }catch(e){ st.textContent='❌ 업로드 오류: '+e.message; }
 }
 
 function showViewer(path, name){
@@ -275,6 +297,7 @@ async function saveContract(){
     file: UPLOADED,
     owner:{name:val('ownerName'), rrn_masked:val('ownerRrn'), phone:val('ownerPhone')},
     tenant:{name:val('tenantName'), rrn_masked:val('tenantRrn'), phone:val('tenantPhone')},
+    tenant_id_front: TENANT_ID_FRONT,
     passport:{surname:val('pSurname'), given:val('pGiven'), no:val('pNo'), nationality:val('pNat'), birth:val('pBirth')}
   };
   payload.documents_json=JSON.stringify(meta);
@@ -285,6 +308,7 @@ async function saveContract(){
     if(res.ok && (d.success||d.id)){
       alert('✅ 계약서 저장 완료 (계약ID: '+(d.id||'?')+'). 원본문서도 함께 첨부되었습니다.');
       document.getElementById('contractForm').reset();
+      TENANT_ID_FRONT=null; var _s=document.getElementById('tenantIdFrontStatus'); if(_s) _s.textContent='';
       document.querySelectorAll('.ocr-filled').forEach(function(x){x.classList.remove('ocr-filled');});
       document.querySelectorAll('label .badge').forEach(function(x){x.remove();});
     }else{

@@ -10,6 +10,20 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from db import get_db
 
 
+def _snapshot(cur, table, target_id, snap_type='auto_snapshot'):
+    """수정 전 현재 행을 system_snapshots에 JSON으로 저장(되돌리기용). 실패해도 본작업엔 영향 없음."""
+    try:
+        if not target_id:
+            return
+        row = cur.execute("SELECT * FROM %s WHERE id=?" % table, (target_id,)).fetchone()
+        if row:
+            cur.execute(
+                "INSERT INTO system_snapshots (snapshot_type, table_name, target_id, data_snapshot_json) VALUES (?,?,?,?)",
+                (snap_type, table, target_id, json.dumps(dict(row), ensure_ascii=False)))
+    except Exception:
+        pass
+
+
 def handle_get_api(path):
     """GET API 라우팅 - 모든 /api/v1/* 엔드포인트 처리"""
     
@@ -68,6 +82,14 @@ def handle_get_api(path):
             cur.execute("SELECT * FROM incidents ORDER BY id DESC")
             rows = [dict(r) for r in cur.fetchall()]
             return 200, rows
+
+        elif endpoint == 'payments':
+            cur.execute("SELECT * FROM payments ORDER BY id DESC")
+            return 200, [dict(r) for r in cur.fetchall()]
+
+        elif endpoint.startswith('snapshots'):
+            cur.execute("SELECT id, snapshot_type, table_name, target_id, is_restored, created_at FROM system_snapshots ORDER BY id DESC LIMIT 300")
+            return 200, [dict(r) for r in cur.fetchall()]
 
         else:
             return 404, {'error': f'존재하지 않는 GET API: {path}'}
@@ -145,6 +167,7 @@ def handle_post_api(path, data):
         elif path == '/api/v1/contacts':
             cid = data.get('id')
             if cid:
+                _snapshot(cur, 'contacts', cid)   # 수정 전 스냅샷
                 if 'is_active' in data and len(data.keys()) <= 3:
                     cur.execute("UPDATE contacts SET is_active=? WHERE id=?", (int(data['is_active']), cid))
                     conn.commit()
@@ -156,7 +179,7 @@ def handle_post_api(path, data):
                     return 200, {'id': cid, 'message': '비밀번호 변경 완료'}
 
                 fields, vals = [], []
-                for k in ['category', 'company_or_name', 'representative_name', 'contact_info', 'email', 'password_hash', 'role', 'role_name', 'is_active', 'documents_json']:
+                for k in ['category', 'company_or_name', 'representative_name', 'contact_info', 'email', 'password_hash', 'role', 'role_name', 'is_active', 'documents_json', 'account_no']:
                     if k in data:
                         fields.append(f"{k}=?")
                         vals.append(data[k])
@@ -174,10 +197,11 @@ def handle_post_api(path, data):
                 pw = data.get('password_hash') or data.get('password', '')
                 role = data.get('role', 'office_worker')
                 docs = data.get('documents_json', '[]')
+                acct = data.get('account_no', '')
                 cur.execute("""
-                    INSERT INTO contacts (category, company_or_name, representative_name, contact_info, email, password_hash, role, role_name, is_active, documents_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-                """, (cat, name, rep, phone, email, pw, role, role, docs))
+                    INSERT INTO contacts (category, company_or_name, representative_name, contact_info, email, password_hash, role, role_name, is_active, documents_json, account_no)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """, (cat, name, rep, phone, email, pw, role, role, docs, acct))
                 new_cid = cur.lastrowid
                 conn.commit()
                 return 201, {'id': new_cid, 'success': True, 'message': '연락처/팀원 등록 완료'}
@@ -187,15 +211,16 @@ def handle_post_api(path, data):
             if not room_id:
                 return 400, {'error': '올바른 호실(room_id FK)을 선택해 주세요.'}
             elec = int(data.get('elec_usage', 0) or 0)
+            elec_cost = int(data.get('elec_cost', 0) or 0)
             water = int(data.get('water_cost', 0) or 0)
             gas = int(data.get('gas_cost', 0) or 0)
             net = int(data.get('net_cost', 0) or 0)
             due = str(data.get('due_date', '') or '')
             status = str(data.get('status', '미납(고지대기)'))
             cur.execute("""
-                INSERT INTO bills (room_id, elec_usage, water_cost, gas_cost, net_cost, due_date, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (room_id, elec, water, gas, net, due, status))
+                INSERT INTO bills (room_id, elec_usage, elec_cost, water_cost, gas_cost, net_cost, due_date, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (room_id, elec, elec_cost, water, gas, net, due, status))
             bid = cur.lastrowid
             conn.commit()
             return 201, {'id': bid, 'success': True, 'message': '공과금 고지 등록 완료'}
@@ -230,6 +255,7 @@ def handle_post_api(path, data):
                 return 200, {'id': cid, 'success': True, 'message': '수납 메모 자동 저장 완료'}
 
             if cid:
+                _snapshot(cur, 'contracts', cid)   # 수정 전 스냅샷
                 cur.execute("""
                     UPDATE contracts SET
                         room_id=?, host_address_full=?, lease_type=?, deposit_amount=?,
@@ -274,6 +300,38 @@ def handle_post_api(path, data):
             new_cid = cur.lastrowid
             conn.commit()
             return 201, {'id': new_cid, 'success': True, 'message': '계약서 등록 완료'}
+
+        elif path == '/api/v1/payments':
+            room_id = int(data.get('room_id') or 0)
+            cur.execute("""INSERT INTO payments (contract_id, room_id, period, pay_date, amount, pay_type, memo)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (data.get('contract_id'), room_id, str(data.get('period', '')), str(data.get('pay_date', '')),
+                 int(data.get('amount', 0) or 0), str(data.get('pay_type', '정상완납')), str(data.get('memo', ''))))
+            pid = cur.lastrowid
+            conn.commit()
+            return 201, {'id': pid, 'success': True, 'message': '수납 기록 완료'}
+
+        elif path == '/api/v1/snapshots/restore':
+            sid = data.get('id')
+            if not sid:
+                return 400, {'error': 'snapshot id 필요'}
+            row = cur.execute("SELECT * FROM system_snapshots WHERE id=?", (sid,)).fetchone()
+            if not row:
+                return 404, {'error': '스냅샷을 찾을 수 없습니다.'}
+            snap = dict(row)
+            tbl = snap.get('table_name'); tid = snap.get('target_id')
+            if tbl not in ('contacts', 'contracts', 'bills', 'rooms', 'incidents'):
+                return 400, {'error': '복구 불가 테이블'}
+            payload = json.loads(snap.get('data_snapshot_json') or '{}')
+            cols = [k for k in payload.keys() if k != 'id']
+            if not cols:
+                return 400, {'error': '복구할 데이터 없음'}
+            setclause = ','.join('%s=?' % k for k in cols)
+            vals = [payload[k] for k in cols] + [tid]
+            cur.execute("UPDATE %s SET %s WHERE id=?" % (tbl, setclause), vals)
+            cur.execute("UPDATE system_snapshots SET is_restored=1 WHERE id=?", (sid,))
+            conn.commit()
+            return 200, {'success': True, 'message': '되돌리기 완료'}
 
         return 404, {'error': '요청한 API 엔드포인트가 없습니다.'}
     except Exception as e:

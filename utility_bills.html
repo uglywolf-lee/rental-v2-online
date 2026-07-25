@@ -115,8 +115,12 @@
                 <b>🔌 전기 고지 가이드:</b> 전월 기준 검침량: <span id="guideLastReading" style="font-weight: bold; color: blue;">기록 미정 (신규산출)</span>
             </div>
             <div class="form-group">
-                <label>이번 달 전기 누적 계량값 입력 (kWh)</label>
-                <input type="number" id="u_elecNow" class="form-control" placeholder="예: 14580 (사용량 연산 산출)">
+                <label>이번 달 전기 누적 계량값 (kWh) — 검침값</label>
+                <input type="number" id="u_elecNow" class="form-control" placeholder="예: 14580 (검침 시 입력)">
+            </div>
+            <div class="form-group">
+                <label>전기 요금 (원) — 검침 대신 <b>총액만</b> 입력 가능</label>
+                <input type="number" id="u_elecCost" class="form-control" placeholder="한전 청구 총액(원). 계량값·요금 중 하나만 있어도 저장됨">
             </div>
             
             <!-- 2. 수도 영역 -->
@@ -177,6 +181,7 @@
                             <th style="width: 70px;">호실</th>
                             <th class="th-electric-last">⚡ 전기 전월</th>
                             <th class="th-electric-now">⚡ 전기 당월누적</th>
+                            <th style="background:#fff5f5;color:#c92a2a;min-width:95px;">⚡ 전기 요금(원)</th>
                             <th style="background: #e7f5ff; color: #0b7285;">🚰 수도(톤)</th>
                             <th style="background: #e7f5ff; color: #0b7285;">🚰 수도(원)</th>
                             <th style="background: #fff9db; color: #f59f00;">🔥 가스 요금(원)</th>
@@ -186,7 +191,7 @@
                     </thead>
                     <tbody id="batchTableBody">
                         <tr>
-                            <td colspan="8" class="cell-text-center">호실목록을 불러오는 중입니다...</td>
+                            <td colspan="9" class="cell-text-center">호실목록을 불러오는 중입니다...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -293,7 +298,7 @@
         tbody.innerHTML = '';
 
         if (!ALL_ROOMS || ALL_ROOMS.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="cell-text-center">등록된 호실이 없습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="cell-text-center">등록된 호실이 없습니다.</td></tr>';
             return;
         }
 
@@ -305,6 +310,7 @@
                 <td><b>${roomName}</b></td>
                 <td class="td-electric-val">미정</td>
                 <td><input type="number" id="b_elec_${rm.id}" class="table-input" placeholder="누적값"></td>
+                <td><input type="number" id="b_elecCost_${rm.id}" class="table-input" style="background:#fff5f5;" placeholder="총액(원)"></td>
                 <td><input type="number" id="b_wTon_${rm.id}" class="table-input" placeholder="톤수"></td>
                 <td><input type="number" id="b_wCost_${rm.id}" class="table-input" placeholder="금액"></td>
                 <td><input type="number" id="b_gas_${rm.id}" class="table-input" style="background:#fffbeb;" placeholder="가스비"></td>
@@ -318,6 +324,7 @@
     // 🌟 5. 배치 행 DB 실제 POST 전송 기능 추가
     async function saveBatchRow(roomId, roomName) {
         var elecNow = parseInt(document.getElementById(`b_elec_${roomId}`).value, 10) || 0;
+        var elecCost = trunc10(document.getElementById(`b_elecCost_${roomId}`).value || 0);
         var waterCost = trunc10(document.getElementById(`b_wCost_${roomId}`).value || 24500);
         var gasCost = trunc10(document.getElementById(`b_gas_${roomId}`).value || 41200);
         var netCost = trunc10(document.getElementById(`b_net_${roomId}`).value || 16500);
@@ -326,6 +333,7 @@
         var payload = {
             room_id: roomId,
             elec_usage: elecNow,
+            elec_cost: elecCost,
             water_cost: waterCost,
             gas_cost: gasCost,
             net_cost: netCost,
@@ -381,14 +389,17 @@
         if (!roomId) return alert('❌ 유효한 호실번호를 입력해 주세요. (자동완성 목록에서 확인)');
 
         var elecNow = parseInt(document.getElementById('u_elecNow').value, 10) || 0;
+        var elecCost = trunc10(document.getElementById('u_elecCost').value || 0);
         var waterCost = trunc10(document.getElementById('u_waterCost').value || 0);
         var gasCost = trunc10(document.getElementById('u_gasCost').value || 0);
         var netCost = trunc10(document.getElementById('u_netCost').value || 0);
         var dueDate = document.getElementById('u_dueDate').value;
 
+        // 전기: 검침(계량값)·요금(금액) 중 어느 하나라도 있으면 저장 통과
         var payload = {
             room_id: roomId,
             elec_usage: elecNow,
+            elec_cost: elecCost,
             water_cost: waterCost,
             gas_cost: gasCost,
             net_cost: netCost,

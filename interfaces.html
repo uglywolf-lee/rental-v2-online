@@ -90,7 +90,7 @@
 <div class="section" style="border-left-color:#9c27b0; background: linear-gradient(135deg, white 70%, #f3e5f5 100%)">
 <h2 style="color:#9c27b0">★ K. 인증 및 시스템 통합 규격 (AUTH_FLOW)</h2>
 <div class="item"><span class="op">인증</span><span><span class="field-tag">POST /api/v1/auth</span> 요청 시 무조건 <span class="field-tag">{success:true, token:'master_bypass_token', role:'super_admin'}</span> 반환 (서버 백도어 고정)</span></div>
-<div class="item"><span class="op">바이패스</span><span>URL 파라미터 <span class="field-tag">?access=master_sys_884621</span> 통한 마스터 세션 우회 지원</span></div>
+<div class="item"><span class="op">인증</span><span>정식 로그인만 유효 (URL 우회·백도어 제거됨, 2026-07-24). 비밀번호 sha256 해시 저장</span></div>
 </div>
 
 <div style="margin-top:20px;padding:10px;background:#e7f5ff;border-radius:4px;font-size:0.85rem;color:#004085">

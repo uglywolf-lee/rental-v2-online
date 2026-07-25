@@ -59,7 +59,8 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 + **로그인 엔드포인트**: POST /api/v1/auth/login {emp, password} (프론트 index.html 연동). 별칭 경로 /api/v1/login, /api/v1/auth 도 동일 처리.
 + **응답형식**: 성공 {status:'success', user:{employee_no,name,role}, token} / 실패 {status:'error', message}. 클라이언트는 user.role 로 권한 판정.
 + **비밀번호 검증 적용**: 마스터 계정 포함 저장된 password_hash 와 일치해야 로그인 성공 (이전의 '무조건 승인' 및 db_pw=='admin123' 무조건통과 로직 제거).
-* URL 바이패스: GET /?access=master_sys_884621 → auth.js 가 sessionStorage(creatorBypass=true, userRole=super_admin) 주입 + 제작자모드 배지 노출. 서버 인증과 별개인 클라이언트 우회 경로.
+* URL 바이패스 = **제거됨(2026-07-24)**: 기존 ?access=master_sys_884621 우회 경로·"관리시스템접속" 링크·creatorBypass/제작자모드 배지 로직 전부 삭제. 이제 정식 로그인만 유효.
+* 마스터 계정(2026-07-24 변경): 아이디=이메일(representative_name), 비밀번호는 **sha256 해시로만 저장**(소스·DB 어디에도 평문 없음). db.py init_db_schema 가 id=999에 강제 보장.
 + **로그인 게이트(guard.js, 2026-07-23 신규)**: 모든 콘텐츠 페이지 <head>에 삽입. sessionStorage.loginOk 없으면 index.html로 강제이동, 로그인됐어도 콘텐츠를 단독(top-level)으로 열면 main.html 셸로 복귀. server.py 루트('/')·404 폴백을 index.html(로그인)으로 변경, main.html 미로그인 차단(기존 무조건통과 제거).
 
 ### REST API Endpoints
@@ -125,6 +126,13 @@ window.REAL_ESTATE_SYSTEM_SPEC = `
 * [데이터] 테스트 더미 채움(건물5·호실10·계약11·공과금5·유지보수5·직원5·협력사5·임차인13), 옛 더미 이름/전화 정상화.
 * [정리] 미사용 파이썬 5개(db_app.py 등) 삭제, 백업파일 _backups/ 이동, .gitignore 추가, Git 커밋+GitHub push.
 * [잔여TODO] 수납장부 테이블(수납률/받은금액 집계) · system_snapshots 행단위+[K]복구UI · 구글드라이브 오프사이트 백업 · 임대인별 리포트필터 · 제작자 백도어 제거(운영전).
+
+### 2026-07-24 (관리자 보안 + 수납장부 + 되돌리기)
+* [보안] 제작자 URL 바이패스(master_sys_884621)·creatorBypass·제작자모드 전부 제거. 관리자 아이디=이메일, 비밀번호 sha256 해시 저장(평문 없음). 로그인창 아래 문의 이메일 1줄.
+* [백업] 일자별 백업(_backups/daily 30일) + PC 내장드라이브 사본(~/부동산백업, USB 유실 대비) + 구글드라이브 동기화 폴더 복사(backup_to_drive, 설정파일/자동탐지). 앱에 인증정보 없음.
+* [#1 수납장부] payments 테이블 + GET/POST /api/v1/payments + 월세납부(E) 수납 시 기록 + 금일현황(RPT)에 "수납률/월세미납" 반영.
+* [#2 되돌리기] system_snapshots 테이블 + routes._snapshot()(contacts/contracts 수정 직전 자동 저장) + [K] 되돌리기 화면(auditlog.html) + POST /api/v1/snapshots/restore. 메뉴 [K] 라벨 '감사로그'→'되돌리기'.
+* [제외] 임대인별 리포트 필터 = 불필요(임대인 1명·프로그램 1개 운영).
 
 ## 8. OCR_AUTOFILL (계약서/신분증/여권 자동채움) - 2026-07-23 추가
 * 목적: 계약서(B) 화면에서 원본(PDF/사진) 업로드 시 OCR로 칸을 채우고 사람이 확인·수정 후 저장

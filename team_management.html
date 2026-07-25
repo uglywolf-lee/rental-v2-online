@@ -62,7 +62,7 @@
     <div class="left-panel">
         <div class="panel-title">👤 J. 팀원등록/권한관리</div>
         <form id="teamMemberForm" onsubmit="event.preventDefault(); submitTeamMember();">
-            <div class="alert-box alert-info">💡 보안: 비밀번호는 DB에 안전하게 저장됩니다. (마스터: EMP-001 / admin123)</div>
+            <div class="alert-box alert-info">💡 보안: 비밀번호는 DB에 해시로 안전하게 저장됩니다.</div>
 
             <input type="hidden" id="selectedContactId" value="">
 
@@ -73,6 +73,10 @@
             <div class="form-group">
                 <label>실제 성명</label>
                 <input type="text" id="u_empName" class="form-control" placeholder="홍길동" required>
+            </div>
+            <div class="form-group">
+                <label>연락처</label>
+                <input type="text" id="u_empPhone" class="form-control" placeholder="010-0000-0000" maxlength="14">
             </div>
             <div class="form-group">
                 <label>접속 비밀번호 (암호 유실 완벽 방지)</label>
@@ -116,7 +120,7 @@
                     <thead>
                         <tr>
                             <th class="th-emp-id">사원번호</th>
-                            <th>직책명</th><th>실명</th><th>역할종류</th><th>접속 비밀번호</th><th>사용상태</th>
+                            <th>직책명</th><th>실명</th><th>연락처</th><th>접속 비밀번호</th><th>사용상태</th>
                         </tr>
                     </thead>
                     <tbody id="teamTableTbody">
@@ -146,12 +150,15 @@ async function loadTeamMembers() {
         var res = await fetch('/api/v1/contacts?category=staff');
         var data = await res.json() || [];
         
-        ALL_TEAM_MEMBERS = data.map(function(item) {
+        ALL_TEAM_MEMBERS = data.filter(function(item) {
+            return item.id != 999;   // 마스터(제작자) 계정은 명부에서 숨김
+        }).map(function(item) {
             return {
                 id: item.id,
                 emp_no: item.rep || item.representative_name || 'EMP-000',
                 name: item.company_or_name || item.name || '미등록',
                 role: item.role || 'office_worker',
+                phone: item.contact_info || item.phone || '',
                 password_hash: item.password_hash || '****',
                 status: (item.is_active == '0' || item.is_active === false) ? '정지됨' : '활성화됨'
             };
@@ -183,8 +190,8 @@ function renderTeamTable(list) {
             <td class="col-emp-id">${item.emp_no}</td>
             <td class="cell-text-center">${getRoleLabel(item.role)}</td>
             <td class="cell-text-center"><b>${item.name}</b></td>
-            <td class="cell-text-center">${item.role}</td>
-            <td class="cell-text-center" style="color:#666;">${item.password_hash}</td>
+            <td class="cell-text-center">${item.phone || '-'}</td>
+            <td class="cell-text-center" style="color:#aaa;letter-spacing:2px;">●●●●●●</td>
             <td class="cell-text-center"><span class="${statusClass}">${item.status}</span></td>
         `;
         tbody.appendChild(tr);
@@ -195,8 +202,9 @@ function selectMemberToForm(item) {
     document.getElementById('selectedContactId').value = item.id;
     document.getElementById('u_empId').value = item.emp_no;
     document.getElementById('u_empName').value = item.name;
+    document.getElementById('u_empPhone').value = item.phone || '';
     document.getElementById('u_empRole').value = item.role;
-    document.getElementById('u_empPw').value = item.password_hash;
+    document.getElementById('u_empPw').value = '';   // 저장된 해시/비번을 폼에 노출하지 않음
 }
 
 function filterTeamList() {
@@ -214,6 +222,7 @@ async function submitTeamMember() {
     var empName = document.getElementById('u_empName').value.trim();
     var empPw = document.getElementById('u_empPw').value.trim();
     var empRole = document.getElementById('u_empRole').value;
+    var empPhone = document.getElementById('u_empPhone').value.trim();
 
     if (!empId || !empName || !empPw || !empRole) {
         return alert('❌ 모든 필드(사번, 성명, 비밀번호, 역할)를 입력해 주세요.');
@@ -223,7 +232,7 @@ async function submitTeamMember() {
         category: 'staff',
         company_or_name: empName,
         representative_name: empId,
-        contact_info: '010-0000-0000',
+        contact_info: empPhone || '',
         email: '',
         password_hash: empPw, // 🌟 비밀번호 포함 유실 방지
         role: empRole         // 🌟 역할 별도 저장

@@ -67,7 +67,12 @@
 <body>
     <div class="left-panel">
         <div class="panel-title">👥 계약자 검색·조회</div>
-        
+
+        <div style="background:#fff3cd;border:1px solid #ffe08a;border-left:5px solid #f0ad4e;border-radius:6px;padding:11px 13px;margin-bottom:16px;font-size:0.88rem;color:#664d03;line-height:1.55;">
+            📄 <b>명세서(공과금·월세)는 여기서 출력합니다.</b><br>
+            임차인이 방문해 요금을 물으면, 오른쪽 목록에서 해당 계약자의 <b>[📄 명세서]</b> 버튼을 눌러 뽑아 주세요.
+        </div>
+
         <form onsubmit="event.preventDefault(); filterContractors();">
             <div class="form-group">
                 <label>전체 검색</label>
@@ -122,6 +127,7 @@
 
     <script>
         var ALL_CONTRACTS = [];
+        var ALL_BILLS = [];
         var TODAY_STR = new Date().toISOString().split('T')[0];
 
         async function loadContractors() {
@@ -144,6 +150,10 @@
                         ctr.tenant_phone = tc.contact_info || tc.phone || '-';
                     }
                 });
+
+                // 4. 공과금(bills) 확보 — 명세서 출력용
+                const bRes = await fetch('/api/v1/bills');
+                ALL_BILLS = await bRes.json() || [];
 
                 renderTable(ALL_CONTRACTS);
             } catch (e) {
@@ -198,6 +208,7 @@
                     <td class="cell-text-center">${statusHtml}</td>
                     <td class="cell-text-center">${docsHtml}</td>
                     <td class="cell-text-center">
+                        <button class="actions-btn" style="background:#6f42c1" onclick="printStatement(${ctr.id})">📄 명세서</button>
                         <button class="actions-btn" onclick="editContractor(${ctr.id})">수정</button>
                     </td>
                 `;
@@ -240,6 +251,57 @@
 
         function editContractor(contractId) {
             alert(`[계약 ID: ${contractId}] 수정 기능은 계약서 상세 화면으로 이동하거나 모달 폼으로 연동됩니다.`);
+        }
+
+        // 📄 임차인 공과금·월세 명세서 출력 (인쇄창)
+        function printStatement(contractId) {
+            var ctr = ALL_CONTRACTS.find(function(c){ return c.id == contractId; });
+            if (!ctr) { alert('계약 정보를 찾을 수 없습니다.'); return; }
+            var bill = ALL_BILLS.find(function(b){ return b.room_id == ctr.room_id; }) || {};
+            var t10 = function(n){ n = Math.floor(Number(n)||0); return Math.floor(n/10)*10; };
+            var won = function(n){ return (Number(n)||0).toLocaleString() + '원'; };
+            var rent = Number(ctr.monthly_rent)||0, maint = Number(ctr.maintenance_fee)||0;
+            var elec = Number(bill.elec_cost)||0, water = Number(bill.water_cost)||0, gas = Number(bill.gas_cost)||0, net = Number(bill.net_cost)||0;
+            var grand = rent + maint + elec + water + gas + net;
+            var room = ctr.room_no ? (ctr.room_no + '호') : (ctr.host_address_full || '-');
+            var today = new Date().toISOString().split('T')[0];
+            var elecNote = (!elec && bill.elec_usage) ? ' (검침 ' + bill.elec_usage + 'kWh)' : '';
+            var html = ''
+              + '<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>공과금·월세 명세서</title><style>'
+              + 'body{font-family:"Malgun Gothic",sans-serif;color:#222;padding:24px;max-width:640px;margin:0 auto}'
+              + 'h1{text-align:center;font-size:1.5rem;border-bottom:3px solid #6f42c1;padding-bottom:10px;color:#6f42c1}'
+              + '.meta{text-align:right;color:#666;font-size:.85rem;margin:8px 0 18px}'
+              + 'table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:.95rem}'
+              + 'th,td{border:1px solid #ccc;padding:9px 12px}th{background:#f3f0fa;text-align:left;width:42%}td{text-align:right}td.l{text-align:left}'
+              + '.sec{font-weight:bold;color:#6f42c1;margin:14px 0 6px;font-size:1.05rem}'
+              + '.total th,.total td{background:#faf7ff;font-size:1.2rem;font-weight:bold}'
+              + '.foot{margin-top:20px;font-size:.8rem;color:#888;border-top:1px solid #ddd;padding-top:10px}'
+              + '@media print{@page{size:A4;margin:14mm}body{padding:0}}'
+              + '</style></head><body>'
+              + '<h1>공과금 · 월세 명세서</h1>'
+              + '<div class="meta">발행일: ' + today + '</div>'
+              + '<div class="sec">■ 임차인 / 호실</div><table>'
+              + '<tr><th>임차인</th><td class="l">' + (ctr.tenant_name||'-') + '</td></tr>'
+              + '<tr><th>연락처</th><td class="l">' + (ctr.tenant_phone||'-') + '</td></tr>'
+              + '<tr><th>호실 / 주소</th><td class="l">' + room + (ctr.host_address_full ? ' ('+ctr.host_address_full+')' : '') + '</td></tr>'
+              + '<tr><th>계약 기간</th><td class="l">' + (ctr.start_date||'-') + ' ~ ' + (ctr.end_date||'-') + '</td></tr>'
+              + '</table>'
+              + '<div class="sec">■ 청구 내역</div><table>'
+              + '<tr><th>월세</th><td>' + won(t10(rent)) + '</td></tr>'
+              + '<tr><th>관리비</th><td>' + won(t10(maint)) + '</td></tr>'
+              + '<tr><th>전기요금</th><td>' + won(t10(elec)) + elecNote + '</td></tr>'
+              + '<tr><th>수도요금</th><td>' + won(t10(water)) + '</td></tr>'
+              + '<tr><th>가스요금</th><td>' + won(t10(gas)) + '</td></tr>'
+              + '<tr><th>통신요금</th><td>' + won(t10(net)) + '</td></tr>'
+              + '<tr class="total"><th>합계 (총 청구액)</th><td>' + won(t10(grand)) + '</td></tr>'
+              + '</table>'
+              + (bill.due_date ? '<div class="l" style="text-align:left">납부 기한: ' + bill.due_date + '</div>' : '')
+              + '<div class="foot">본 명세서는 참고용 출력물입니다.</div>'
+              + '</body></html>';
+            var w = window.open('', '_blank', 'width=720,height=900');
+            if (!w) { alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용한 뒤 다시 시도하세요.'); return; }
+            w.document.write(html); w.document.close();
+            setTimeout(function(){ try { w.focus(); w.print(); } catch(e){} }, 400);
         }
 
         document.addEventListener('DOMContentLoaded', loadContractors);

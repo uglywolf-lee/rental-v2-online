@@ -101,6 +101,11 @@
             </div>
 
             <div class="form-group">
+                <label>등록 계좌번호</label>
+                <input type="text" id="partnerAccount" class="form-control" placeholder="예: 국민 123456-01-789012 (은행명 포함)">
+            </div>
+
+            <div class="form-group">
                 <label>이메일 주소</label>
                 <input type="email" id="partnerEmail" class="form-control" placeholder="이메일 입력" oninput="this.value = this.value.toLowerCase();">
             </div>
@@ -149,13 +154,14 @@
                         <th>대표자 성명</th>
                         <th>전화번호</th>
                         <th>이메일</th>
+                        <th>계좌번호</th>
                         <th>업종 / 분류</th>
                         <th>관리</th>
                     </tr>
                 </thead>
                 <tbody id="partnerTbody">
                     <tr>
-                        <td colspan="7" class="cell-text-center">데이터를 불러오는 중입니다...</td>
+                        <td colspan="8" class="cell-text-center">데이터를 불러오는 중입니다...</td>
                     </tr>
                 </tbody>
             </table>
@@ -197,7 +203,7 @@
             tbody.innerHTML = '';
 
             if (!list || list.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="cell-text-center">등록된 협력사 정보가 없습니다.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="cell-text-center">등록된 협력사 정보가 없습니다.</td></tr>';
                 return;
             }
 
@@ -211,8 +217,9 @@
                     <td class="cell-text-center" data-val="${item.category}">${categoryLabel}</td>
                     <td class="cell-text-center td-company"><b>${item.company_or_name || item.name || '-'}</b></td>
                     <td class="cell-text-center td-rep">${item.representative_name || item.rep || '-'}</td>
-                    <td class="cell-num-right td-phone">${item.phone || '-'}</td>
+                    <td class="cell-num-right td-phone">${item.contact_info || item.phone || '-'}</td>
                     <td class="cell-text-center td-email">${item.email || '-'}</td>
+                    <td class="cell-text-center td-account">${item.account_no || '-'}</td>
                     <td class="cell-text-center td-biztype">${item.role || '일반'}</td>
                     <td class="cell-text-center">
                         <button class="actions-btn" onclick="event.stopPropagation(); loadToForm(${JSON.stringify(item).replace(/"/g, '&quot;')}, this.closest('tr'))">수정</button>
@@ -231,9 +238,10 @@
             document.getElementById('partnerCategory').value = item.category || 'broker';
             document.getElementById('partnerCompany').value = item.company_or_name || item.name || '';
             document.getElementById('partnerRepName').value = item.representative_name || item.rep || '';
-            document.getElementById('partnerPhone').value = item.phone || '';
+            document.getElementById('partnerPhone').value = item.contact_info || item.phone || '';
             document.getElementById('partnerEmail').value = item.email || '';
             document.getElementById('partnerBizType').value = item.role || '';
+            document.getElementById('partnerAccount').value = item.account_no || '';
 
             document.getElementById('formPanelTitle').innerText = `📝 협력사 정보 수정 (${item.company_or_name || item.name})`;
             document.getElementById('btnSubmit').innerText = "변경사항 수정 적용";
@@ -256,6 +264,7 @@
             const phone = document.getElementById('partnerPhone').value.trim();
             const email = document.getElementById('partnerEmail').value.trim();
             const bizType = document.getElementById('partnerBizType').value.trim();
+            const account = document.getElementById('partnerAccount').value.trim();
 
             if (!companyName || !phone) {
                 return alert('❌ 필수 항목(상호명, 전화번호)을 입력해 주세요.');
@@ -267,7 +276,8 @@
                 representative_name: repName,
                 contact_info: phone,
                 email: email,
-                role: bizType
+                role: bizType,
+                account_no: account
             };
 
             if (id) {

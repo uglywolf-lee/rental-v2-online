@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 server.py - 메인 실행 파일 / Entry Point
-- 8080포트 멀티스레드 HTTP 서버 구동
+- 8899포트 멀티스레드 HTTP 서버 구동
 - 정적 파일 서빙 + API 라우팅 연결
 """
 
-import sys, os
+import sys, os, socket
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -16,7 +16,7 @@ import urllib as urllib_module
 from db import get_db, init_db_schema, backup_db, start_auto_backup
 from routes import handle_get_api, handle_auth_endpoint, handle_post_api
 
-PORT = 8080
+PORT = 8899
 # 패키징(exe) 대응: 얼려진 실행파일이면 exe 폴더, 아니면 스크립트 폴더 기준
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
@@ -53,6 +53,18 @@ def json_response(handler, code, obj):
     handler.wfile.write(data)
 
 
+def get_lan_ip():
+    """이 컴퓨터의 LAN(내부망) IP 추정 — 같은 네트워크의 다른 기기가 접속할 주소 안내용."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))   # 실제 전송 없이 나가는 인터페이스 IP만 확인
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
+
+
 class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -67,6 +79,10 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
+
+        # 서버 접속 주소 안내 (로그인 화면용)
+        if path == '/api/v1/serverinfo':
+            return json_response(self, 200, {'ip': get_lan_ip(), 'port': PORT})
 
         # API GET 요청 처리 (쿼리스트링 포함 전체 경로 전달 → category 등 필터 유지)
         if path.startswith('/api/v1/'):
@@ -193,7 +209,7 @@ def main():
         print("🛟 시작 백업 생성: {}".format(os.path.relpath(bpath, BASE_DIR)))
     print("\n🏢 부동산 관리 시스템 포터블 통합 서버 실행 완료 (Port: {})".format(PORT))
     print("🔗 접속 주소: http://localhost:{}".format(PORT))
-    print("🔑 마스터 계정: ID 999 (사번: EMP-001) / 비밀번호: admin123\n")
+    print("🔑 관리자 계정으로 로그인하세요.\n")
     server = ThreadedHTTPServer(('0.0.0.0', PORT), Handler)
     try:
         server.serve_forever()

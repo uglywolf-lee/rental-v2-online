@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { login, getMe } = require('./api_auth_sqlite');
 
-const PORT = 8080;
+const PORT = 8899;
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',

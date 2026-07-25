@@ -351,25 +351,34 @@ async function submitPayment() {
     }
 
     var contract = ALL_CONTRACTS.find(c => c.room_id == roomId);
-    if (contract) {
-        try {
-            var res = await fetch('/api/v1/contracts', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    id: contract.id,
-                    special_terms: (contract.special_terms ? contract.special_terms + ' | ' : '') + `[수납완료 ${payDate}]: ${trunc10(totalAmount).toLocaleString()}원 (${memo || '정상완납'})`
-                })
-            });
-            if (res.ok) {
-                alert('✅ 월세 수납 처리 및 DB 기록 완료!');
-                loadPaymentLedgerData();
-            }
-        } catch(e) {
-            alert('❌ 통신 에러: ' + e.message);
+    var payType = document.getElementById('payType').value;
+    var rentWon = contract ? (contract.monthly_rent || 0) : (parseInt(document.getElementById('rentMan').value, 10) || 0) * 10000;
+    var pd = String(payDate).replace(/\D/g, '');
+    var period = pd.length >= 6 ? (pd.substring(0,4) + '-' + pd.substring(4,6)) : new Date().toISOString().substring(0,7);
+
+    try {
+        var res = await fetch('/api/v1/payments', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                contract_id: contract ? contract.id : null,
+                room_id: parseInt(roomId, 10),
+                period: period,
+                pay_date: payDate,
+                amount: trunc10(rentWon),
+                pay_type: payType,
+                memo: (memo ? memo + ' / ' : '') + '총수납 ' + trunc10(totalAmount).toLocaleString() + '원'
+            })
+        });
+        if (res.ok) {
+            alert('✅ 월세 수납 기록 완료! (수납 장부에 저장)');
+            resetPaymentForm();
+            loadPaymentLedgerData();
+        } else {
+            alert('❌ 수납 기록 실패');
         }
-    } else {
-        alert('✅ 수납 처리 완료 (등록 처리)');
+    } catch(e) {
+        alert('❌ 통신 에러: ' + e.message);
     }
 }
 
