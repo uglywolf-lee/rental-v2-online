@@ -110,7 +110,7 @@
             
             <div class="form-group">
                 <label>정산 처리 형태</label>
-                <select id="payType" class="form-control">
+                <select id="payType" class="form-control" onchange="updatePayBtnLabel()">
                     <option value="정상 완납" selected>정상 월세 완납</option>
                     <option value="일부 미납">일부 미납 (다음 달 잔액 이월)</option>
                     <option value="미납(연체료 면제)">미납 — 연체료 안 받음</option>
@@ -125,23 +125,23 @@
                 <div class="row-grid-5">
                     <div class="form-group" style="margin-bottom:0;">
                         <label>🏢 일반관리비 (원)</label>
-                        <input type="number" class="form-control bill-input" id="billAdmin" value="120000" min="0" placeholder="0" oninput="calculateTotalBill()">
+                        <input type="number" class="form-control bill-input" id="billAdmin" value="0" min="0" placeholder="0" oninput="calculateTotalBill()">
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
                         <label>⚡ 전기요금 (원)</label>
-                        <input type="number" class="form-control bill-input" id="billElec" value="45200" min="0" placeholder="0" oninput="calculateTotalBill()">
+                        <input type="number" class="form-control bill-input" id="billElec" value="0" min="0" placeholder="0" oninput="calculateTotalBill()">
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
                         <label>🚰 수도요금 (원)</label>
-                        <input type="number" class="form-control bill-input" id="billWater" value="24500" min="0" placeholder="0" oninput="calculateTotalBill()">
+                        <input type="number" class="form-control bill-input" id="billWater" value="0" min="0" placeholder="0" oninput="calculateTotalBill()">
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
                         <label>🔥 가스요금 (원)</label>
-                        <input type="number" class="form-control bill-input" id="billGas" value="58000" min="0" placeholder="0" oninput="calculateTotalBill()">
+                        <input type="number" class="form-control bill-input" id="billGas" value="0" min="0" placeholder="0" oninput="calculateTotalBill()">
                     </div>
                     <div class="form-group" style="margin-bottom:0; grid-column: span 2;">
                         <label>🌐 통신요금 (원)</label>
-                        <input type="number" class="form-control bill-input" id="billNet" value="16500" min="0" placeholder="0" oninput="calculateTotalBill()">
+                        <input type="number" class="form-control bill-input" id="billNet" value="0" min="0" placeholder="0" oninput="calculateTotalBill()">
                     </div>
                 </div>
             </div>
@@ -320,7 +320,7 @@ function onRoomSelected(roomId) {
         // DB의 원단위 월세를 만단위(/10000)로 변환하여 폼에 입력[span_2](start_span)[span_2](end_span)
         var rentWon = contract.monthly_rent || 0;
         document.getElementById('rentMan').value = Math.floor(rentWon / 10000); // 🌟 만단위 바인딩[span_3](start_span)[span_3](end_span)
-        document.getElementById('billAdmin').value = contract.maintenance_fee || 120000;
+        document.getElementById('billAdmin').value = contract.maintenance_fee || 0;
 
         // 계약서에 저장된 부가세 적용 여부를 그대로 따라감 (단기계약 등 미적용 반영)
         var vatOn = true, vnote = '';
@@ -346,8 +346,7 @@ function onRoomSelected(roomId) {
             pb.style.display = '';
             pb.innerHTML = '✏️ 이번 달(' + thisMonth + ') 수납 기록이 이미 있습니다 — 저장하면 <b>수정</b>됩니다. ('
                          + (Number(paid.amount)||0).toLocaleString() + '원)';
-            document.getElementById('paySaveBtn').textContent = '✏️ 수납 내역 수정';
-            document.getElementById('paySaveBtn').style.background = '#fd7e14';
+            updatePayBtnLabel();
         } else {
             clearPayEditMode();
         }
@@ -405,9 +404,21 @@ function renderLedgerTable(list) {
         var tr = document.createElement('tr');
         
         var rent = item.monthly_rent || 0;
-        var admin = item.maintenance_fee || 120000;
-        var vat = trunc10(rent * 0.1);
-        var total = trunc10(rent + admin + vat + 45200 + 24500 + 58000 + 16500);
+        var admin = item.maintenance_fee || 0;
+        // 계약서의 부가세 설정 반영
+        var vatOn = true;
+        try { var mm = JSON.parse(item.documents_json || '{}'); if (mm && mm.vat_applied === false) vatOn = false; } catch(e) {}
+        var vat = vatOn ? trunc10(rent * 0.1) : 0;
+        var total = trunc10(rent + admin + vat);
+
+        // 이번 달 실제 수납 기록 조회 → 없으면 '미납'
+        var thisM = todayStr.substring(0,7);
+        var pay = ALL_PAYMENTS.filter(function(p){
+            return String(p.room_id) === String(item.room_id) && String(p.period||'').substring(0,7) === thisM;
+        }).sort(function(a,b){ return b.id - a.id; })[0];
+        var payStatus = pay ? (pay.pay_type || '정상 완납') : '미납';
+        var paidAmt   = pay ? (Number(pay.amount)||0) : 0;
+        var stColor   = /완납/.test(payStatus) ? '#0056b3' : (/일부/.test(payStatus) ? '#fd7e14' : '#dc3545');
 
         var rm = ALL_ROOMS.find(function(r){ return r.id == item.room_id; });
         var roomStr = rm ? ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim() : '미지정';
@@ -418,9 +429,9 @@ function renderLedgerTable(list) {
             <td class="cell-text-center">${item.tenant_name || '-'}</td>
             <td class="cell-text-center">${todayStr.substring(0, 7)}</td>
             <td class="cell-text-center">매월 15일</td>
-            <td class="cell-num-right">${todayStr}</td>
-            <td class="cell-num-right"><b>${total.toLocaleString()}원</b></td>
-            <td class="cell-text-center"><span class="status-paid-complete">완납</span></td>
+            <td class="cell-num-right">${pay ? (pay.pay_date || '-') : '-'}</td>
+            <td class="cell-num-right"><b>${(pay ? paidAmt : total).toLocaleString()}원</b>${pay ? '' : ' <span style="font-size:.7rem;color:#888">(청구예정)</span>'}</td>
+            <td class="cell-text-center"><span style="color:${stColor};font-weight:bold">${payStatus}</span></td>
             <td class="cell-text-center"><button type="button" onclick="pickRentRoom('${roomNoOnly}')" style="background:#fd7e14;color:#fff;border:none;padding:4px 9px;border-radius:3px;cursor:pointer;font-size:.75rem;font-weight:700">✏️ 수납수정</button></td>
         `;
         tbody.appendChild(tr);
@@ -482,11 +493,24 @@ async function submitPayment() {
     }
 }
 
+// 정산 처리 형태에 따라 저장 버튼 문구 변경
+function updatePayBtnLabel() {
+    var t = document.getElementById('payType').value || '';
+    var btn = document.getElementById('paySaveBtn');
+    var editing = !!document.getElementById('editPaymentId').value;
+    if (/미납/.test(t)) {
+        btn.textContent = editing ? '✏️ 미납 처리 수정' : '🔴 미납 기록 저장';
+        btn.style.background = editing ? '#fd7e14' : '#dc3545';
+    } else {
+        btn.textContent = editing ? '✏️ 수납 내역 수정' : '납부 이력 반영 (DB 저장)';
+        btn.style.background = editing ? '#fd7e14' : '';
+    }
+}
+
 function clearPayEditMode() {
     document.getElementById('editPaymentId').value = '';
     document.getElementById('payEditBanner').style.display = 'none';
-    document.getElementById('paySaveBtn').textContent = '납부 이력 반영 (DB 저장)';
-    document.getElementById('paySaveBtn').style.background = '';
+    updatePayBtnLabel();
 }
 
 function resetPaymentForm() {

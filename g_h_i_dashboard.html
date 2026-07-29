@@ -209,10 +209,16 @@ function fmt(num) {
     return trunc10(num).toLocaleString('ko-KR') + '원';
 }
 
+var ALL_BILLS = [];   // 호실별 실제 공과금
+
 async function loadDashboardData() {
     try {
         const res = await fetch('/api/v1/contracts');
         CONTRACT_LIST = await res.json() || [];
+        try {
+            const bRes = await fetch('/api/v1/bills');
+            ALL_BILLS = await bRes.json() || [];
+        } catch(e) { ALL_BILLS = []; }
         renderLedgerTable(CONTRACT_LIST);
     } catch(e) {
         console.error('[대시보드 데이터 불러오기 오류]', e);
@@ -234,13 +240,22 @@ function renderLedgerTable(list) {
         var tr = document.createElement('tr');
         
         var rent = item.monthly_rent || 0;
-        var elec = 45200; // 공과금 예시 데이터
-        var water = 24500;
-        var gas = 31000;
-        var net = 16500;
-        
-        // 부가세 계산 및 10원 단위 절사 정산
-        var vat = trunc10(rent * 0.1);
+        // 해당 호실의 실제 공과금 (없으면 0)
+        var bill = (typeof ALL_BILLS !== 'undefined' ? ALL_BILLS : []).filter(function(b){
+            return b.scope !== 'common' && String(b.room_id) === String(item.room_id);
+        }).sort(function(a,b){ return b.id - a.id; })[0] || {};
+        var elec  = Number(bill.elec_cost)  || 0;
+        var water = Number(bill.water_cost) || 0;
+        var gas   = Number(bill.gas_cost)   || 0;
+        var net   = Number(bill.net_cost)   || 0;
+
+        // 부가세: 계약서에서 '부가세 미적용'으로 저장했으면 0
+        var vatOn = true;
+        try {
+            var meta = JSON.parse(item.documents_json || '{}');
+            if (meta && meta.vat_applied === false) vatOn = false;
+        } catch(e) {}
+        var vat = vatOn ? trunc10(rent * 0.1) : 0;
         var total = trunc10(rent + elec + water + gas + net + vat);
 
         var isOverdue = item.end_date && item.end_date < todayStr;
@@ -254,14 +269,14 @@ function renderLedgerTable(list) {
             <td class="col-no">${idx + 1}</td>
             <td class="cell-text-center"><b>${roomStr}</b></td>
             <td class="cell-text-center">${item.tenant_name || '-'}</td>
-            <td class="cell-num-right">010-1234-5678</td>
+            <td class="cell-num-right">${item.tenant_phone || '-'}</td>
             <td class="cell-day">15일</td>
             <td class="cell-num-right">${fmt(rent)}</td>
             <td class="cell-num-right">${fmt(elec)}</td>
             <td class="cell-num-right">${fmt(water)}</td>
             <td class="cell-num-right">${fmt(gas)}</td>
             <td class="cell-num-right">${fmt(net)}</td>
-            <td class="cell-num-right">${fmt(vat)}</td>
+            <td class="cell-num-right"${vatOn ? '' : ' style="color:#adb5bd"'}>${vatOn ? fmt(vat) : '면제'}</td>
             <td class="cell-num-right cell-total">${fmt(total)}</td>
             <td class="cell-status">${statusBadge}</td>
             <td class="cell-memo">
