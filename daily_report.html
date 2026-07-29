@@ -9,24 +9,24 @@
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Malgun Gothic','Segoe UI',sans-serif;background:var(--bg);color:var(--ink);padding:24px}
   .sheet{max-width:900px;margin:0 auto;background:#fff;padding:32px 34px;box-shadow:0 2px 10px rgba(0,0,0,.08);border-radius:6px}
-  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid var(--blue);padding-bottom:12px;margin-bottom:20px}
-  .head h1{font-size:1.7rem;color:var(--blue);letter-spacing:-1px}
-  .head .date{font-size:1rem;color:var(--muted);font-weight:600}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--blue);padding-bottom:7px;margin-bottom:12px}
+  .head h1{font-size:1.2rem;color:var(--blue);letter-spacing:-1px}
+  .head .date{font-size:.85rem;color:var(--muted);font-weight:600}
   .btn-print{background:var(--blue);color:#fff;border:none;padding:10px 18px;border-radius:5px;font-size:.95rem;font-weight:bold;cursor:pointer}
   .btn-print:hover{background:#134070}
   .toolbar{max-width:900px;margin:0 auto 14px;text-align:right}
 
-  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
-  .card{border:1px solid var(--line);border-radius:8px;padding:14px 12px;text-align:center;background:#fafbfc}
-  .card .lbl{font-size:.82rem;color:var(--muted);margin-bottom:6px;font-weight:600}
-  .card .val{font-size:1.5rem;font-weight:800;color:var(--ink);line-height:1.15}
-  .card .sub{font-size:.75rem;color:var(--muted);margin-top:3px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px}
+  .card{border:1px solid var(--line);border-radius:5px;padding:7px 8px;text-align:center;background:#fafbfc}
+  .card .lbl{font-size:.7rem;color:var(--muted);margin-bottom:2px;font-weight:600}
+  .card .val{font-size:1.05rem;font-weight:800;color:var(--ink);line-height:1.1}
+  .card .sub{font-size:.64rem;color:var(--muted);margin-top:1px;line-height:1.25}
   .card.warn .val{color:var(--red)}
 
-  h2.sec{font-size:1.1rem;margin:22px 0 10px;padding-left:9px;border-left:5px solid var(--blue);color:var(--blue)}
-  table{width:100%;border-collapse:collapse;font-size:.9rem}
-  th{background:#eef2f6;border:1px solid var(--line);padding:8px 9px;text-align:center;font-weight:700}
-  td{border:1px solid var(--line);padding:7px 9px;text-align:center}
+  h2.sec{font-size:.95rem;margin:13px 0 5px;padding-left:7px;border-left:4px solid var(--blue);color:var(--blue)}
+  table{width:100%;border-collapse:collapse;font-size:.8rem}
+  th{background:#eef2f6;border:1px solid var(--line);padding:4px 7px;text-align:center;font-weight:700}
+  td{border:1px solid var(--line);padding:4px 7px;text-align:center}
   td.l{text-align:left}
   td.r{text-align:right}
   .none{color:var(--muted);text-align:center;padding:12px}
@@ -87,10 +87,6 @@
     <h2 class="sec">🔧 긴급 유지보수 (처리 대기)</h2>
     <table><thead><tr><th>호실</th><th>분류</th><th>내용</th><th>상태</th><th>연락처</th></tr></thead>
       <tbody id="tb_incident"></tbody></table>
-
-    <h2 class="sec">📞 오늘의 연락 리스트</h2>
-    <table><thead><tr><th>대상</th><th>사유</th><th>연락처</th></tr></thead>
-      <tbody id="tb_call"></tbody></table>
 
     <div class="foot" id="foot"></div>
   </div>
@@ -172,9 +168,8 @@ async function build(){
   var vacant = rooms.filter(function(r){
     if (leasedRoomIds[r.id]) return false;                       // 유효 계약 있음
     var st = String(pick(r,['status','current_room_status']) || '');
-    if (/사옥|자가|단독층 통합|통합/.test(st)) return false;      // 임대 대상 아님
-    if (/임대중|사용중/.test(st)) return false;                   // 상태상 임대중
-    return true;                                                 // 나머지는 공실
+    if (!st) return true;                                        // 상태 미입력 → 공실로 간주
+    return /공실|비어|빈/.test(st);                               // '공실'만 공실 (임대·공사중·사옥 제외)
   });
   // 지하(B2·B1) → 지상 순으로 정렬해 표시
   var floorOf = function(r){ var f = (r.floor != null ? r.floor : r.floor_no); return (f == null ? 0 : Number(f)); };
@@ -245,20 +240,6 @@ async function build(){
     if(ph) callList.push({who:tn||roomStr(i.room_id), reason:'유지보수('+(i.category||'')+')', phone:ph});
     tbI.insertAdjacentHTML('beforeend','<tr><td>'+roomStr(i.room_id)+'</td><td>'+(i.category||'-')+'</td><td class="l">'+(i.description||'-')+'</td><td>'+(i.status||'접수중')+'</td><td class="phone">'+(ph||'-')+'</td></tr>');
   });
-
-  // ── 오늘의 연락 리스트 (전화 중복 제거)
-  var seen={}, tbC=document.getElementById('tb_call'), cN=0;
-  callList.forEach(function(x){
-    if(!x.phone) return; var key=x.phone;
-    if(seen[key]){ seen[key].reason += ', '+x.reason; return; }
-    seen[key]={reason:x.reason}; cN++;
-    var rowId='call_'+cN;
-    tbC.insertAdjacentHTML('beforeend','<tr id="'+rowId+'"><td>'+(x.who||'-')+'</td><td class="l">'+x.reason+'</td><td class="phone">'+x.phone+'</td></tr>');
-    seen[key].el=document.getElementById(rowId);
-  });
-  // reason 병합 반영
-  Object.keys(seen).forEach(function(k){ if(seen[k].el) seen[k].el.children[1].textContent=seen[k].reason; });
-  if(!cN){ tbC.innerHTML='<tr><td colspan="3" class="none">오늘 연락할 대상 없음</td></tr>'; }
 
   document.getElementById('foot').textContent = '생성 시각 '+ new Date().toLocaleString('ko-KR') + ' · 부동산 관리시스템 · 미납/공실/만기/유지보수 예외 항목 자동 집계';
 }

@@ -57,6 +57,14 @@
 
     <div class="left-panel">
         <div class="panel-title">🏠 A. 부동산/호실 인프라등록</div>
+
+        <div style="background:#f1f3f5;border-radius:6px;padding:9px 10px;margin-bottom:14px">
+            <label style="display:block;font-size:.8rem;font-weight:700;color:#495057;margin-bottom:5px">🔍 호실 검색 후 불러오기</label>
+            <input type="text" id="leftSearch" class="form-control" placeholder="예: 440 → 4층 전체" autocomplete="off"
+                   oninput="renderLeftChips(this.value)"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();renderLeftChips(this.value);}">
+            <div id="leftChips" style="margin-top:6px"></div>
+        </div>
         <form onsubmit="handleAssetSubmit(event)">
             <div class="form-group">
                 <label>건물명</label>
@@ -80,10 +88,11 @@
             </div>
             <div class="form-group">
                 <label>상태</label>
-                <input type="text" class="form-control" id="roomStatus" list="statusList" placeholder="공실 / 임대중 …">
-                <datalist id="statusList">
-                    <option value="공실"><option value="임대중"><option value="임대중(단독층)"><option value="단독층 통합"><option value="사옥(자가사용)"><option value="수리중">
-                </datalist>
+                <select class="form-control" id="roomStatus">
+                    <option value="공실">공실</option>
+                    <option value="임대">임대</option>
+                    <option value="공사중">공사중</option>
+                </select>
             </div>
             <input type="hidden" id="selectedRoomId" value="">
             <input type="hidden" id="selectedBuildingId" value="">
@@ -217,6 +226,50 @@ async function handleAssetSubmit(event) {
     }
 }
 
+// 좌측 검색 → 같은 층 호실 버튼 (누르면 그 호실을 폼에 불러옴)
+function renderLeftChips(q) {
+    var box = document.getElementById('leftChips');
+    var fl = guessFloorA(q);
+    var kw = String(q || '').trim().toLowerCase();
+    if (!kw) { box.innerHTML = ''; return; }
+    var list = ALL_ROOMS_A.filter(function(r) {
+        var f = (r.floor != null ? r.floor : r.floor_no);
+        var no = String(r.room || r.room_no || '');
+        return (fl !== null && !isNaN(fl) && String(f) === String(fl)) || no.toLowerCase().indexOf(kw) === 0;
+    });
+    if (!list.length) { box.innerHTML = '<span style="font-size:.76rem;color:#888">해당 호실이 없습니다</span>'; return; }
+    box.innerHTML = '<div style="font-size:.74rem;color:#495057;font-weight:600;margin-bottom:4px">'
+        + list.length + '개 — 누르면 왼쪽에 불러옵니다</div>'
+        + list.map(function(r) {
+            var no = String(r.room || r.room_no || '');
+            var on = (String(document.getElementById('selectedRoomId').value) === String(r.id));
+            return '<button type="button" onclick="pickLeftRoom(' + r.id + ')" style="margin:0 4px 4px 0;padding:4px 10px;'
+                 + 'font-size:.82rem;font-weight:700;cursor:pointer;border:1px solid ' + (on ? '#28a745' : '#bbc4cc') + ';border-radius:5px;'
+                 + 'background:' + (on ? '#28a745' : '#fff') + ';color:' + (on ? '#fff' : '#333') + '">' + no + '</button>';
+        }).join('');
+}
+
+function pickLeftRoom(rid) {
+    var rm = ALL_ROOMS_A.find(function(r){ return String(r.id) === String(rid); });
+    if (!rm) return;
+    selectRoomToForm(rm, null);
+    renderLeftChips(document.getElementById('leftSearch').value);
+}
+
+// 상태 select에 기존값(임대중(단독층) 등)이 있으면 임시 옵션으로 추가해 데이터 보존
+function setStatusSelect(val) {
+    var sel = document.getElementById('roomStatus');
+    var v = String(val || '공실');
+    var has = Array.prototype.some.call(sel.options, function(o){ return o.value === v; });
+    Array.prototype.slice.call(sel.querySelectorAll('option[data-legacy]')).forEach(function(o){ o.remove(); });
+    if (!has) {
+        var o = document.createElement('option');
+        o.value = v; o.textContent = v + ' (기존값)'; o.setAttribute('data-legacy','1');
+        sel.insertBefore(o, sel.firstChild);
+    }
+    sel.value = v;
+}
+
 // 표에서 행 클릭 → 좌측 폼에 자동 채움 (수정 모드)
 function selectRoomToForm(rm, tr) {
     document.querySelectorAll('.excel-table-wrap tbody tr').forEach(function(r){ r.style.background=''; });
@@ -232,7 +285,7 @@ function selectRoomToForm(rm, tr) {
     document.getElementById('assignedFloor').dataset.userEdited = '1';   // 자동덮어쓰기 방지
     var ar = (rm.area != null ? rm.area : rm.area_sqm);
     document.getElementById('roomArea').value = (ar ? Number(ar) : '');
-    document.getElementById('roomStatus').value = rm.status || rm.current_room_status || '';
+    setStatusSelect(rm.status || rm.current_room_status || '공실');
 
     var b = document.getElementById('editBanner');
     b.style.display = '';

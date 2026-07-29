@@ -179,7 +179,7 @@ def _mark_room_leased(cur, room_id):
             return
         cur_status = str((row['current_room_status'] if hasattr(row, 'keys') else row[0]) or '')
         if (not cur_status) or ('공실' in cur_status) or ('비어' in cur_status) or ('빈' in cur_status):
-            cur.execute("UPDATE rooms SET current_room_status='임대중' WHERE id=?", (room_id,))
+            cur.execute("UPDATE rooms SET current_room_status='임대' WHERE id=?", (room_id,))
     except Exception:
         pass
 
