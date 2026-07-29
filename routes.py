@@ -168,6 +168,53 @@ def handle_auth_endpoint(path, data):
         conn.close()
 
 
+def _mark_room_leased(cur, room_id):
+    """계약이 생기면 그 호실 상태를 '임대중'으로 자동 변경 (공실로 남아 통계가 틀리는 것 방지).
+       단독층/사옥 등 별도 표기된 상태는 건드리지 않음."""
+    try:
+        if not room_id:
+            return
+        row = cur.execute("SELECT current_room_status FROM rooms WHERE id=?", (room_id,)).fetchone()
+        if not row:
+            return
+        cur_status = str((row['current_room_status'] if hasattr(row, 'keys') else row[0]) or '')
+        if (not cur_status) or ('공실' in cur_status) or ('비어' in cur_status) or ('빈' in cur_status):
+            cur.execute("UPDATE rooms SET current_room_status='임대중' WHERE id=?", (room_id,))
+    except Exception:
+        pass
+
+
+def _resolve_tenant(cur, data):
+    """계약서에 입력한 임차인 이름/연락처 → contacts(tenant) 찾거나 새로 등록하고 id 반환"""
+    name = str(data.get('tenant_name') or '').strip()
+    phone = str(data.get('tenant_phone') or '').strip()
+    if not name and not phone:
+        return None
+    try:
+        row = None
+        if name and phone:
+            row = cur.execute("""SELECT id FROM contacts WHERE category='tenant'
+                                 AND company_or_name=? AND contact_info=?""", (name, phone)).fetchone()
+        if not row and name:
+            row = cur.execute("""SELECT id FROM contacts WHERE category='tenant'
+                                 AND company_or_name=? ORDER BY id LIMIT 1""", (name,)).fetchone()
+        if not row and phone:
+            row = cur.execute("""SELECT id FROM contacts WHERE category='tenant'
+                                 AND contact_info=? ORDER BY id LIMIT 1""", (phone,)).fetchone()
+        if row:
+            tid = row['id'] if hasattr(row, 'keys') else row[0]
+            if phone:      # 연락처가 바뀌었으면 갱신
+                cur.execute("UPDATE contacts SET contact_info=? WHERE id=?", (phone, tid))
+            if name:
+                cur.execute("UPDATE contacts SET company_or_name=? WHERE id=?", (name, tid))
+            return tid
+        cur.execute("""INSERT INTO contacts (category, company_or_name, representative_name, contact_info, is_active)
+                       VALUES ('tenant', ?, ?, ?, 1)""", (name or phone, name, phone))
+        return cur.lastrowid
+    except Exception:
+        return None
+
+
 LABELS = {
     '/api/v1/buildings': '건물', '/api/v1/rooms': '호실', '/api/v1/contacts': '연락처/직원',
     '/api/v1/contracts': '계약', '/api/v1/bills': '공과금', '/api/v1/incidents': '유지보수',
@@ -377,6 +424,8 @@ def handle_post_api(path, data):
 
             if cid:
                 _snapshot(cur, 'contracts', cid)   # 수정 전 스냅샷
+                # 임차인 이름/연락처 → contacts 연결 (계약자 명부 연동)
+                t_id = data.get('tenant_contact_id') or _resolve_tenant(cur, data)
                 cur.execute("""
                     UPDATE contracts SET
                         room_id=?, host_address_full=?, lease_type=?, deposit_amount=?,
@@ -389,6 +438,9 @@ def handle_post_api(path, data):
                     data.get('commission_fee', 0), data.get('start_date', ''), data.get('end_date', ''),
                     data.get('documents_json', '[]'), str(special_terms or '').strip(), cid
                 ))
+                if t_id:
+                    cur.execute("UPDATE contracts SET tenant_contact_id=? WHERE id=?", (t_id, cid))
+                _mark_room_leased(cur, data.get('room_id'))
                 conn.commit()
                 return 200, {'id': cid, 'success': True, 'message': '계약 정보 수정 완료'}
 
@@ -396,7 +448,8 @@ def handle_post_api(path, data):
             room_id = int(data.get('room_id') or 0)
             host_addr = str(data.get('host_address_full', ''))
             owner_cid = int(data.get('owner_contact_id', 1) or 1)
-            tenant_cid = int(data.get('tenant_contact_id', 0) or 0)
+            # 임차인 이름/연락처가 오면 contacts(tenant)에 자동 등록/연결
+            tenant_cid = int(data.get('tenant_contact_id') or 0) or int(_resolve_tenant(cur, data) or 0)
             broker_id = int(data.get('broker_id', 0) or 0)
             lease_type = str(data.get('lease_type', '월세'))
             deposit = int(data.get('deposit_amount', 0) or 0)
@@ -419,6 +472,7 @@ def handle_post_api(path, data):
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             """, (room_id, host_addr, owner_cid, tenant_cid, broker_id, lease_type, deposit, monthly, maint_fee, comm_fee, s_date, e_date, docs_json, str(special_terms or '').strip()))
             new_cid = cur.lastrowid
+            _mark_room_leased(cur, room_id)
             conn.commit()
             return 201, {'id': new_cid, 'success': True, 'message': '계약서 등록 완료'}
 

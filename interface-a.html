@@ -100,8 +100,10 @@
 
     <div class="right-panel">
         <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px;">
-            <input type="text" id="searchKeyword" class="form-control" placeholder="건물명, 주소, 호실 통합 검색...">
-            <button class="btn btn-main" style="flex:none; width:80px;" onclick="loadBuildings()">검색</button>
+            <input type="text" id="searchKeyword" class="form-control" placeholder="건물명·주소·호실 검색 (440 입력 시 4층 전체)"
+                   autocomplete="off" oninput="renderRoomTable()"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();renderRoomTable();}">
+            <button class="btn btn-main" style="flex:none; width:80px;" onclick="renderRoomTable()">검색</button>
         </div>
         <div class="excel-table-wrap">
             <table>
@@ -116,6 +118,7 @@
                         <th>입주자 정보 (상호/성명)</th>
                         <th>상태</th>
                         <th class="th-active">활성</th>
+                        <th style="width:70px">관리</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -303,31 +306,51 @@ document.addEventListener('DOMContentLoaded', function(){
     if (fEl) fEl.addEventListener('input', function(){ fEl.dataset.userEdited = '1'; });
 });
 
+var ALL_ROOMS_A = [];   // 호실 전체 (검색은 이걸로 즉시 필터)
+
+// 호실번호에서 층 추정 (440 → 4층 / B101 → 지하1층)
+function guessFloorA(q){
+    q = String(q||'').trim(); if(!q) return null;
+    if(/^[bB지]/.test(q)){ var bd=(q.match(/\d+/)||[''])[0]; return bd? -parseInt(bd.slice(0,1),10) : null; }
+    var d = q.replace(/\D/g,''); if(!d) return null;
+    return d.length>=3 ? parseInt(d.slice(0,-2),10) : parseInt(d,10);
+}
+
 async function loadBuildings(){
     try {
-        const kw = (document.getElementById('searchKeyword')?.value || '').trim().toLowerCase();
-        
         const roomRes = await fetch('/api/v1/rooms');
-        const allRooms = await roomRes.json() || [];
-        if (!allRooms.length) { alert('등록된 호실이 없습니다.'); return; }
+        ALL_ROOMS_A = await roomRes.json() || [];
+        renderRoomTable();
+    } catch(e) { alert('불러오기 오류: ' + e.message); }
+}
 
+function renderRoomTable(){
+    try {
+        const kw = (document.getElementById('searchKeyword')?.value || '').trim().toLowerCase();
         const tbody = document.querySelector('.excel-table-wrap tbody');
         tbody.innerHTML = '';
 
+        if (!ALL_ROOMS_A.length) {
+            tbody.innerHTML = '<tr><td colspan="10" class="cell-text-center">등록된 호실이 없습니다.</td></tr>';
+            return;
+        }
+
+        // 숫자만 입력하면 그 층 전체도 함께 표시
+        const fl = kw ? guessFloorA(kw) : null;
         let matchCount = 0;
 
-        // 호실 기준 렌더 — 건물정보는 rooms API의 building_id 조인 결과를 그대로 사용.
-        // 건물명이 아니라 FK로 묶이므로 주소/호실이 잘못 묶이거나 분리되지 않는다.
-        for (const rm of allRooms) {
+        for (const rm of ALL_ROOMS_A) {
             const bname = rm.building_name || '(건물 미지정)';
             const baddr = rm.building_address || '-';
             const roomNo = String(rm.room || rm.room_no || '');
             const areaVal = rm.area != null ? rm.area : rm.area_sqm;
 
+            const rmFloor = (rm.floor != null ? rm.floor : rm.floor_no);
             const kwMatch = !kw ||
                 bname.toLowerCase().includes(kw) ||
                 baddr.toLowerCase().includes(kw) ||
-                roomNo.toLowerCase().includes(kw);
+                roomNo.toLowerCase().includes(kw) ||
+                (fl !== null && !isNaN(fl) && String(rmFloor) === String(fl));   // 440 → 4층 전체
             if (!kwMatch) continue;
 
             const tr = document.createElement('tr');
@@ -344,6 +367,7 @@ async function loadBuildings(){
                 <td class="cell-text-center">-</td>
                 <td class="cell-text-center">${rm.status || rm.current_room_status || '-'}</td>
                 <td class="col-active">1</td>
+                <td class="cell-text-center"><button type="button" style="background:#fd7e14;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:.75rem;font-weight:700">✏️ 수정</button></td>
             `;
             tbody.appendChild(tr);
             matchCount++;
@@ -351,7 +375,7 @@ async function loadBuildings(){
 
         if (!matchCount) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="9" class="cell-text-center">검색 결과가 없습니다</td>';
+            tr.innerHTML = '<td colspan="10" class="cell-text-center">검색 결과가 없습니다</td>';
             tbody.appendChild(tr);
         }
     } catch(e) { alert('불러오기 오류: ' + e.message); }

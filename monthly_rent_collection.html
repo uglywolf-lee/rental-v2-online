@@ -192,11 +192,12 @@
                             <th>입금 확인일</th>
                             <th>수납 금액</th>
                             <th>수납 상태</th>
+                            <th style="width:80px">관리</th>
                         </tr>
                     </thead>
                     <tbody id="paymentLedgerTbody">
                         <tr>
-                            <td colspan="7" class="cell-text-center">데이터를 불러오는 중입니다...</td>
+                            <td colspan="8" class="cell-text-center">데이터를 불러오는 중입니다...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -392,7 +393,7 @@ function renderLedgerTable(list) {
     tbody.innerHTML = '';
 
     if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="cell-text-center">수납 이력 내역이 없습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="cell-text-center">수납 이력 내역이 없습니다.</td></tr>';
         return;
     }
 
@@ -408,6 +409,7 @@ function renderLedgerTable(list) {
 
         var rm = ALL_ROOMS.find(function(r){ return r.id == item.room_id; });
         var roomStr = rm ? ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim() : '미지정';
+        var roomNoOnly = rm ? String(rm.room || rm.room_no || '') : '';
 
         tr.innerHTML = `
             <td class="cell-text-center"><b>${roomStr}</b></td>
@@ -417,6 +419,7 @@ function renderLedgerTable(list) {
             <td class="cell-num-right">${todayStr}</td>
             <td class="cell-num-right"><b>${total.toLocaleString()}원</b></td>
             <td class="cell-text-center"><span class="status-paid-complete">완납</span></td>
+            <td class="cell-text-center"><button type="button" onclick="pickRentRoom('${roomNoOnly}')" style="background:#fd7e14;color:#fff;border:none;padding:4px 9px;border-radius:3px;cursor:pointer;font-size:.75rem;font-weight:700">✏️ 수납수정</button></td>
         `;
         tbody.appendChild(tr);
     });

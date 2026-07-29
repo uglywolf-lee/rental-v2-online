@@ -86,9 +86,14 @@
       <fieldset>
         <legend>계약 기본</legend>
         <div class="form-group">
-          <label>연동 호실 (선택)</label>
-          <select id="roomId" class="form-control" onchange="onRoomChanged()"><option value="">— 호실 선택 —</option></select>
+          <label>연동 호실 (번호 입력 · 440 입력 시 4층 전체)</label>
+          <input type="text" id="roomSearch" class="form-control" list="cRoomsDatalist"
+                 placeholder="예: 440, 101, B101" autocomplete="off" oninput="onCRoomSearch(this.value)">
+          <datalist id="cRoomsDatalist"></datalist>
+          <input type="hidden" id="roomId" value="">
+          <div id="cRoomChips" style="margin-top:5px"></div>
           <div class="hint" id="roomHint"></div>
+          <div id="existingContractBox" style="display:none;margin-top:6px;background:#e7f5ff;border:1px solid #a5d8ff;border-radius:5px;padding:8px 10px;font-size:.8rem;color:#0b5ed7"></div>
         </div>
         <div class="grid2">
           <div class="form-group">
@@ -158,6 +163,7 @@
 <script src="auth.js"></script>
 <script src="date8.js"></script>
 <script>
+var ALL_CONTRACTS_C = [];   // 기존 계약 목록 (수정 진입용)
 var DOC_FILES = [];    // 계약서 원본들 [{name, path}]
 var ID_FILES  = [];    // 신분증 사본들 [{name, path}]
 var ALL_ROOMS = [];
@@ -303,20 +309,81 @@ function onRoomChanged(){
     addrEl.dataset.auto = '1';
   }
   hint.textContent = '🏠 ' + ((rm.building_name||'') + ' ' + roomNo + '호').trim() + (addr ? ' · ' + addr : '');
+  showExistingContract(rid);
+}
+
+// 선택한 호실에 이미 계약이 있으면 '불러와 수정' 버튼 표시
+function showExistingContract(rid){
+  var box = document.getElementById('existingContractBox');
+  if (!box) return;
+  if (document.getElementById('editContractId').value) { box.style.display='none'; return; }  // 이미 수정 중
+  var c = ALL_CONTRACTS_C.filter(function(x){ return String(x.room_id) === String(rid); })
+                         .sort(function(a,b){ return b.id - a.id; })[0];
+  if (!c) { box.style.display='none'; return; }
+  box.style.display = '';
+  box.innerHTML = '📄 이 호실에 <b>기존 계약</b>이 있습니다 — ' + (c.tenant_name || '임차인 미등록')
+    + ' (' + (c.start_date||'') + ' ~ ' + (c.end_date||'') + ')<br>'
+    + '<button type="button" onclick="loadContractForEdit(' + c.id + ')" '
+    + 'style="margin-top:6px;padding:6px 14px;font-size:.82rem;font-weight:700;cursor:pointer;'
+    + 'background:#fd7e14;color:#fff;border:none;border-radius:5px">✏️ 불러와 수정하기</button>'
+    + '<span style="margin-left:8px;color:#666">(그냥 새로 입력하면 별개 계약으로 저장됩니다)</span>';
 }
 
 // 3) 호실 목록 로드
 async function loadRooms(){
   try{
     var res=await fetch('/api/v1/rooms'); ALL_ROOMS=await res.json()||[];
-    var sel=document.getElementById('roomId');
+    var dl=document.getElementById('cRoomsDatalist'); dl.innerHTML='';
     ALL_ROOMS.forEach(function(rm){
       if(!rm.id) return;
-      var o=document.createElement('option'); o.value=rm.id;
-      o.textContent=((rm.building_name||'')+' '+(rm.room_no||'')).trim()+'호';
-      sel.appendChild(o);
+      var o=document.createElement('option');
+      o.value=String(rm.room||rm.room_no||'');
+      o.label=((rm.building_name||'')+' '+o.value).trim();
+      dl.appendChild(o);
     });
   }catch(e){ console.error('호실 로드 실패',e); }
+}
+
+// 호실번호에서 층 추정 (뒤 2자리=호 / B는 지하)
+function guessFloor(q){
+  q=String(q||'').trim(); if(!q) return null;
+  if(/^[bB지]/.test(q)){ var bd=(q.match(/\d+/)||[''])[0]; return bd?-parseInt(bd.slice(0,1),10):null; }
+  var d=q.replace(/\D/g,''); if(!d) return null;
+  return d.length>=3 ? parseInt(d.slice(0,-2),10) : parseInt(d,10);
+}
+function floorLabelOf(f){ return f<0 ? ('지하'+Math.abs(f)+'층') : (f+'층'); }
+
+function renderCRoomChips(q){
+  var box=document.getElementById('cRoomChips');
+  var fl=guessFloor(q);
+  if(fl===null||isNaN(fl)){ box.innerHTML=''; return; }
+  var list=ALL_ROOMS.filter(function(r){
+    var f=(r.floor!=null?r.floor:r.floor_no); return String(f)===String(fl);
+  });
+  if(!list.length){ box.innerHTML=''; return; }
+  var cur=String(q||'').trim();
+  box.innerHTML='<div style="font-size:.72rem;color:#666;font-weight:600;margin-bottom:4px">'
+    + floorLabelOf(fl)+' 호실 '+list.length+'개 — 누르면 선택</div>'
+    + list.map(function(r){
+        var no=String(r.room||r.room_no||''); var on=(no===cur);
+        return '<button type="button" onclick="pickCRoom(\''+no+'\')" style="margin:0 4px 4px 0;padding:3px 9px;'
+             + 'font-size:.8rem;font-weight:700;cursor:pointer;border:1px solid '+(on?'#5b21b6':'#ccc')+';border-radius:5px;'
+             + 'background:'+(on?'#5b21b6':'#fff')+';color:'+(on?'#fff':'#333')+'">'+no+'</button>';
+      }).join('');
+}
+
+function pickCRoom(no){
+  document.getElementById('roomSearch').value=no;
+  onCRoomSearch(no);
+}
+
+// 입력/선택 → 호실 확정 + 소재지 자동 연동
+function onCRoomSearch(q){
+  renderCRoomChips(q);
+  var t=String(q||'').trim();
+  var hit=ALL_ROOMS.find(function(r){ return String(r.room||r.room_no||'')===t; });
+  document.getElementById('roomId').value = hit ? hit.id : '';
+  onRoomChanged();
 }
 
 // 4) 저장
@@ -332,7 +399,10 @@ async function saveContract(){
     maintenance_fee: parseInt(document.getElementById('maint').value||'0',10),
     start_date: document.getElementById('startDate').value,   // date8 → ISO 반환
     end_date: document.getElementById('endDate').value,
-    special_terms: document.getElementById('specialTerms').value.trim()
+    special_terms: document.getElementById('specialTerms').value.trim(),
+    // 임차인 정보 → 서버가 계약자 명부(contacts)에 자동 등록·연결
+    tenant_name: val('tenantName'),
+    tenant_phone: val('tenantPhone')
   };
   if(!payload.start_date){ return alert('❌ 계약 시작일을 확인해 주세요.'); }
 
@@ -355,6 +425,7 @@ async function saveContract(){
                    : '✅ 계약서 저장 완료 (계약ID: '+(d.id||'?')+'). 원본문서도 함께 첨부되었습니다.');
       document.getElementById('contractForm').reset();
       resetContractForm();
+      loadContractsList();          // 저장 직후 목록 갱신 → 다시 고르면 '불러와 수정' 뜸
       DOC_FILES=[]; ID_FILES=[];
       document.getElementById('docFileList').innerHTML='';
       document.getElementById('idFileList').innerHTML='';
@@ -374,6 +445,11 @@ function resetContractForm(){
   document.getElementById('cSaveBtn').textContent = '💾 계약서 저장 (원본문서 첨부)';
   document.getElementById('cSaveBtn').style.background = '';
   document.getElementById('hostAddress').dataset.auto = '';
+  document.getElementById('roomId').value = '';
+  document.getElementById('roomSearch').value = '';
+  document.getElementById('cRoomChips').innerHTML = '';
+  document.getElementById('roomHint').textContent = '';
+  document.getElementById('existingContractBox').style.display = 'none';
   DOC_FILES=[]; ID_FILES=[];
   document.getElementById('docFileList').innerHTML='';
   document.getElementById('idFileList').innerHTML='';
@@ -392,6 +468,13 @@ async function loadContractForEdit(cid){
 
     document.getElementById('editContractId').value = c.id;
     document.getElementById('roomId').value = c.room_id || '';
+    // 검색칸에도 호실번호 표시 + 같은 층 버튼
+    var rm0 = ALL_ROOMS.find(function(r){ return String(r.id) === String(c.room_id); });
+    if (rm0) {
+      var no0 = String(rm0.room || rm0.room_no || '');
+      document.getElementById('roomSearch').value = no0;
+      renderCRoomChips(no0);
+    }
     document.getElementById('hostAddress').value = c.host_address_full || '';
     document.getElementById('hostAddress').dataset.auto = '0';
     document.getElementById('leaseType').value = c.lease_type || '월세';
@@ -431,8 +514,16 @@ async function loadContractForEdit(cid){
   }catch(e){ alert('계약 불러오기 오류: ' + e.message); }
 }
 
+async function loadContractsList(){
+  try{
+    var res = await fetch('/api/v1/contracts');
+    ALL_CONTRACTS_C = await res.json() || [];
+  }catch(e){ ALL_CONTRACTS_C = []; }
+}
+
 document.addEventListener('DOMContentLoaded', async function(){
   await loadRooms();
+  await loadContractsList();
   var q = new URLSearchParams(location.search).get('id');
   if(q) loadContractForEdit(q);
 });

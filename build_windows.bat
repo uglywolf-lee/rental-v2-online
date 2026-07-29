@@ -29,8 +29,8 @@ copy /Y building_manager.db "%OUT%\" >nul 2>nul
 REM one-time setup script (firewall + auto-start) shipped with the app
 copy /Y install_service.bat "%OUT%\" >nul 2>nul
 copy /Y drive_backup_path.txt "%OUT%\" >nul 2>nul
-REM user guide (must be visible in the shipped folder)
-copy /Y "필독_사용안내.txt" "%OUT%\" >nul 2>nul
+REM user guide (copy any .txt guide in this folder)
+copy /Y *.txt "%OUT%\" >nul 2>nul
 
 REM Ensure Python DLL is bundled (some installs miss it -> pythonXXX.dll not found)
 set "DLLDST=%OUT%"

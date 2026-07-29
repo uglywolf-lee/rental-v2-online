@@ -30,6 +30,11 @@
   td.l{text-align:left}
   td.r{text-align:right}
   .none{color:var(--muted);text-align:center;padding:12px}
+  /* 공실: 건물별 묶음 + 층별 호실 한 줄 (프린트 분량 최소화) */
+  .vac-t{margin-bottom:10px}
+  .vac-h{background:#eef2f6;text-align:left;font-size:.95rem;padding:7px 10px}
+  .vac-f{width:110px;text-align:center;font-weight:700;background:#fafbfc;white-space:nowrap}
+  .vac-r{text-align:left;letter-spacing:.3px;line-height:1.7}
   .dday{font-weight:800;color:var(--red)}
   .phone{font-weight:700}
   .foot{margin-top:26px;font-size:.78rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
@@ -73,8 +78,7 @@
       <tbody id="tb_unpaid"></tbody></table>
 
     <h2 class="sec">🏠 공실 목록</h2>
-    <table><thead><tr><th>건물</th><th>호실</th><th>면적(㎡)</th><th>상태</th></tr></thead>
-      <tbody id="tb_vacant"></tbody></table>
+    <div id="vacantBox"></div>
 
     <h2 class="sec">📅 계약 만기 임박 (60일 이내)</h2>
     <table><thead><tr><th>호실</th><th>임차인</th><th>만기일</th><th>남은일</th><th>연락처</th></tr></thead>
@@ -157,13 +161,61 @@ async function build(){
   document.getElementById('c_unpaid_sub').textContent = won(unpaidSum);
 
   // ── 공실
-  var vacant = rooms.filter(function(r){ return /공실|비어|빈/.test(String(pick(r,['status','current_room_status']))); });
-  var tbV = document.getElementById('tb_vacant');
-  if(!vacant.length){ tbV.innerHTML='<tr><td colspan="4" class="none">공실 없음</td></tr>'; }
-  else vacant.forEach(function(r){
-    var area = pick(r,['area','area_sqm']);
-    tbV.insertAdjacentHTML('beforeend','<tr><td>'+(r.building_name||'-')+'</td><td>'+pick(r,['room','room_no'])+'</td><td class="r">'+(area?Number(area).toFixed(1):'-')+'</td><td>'+pick(r,['status','current_room_status'])+'</td></tr>');
+  // 공실 = 유효한 계약이 없는 호실 (상태값이 어긋나도 계약 기준으로 정확히 판정)
+  //  · 계약이 있고 아직 만료 전 → 임대중
+  //  · 사옥/단독층 통합 등 별도 표기 → 공실에서 제외
+  var leasedRoomIds = {};
+  contracts.forEach(function(c){
+    var ed = parseDate(c.end_date);
+    if (!ed || ed >= today) leasedRoomIds[c.room_id] = true;   // 만료일 없거나 아직 유효
   });
+  var vacant = rooms.filter(function(r){
+    if (leasedRoomIds[r.id]) return false;                       // 유효 계약 있음
+    var st = String(pick(r,['status','current_room_status']) || '');
+    if (/사옥|자가|단독층 통합|통합/.test(st)) return false;      // 임대 대상 아님
+    if (/임대중|사용중/.test(st)) return false;                   // 상태상 임대중
+    return true;                                                 // 나머지는 공실
+  });
+  // 지하(B2·B1) → 지상 순으로 정렬해 표시
+  var floorOf = function(r){ var f = (r.floor != null ? r.floor : r.floor_no); return (f == null ? 0 : Number(f)); };
+  var floorLabel = function(f){ return f < 0 ? ('지하 ' + Math.abs(f) + '층') : (f + '층'); };
+  vacant.sort(function(a,b){
+    var fa = floorOf(a), fb = floorOf(b);
+    if (fa !== fb) return fa - fb;
+    return String(pick(a,['room','room_no'])).localeCompare(String(pick(b,['room','room_no'])));
+  });
+  // 건물 → 층 순으로 묶어서 호실번호만 한 줄에 (프린트 분량 최소화)
+  var vBox = document.getElementById('vacantBox');
+  if(!vacant.length){ vBox.innerHTML = '<div class="none">공실 없음</div>'; }
+  else {
+    var byBld = {};
+    vacant.forEach(function(r){
+      var b = r.building_name || '(건물 미지정)';
+      (byBld[b] = byBld[b] || []).push(r);
+    });
+    var html = '';
+    Object.keys(byBld).sort().forEach(function(b){
+      var list = byBld[b];
+      html += '<table class="vac-t"><thead><tr><th colspan="2" class="vac-h">'
+            + b + ' <span style="font-weight:400;color:#666">— 공실 ' + list.length + '실</span></th></tr></thead><tbody>';
+      var byFloor = {};
+      list.forEach(function(r){ var f = floorOf(r); (byFloor[f] = byFloor[f] || []).push(String(pick(r,['room','room_no']))); });
+      Object.keys(byFloor).map(Number).sort(function(a,b2){ return a-b2; }).forEach(function(f){
+        var rooms2 = byFloor[f].sort();
+        html += '<tr><td class="vac-f"' + (f<0 ? ' style="color:#c0392b"' : '') + '>' + floorLabel(f)
+              + ' <span style="color:#888;font-weight:400">(' + rooms2.length + ')</span></td>'
+              + '<td class="vac-r">' + rooms2.join('  ·  ') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    });
+    vBox.innerHTML = html;
+  }
+  // 공실 카드에 층 범위 요약 (지하 포함 여부가 한눈에)
+  var fl = {}; vacant.forEach(function(r){ fl[floorOf(r)] = (fl[floorOf(r)]||0)+1; });
+  var keys = Object.keys(fl).map(Number).sort(function(a,b){return a-b;});
+  var sumTxt = keys.map(function(k){ return floorLabel(k)+' '+fl[k]; }).join(' · ');
+  var vs = document.querySelector('#c_vacant').parentNode.querySelector('.sub');
+  if (vs) vs.textContent = sumTxt || '비어있는 호실';
   document.getElementById('c_vacant').textContent = vacant.length+'개';
 
   // ── 만기 임박 (60일)
