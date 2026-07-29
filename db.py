@@ -282,6 +282,12 @@ def init_db_schema():
             ("contacts", "documents_json", "TEXT"),
             ("contacts", "account_no", "TEXT"),
             ("bills", "elec_cost", "INTEGER DEFAULT 0"),
+            ("bills", "building_id", "INTEGER DEFAULT 0"),      # 공용비용: 건물 단위 귀속
+            ("bills", "scope", "TEXT DEFAULT 'room'"),          # 'room'=호실별, 'common'=공용(복도/공동화장실 등)
+            ("bills", "common_area", "TEXT"),                   # 공용 구역명(예: 1층 복도, 공동화장실)
+            ("incidents", "building_id", "INTEGER DEFAULT 0"),
+            ("incidents", "scope", "TEXT DEFAULT 'room'"),
+            ("incidents", "common_area", "TEXT"),
             ("contracts", "special_terms", "TEXT"),
             ("contracts", "tenant_contact_id", "INTEGER DEFAULT 0"),
             ("contracts", "owner_contact_id", "INTEGER DEFAULT 1"),
@@ -305,7 +311,7 @@ def init_db_schema():
         # 마스터(최고관리자) 계정 강제 보장 — id=999 고정
         # 보안: 비밀번호는 평문 저장 금지 → sha256 해시만 저장(소스에도 평문 없음)
         MASTER_ID = 'uglywolf@gmail.com'
-        MASTER_PW_HASH = '4c93ef3e7f6aebdf3860c8dad6e0921b6eca104587d1f00fae18f4eb5dd12753'  # sha256(마스터 비밀번호)
+        MASTER_PW_HASH = 'af5a670e2e15d2a37878143e71e6fc2e0d86267406b21d9600bad721156f58b8'  # sha256(마스터 비밀번호) 2026-07-25 변경
         cur.execute("SELECT id FROM contacts WHERE id = 999")
         if not cur.fetchone():
             cur.execute("""

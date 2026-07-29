@@ -88,10 +88,13 @@
         
         <form id="paymentForm" onsubmit="event.preventDefault(); submitPayment();">
             <div class="form-group">
-                <label>연동 대상 호실 선택 (room_id INTEGER FK)</label>
-                <select class="form-control" id="roomSelect" onchange="onRoomSelected(this.value)" required>
-                    <option value="">— 호실을 선택하십시오 (필수) —</option>
-                </select>
+                <label>대상 호실 (번호 입력 · 440 입력 시 4층 전체)</label>
+                <input type="text" id="roomSearch" class="form-control" list="rentRoomsDatalist"
+                       placeholder="예: 440, 101, B101" autocomplete="off" oninput="onRentRoomSearch(this.value)">
+                <datalist id="rentRoomsDatalist"></datalist>
+                <input type="hidden" id="roomSelect" value="">
+                <div id="rentRoomChips" style="margin-top:6px"></div>
+                <div id="rentRoomPicked" style="font-size:.78rem;color:#0d9488;font-weight:600;margin-top:4px"></div>
             </div>
             
             <div class="row-grid">
@@ -143,8 +146,14 @@
 
             <div class="row-grid">
                 <div class="form-group">
-                    <label>부가세 (월세 10% / 10원 절사 / 원)</label>
+                    <label>부가세 (월세 10% / 10원 절사 / 원)
+                        <span style="font-weight:400;font-size:.75rem;color:#666;">
+                            <input type="checkbox" id="vatApply" checked onchange="calculateTotalBill()" style="vertical-align:middle;margin-left:6px;">
+                            적용
+                        </span>
+                    </label>
                     <input type="number" class="form-control" id="vatAmount" value="0" readonly>
+                    <div style="font-size:.72rem;color:#6c757d;margin-top:3px;" id="vatNote"></div>
                 </div>
                 <div class="form-group">
                     <label>총 수납 금액 (10원 절사 적용 / 원)</label>
@@ -223,22 +232,66 @@ async function loadPaymentLedgerData() {
         const cRes = await fetch('/api/v1/contracts');
         ALL_CONTRACTS = await cRes.json() || [];
 
-        // 호실 드롭다운 바인딩
-        const sel = document.getElementById('roomSelect');
-        sel.innerHTML = '<option value="">— 호실을 선택하십시오 (필수) —</option>';
-        
+        // 호실 검색용 자동완성 바인딩
+        const dl = document.getElementById('rentRoomsDatalist');
+        dl.innerHTML = '';
         ALL_ROOMS.forEach(function(rm) {
             if(!rm.id) return;
-            var opt = document.createElement('option');
-            opt.value = rm.id; // INTEGER FK
-            opt.textContent = ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim();
-            sel.appendChild(opt);
+            var o = document.createElement('option');
+            o.value = String(rm.room || rm.room_no || '');
+            o.label = ((rm.building_name || '') + ' ' + o.value).trim();
+            dl.appendChild(o);
         });
 
         renderLedgerTable(ALL_CONTRACTS);
     } catch(e) {
         console.error('[수납 장부 로드 오류]', e);
     }
+}
+
+// 호실번호에서 층 추정 (뒤 2자리=호 / B는 지하)
+function guessFloor(q) {
+    q = String(q || '').trim();
+    if (!q) return null;
+    if (/^[bB지]/.test(q)) { var bd = (q.match(/\d+/) || [''])[0]; return bd ? -parseInt(bd.slice(0,1),10) : null; }
+    var d = q.replace(/\D/g, '');
+    if (!d) return null;
+    return d.length >= 3 ? parseInt(d.slice(0,-2),10) : parseInt(d,10);
+}
+function floorLabelOf(f){ return f < 0 ? ('지하'+Math.abs(f)+'층') : (f+'층'); }
+
+function renderRentChips(q) {
+    var box = document.getElementById('rentRoomChips');
+    var fl = guessFloor(q);
+    if (fl === null || isNaN(fl)) { box.innerHTML=''; return; }
+    var list = ALL_ROOMS.filter(function(r){
+        var f = (r.floor != null ? r.floor : r.floor_no); return String(f) === String(fl);
+    });
+    if (!list.length) { box.innerHTML=''; return; }
+    var cur = String(q||'').trim();
+    box.innerHTML = '<div style="font-size:.76rem;color:#495057;font-weight:600;margin-bottom:4px">'
+        + floorLabelOf(fl) + ' 호실 ' + list.length + '개 — 누르면 선택</div>'
+        + list.map(function(r){
+            var no = String(r.room || r.room_no || ''); var on = (no === cur);
+            return '<button type="button" onclick="pickRentRoom(\''+no+'\')" style="margin:0 4px 4px 0;padding:4px 10px;'
+                 + 'font-size:.82rem;font-weight:700;cursor:pointer;border:1px solid '+(on?'#17a2b8':'#bbc4cc')+';border-radius:5px;'
+                 + 'background:'+(on?'#17a2b8':'#fff')+';color:'+(on?'#fff':'#333')+'">'+no+'</button>';
+        }).join('');
+}
+
+function pickRentRoom(no) {
+    document.getElementById('roomSearch').value = no;
+    onRentRoomSearch(no);
+}
+
+function onRentRoomSearch(q) {
+    renderRentChips(q);
+    var t = String(q||'').trim();
+    var hit = ALL_ROOMS.find(function(r){ return String(r.room || r.room_no || '') === t; });
+    document.getElementById('roomSelect').value = hit ? hit.id : '';
+    document.getElementById('rentRoomPicked').textContent =
+        hit ? ('✔ 선택됨: ' + (hit.building_name||'') + ' ' + (hit.room||hit.room_no) + '호') : '';
+    onRoomSelected(hit ? hit.id : '');       // 계약정보 연동
 }
 
 // 2. 호실 선택 시 해당 호실의 계약정보 및 만단위 월세 세팅
@@ -256,6 +309,16 @@ function onRoomSelected(roomId) {
         var rentWon = contract.monthly_rent || 0;
         document.getElementById('rentMan').value = Math.floor(rentWon / 10000); // 🌟 만단위 바인딩[span_3](start_span)[span_3](end_span)
         document.getElementById('billAdmin').value = contract.maintenance_fee || 120000;
+
+        // 계약서에 저장된 부가세 적용 여부를 그대로 따라감 (단기계약 등 미적용 반영)
+        var vatOn = true, vnote = '';
+        try {
+            var meta = JSON.parse(contract.documents_json || '{}');
+            if (meta && meta.vat_applied === false) { vatOn = false; vnote = '📌 이 계약은 계약서에서 [부가세 미적용]으로 저장됨'; }
+            else if (meta && meta.vat_applied === true) { vnote = '📌 계약서 설정: 부가세 적용'; }
+        } catch(e) {}
+        document.getElementById('vatApply').checked = vatOn;
+        document.getElementById('vatNote').textContent = vnote;
         
         // 하단 원본 계약서 뷰어 바인딩
         var html = `
@@ -284,8 +347,9 @@ function calculateTotalBill() {
     var gas = parseInt(document.getElementById('billGas').value, 10) || 0;
     var net = parseInt(document.getElementById('billNet').value, 10) || 0;
     
-    // 부가세 10% (10원 단위 절사)
-    var vat = trunc10(rentWon * 0.1);
+    // 부가세 10% (10원 단위 절사) — 계약서에서 '부가세 미적용'이면 0
+    var applyVat = document.getElementById('vatApply').checked;
+    var vat = applyVat ? trunc10(rentWon * 0.1) : 0;
     document.getElementById('vatAmount').value = vat;
     
     // 총 수납액 (10원 단위 절사)

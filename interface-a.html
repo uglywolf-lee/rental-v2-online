@@ -78,9 +78,22 @@
                 <label>전용 면적 ㎡</label>
                 <input type="number" step="0.001" class="form-control" id="roomArea" placeholder="소수점 3자리">
             </div>
+            <div class="form-group">
+                <label>상태</label>
+                <input type="text" class="form-control" id="roomStatus" list="statusList" placeholder="공실 / 임대중 …">
+                <datalist id="statusList">
+                    <option value="공실"><option value="임대중"><option value="임대중(단독층)"><option value="단독층 통합"><option value="사옥(자가사용)"><option value="수리중">
+                </datalist>
+            </div>
+            <input type="hidden" id="selectedRoomId" value="">
+            <input type="hidden" id="selectedBuildingId" value="">
+            <div id="editBanner" style="display:none;background:#fff3cd;border:1px solid #ffe08a;border-left:4px solid #f0ad4e;border-radius:5px;padding:8px 10px;margin-bottom:10px;font-size:.82rem;color:#664d03"></div>
             <div class="btn-box">
                 <button type="submit" class="btn btn-main">신규 자산 등록</button>
                 <button type="button" class="btn btn-sub" onclick="handleAssetUpdate()">현황 변경 (수정)</button>
+            </div>
+            <div class="btn-box" style="margin-top:8px">
+                <button type="button" class="btn btn-sub" style="background:#adb5bd" onclick="resetAssetForm()">새로 입력 (선택 해제)</button>
             </div>
         </form>
     </div>
@@ -201,9 +214,80 @@ async function handleAssetSubmit(event) {
     }
 }
 
-function handleAssetUpdate() {
-    // TODO: 기존 건물/호실 수정 로직 (GET → PATCH)
-    alert('⚠️ 현황 변경 기능은 다음 단계에서 구현됩니다.');
+// 표에서 행 클릭 → 좌측 폼에 자동 채움 (수정 모드)
+function selectRoomToForm(rm, tr) {
+    document.querySelectorAll('.excel-table-wrap tbody tr').forEach(function(r){ r.style.background=''; });
+    if (tr) tr.style.background = '#fff3cd';
+
+    document.getElementById('selectedRoomId').value = rm.id;
+    document.getElementById('selectedBuildingId').value = rm.building_id || '';
+    document.getElementById('buildingName').value = rm.building_name || '';
+    document.getElementById('actualAddress').value = rm.building_address || '';
+    document.getElementById('roomNumber').value = rm.room || rm.room_no || '';
+    var fl = (rm.floor != null ? rm.floor : rm.floor_no);
+    document.getElementById('assignedFloor').value = (fl == null ? '' : fl);
+    document.getElementById('assignedFloor').dataset.userEdited = '1';   // 자동덮어쓰기 방지
+    var ar = (rm.area != null ? rm.area : rm.area_sqm);
+    document.getElementById('roomArea').value = (ar ? Number(ar) : '');
+    document.getElementById('roomStatus').value = rm.status || rm.current_room_status || '';
+
+    var b = document.getElementById('editBanner');
+    b.style.display = '';
+    b.innerHTML = '✏️ <b>' + (rm.building_name||'') + ' ' + (rm.room||rm.room_no||'') + '</b> 수정 중 — 내용을 고치고 <b>[현황 변경 (수정)]</b>을 누르세요.';
+}
+
+function resetAssetForm() {
+    document.getElementById('selectedRoomId').value = '';
+    document.getElementById('selectedBuildingId').value = '';
+    ['buildingName','actualAddress','roomNumber','assignedFloor','roomArea','roomStatus'].forEach(function(id){
+        document.getElementById(id).value = '';
+    });
+    document.getElementById('assignedFloor').dataset.userEdited = '';
+    document.getElementById('editBanner').style.display = 'none';
+    document.querySelectorAll('.excel-table-wrap tbody tr').forEach(function(r){ r.style.background=''; });
+}
+
+// 현황 변경 (수정) — 선택한 호실 + 건물정보 갱신
+async function handleAssetUpdate() {
+    const roomId = document.getElementById('selectedRoomId').value;
+    if (!roomId) return alert('먼저 오른쪽 목록에서 수정할 호실을 클릭하세요.');
+
+    const bId    = document.getElementById('selectedBuildingId').value;
+    const bName  = document.getElementById('buildingName').value.trim();
+    const bAddr  = document.getElementById('actualAddress').value.trim();
+    const roomNo = document.getElementById('roomNumber').value.trim();
+    const floor  = parseInt(document.getElementById('assignedFloor').value, 10);
+    const area   = parseFloat(document.getElementById('roomArea').value) || 0;
+    const status = document.getElementById('roomStatus').value.trim();
+
+    try {
+        // 1) 건물명·주소가 바뀌었으면 건물도 갱신
+        if (bId && (bName || bAddr)) {
+            await fetch('/api/v1/buildings', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ id: parseInt(bId,10), name: bName, address: bAddr })
+            });
+        }
+        // 2) 호실 갱신
+        const res = await fetch('/api/v1/rooms', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                id: parseInt(roomId,10),
+                floor_no: isNaN(floor) ? undefined : floor,
+                room_no: roomNo,
+                area_sqm: area,
+                current_room_status: status
+            })
+        });
+        const d = await res.json();
+        if (res.ok) {
+            alert('✅ 수정되었습니다. (' + (bName||'') + ' ' + roomNo + ')');
+            resetAssetForm();
+            loadBuildings();
+        } else {
+            alert('❌ 수정 실패: ' + (d.error || '알 수 없는 오류'));
+        }
+    } catch(e) { alert('❌ 통신 오류: ' + e.message); }
 }
 
 function clearRoomInputs() {
@@ -247,6 +331,9 @@ async function loadBuildings(){
             if (!kwMatch) continue;
 
             const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.title = '클릭하면 왼쪽에서 수정할 수 있습니다';
+            tr.onclick = function(){ selectRoomToForm(rm, tr); };
             tr.innerHTML = `
                 <td class="col-no">${rm.id}</td>
                 <td class="cell-text-center">${bname}</td>

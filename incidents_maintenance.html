@@ -83,11 +83,32 @@
     <div class="left-panel">
         <div class="panel-title">🔧 F. 시설유지보수/파손신고 관리</div>
         <form id="maintenanceForm" onsubmit="event.preventDefault(); submitMaintenanceModule();">
-            <div class="form-group">
-                <label>대상 호실 선택</label>
-                <select id="m_roomId" class="form-control" required>
-                    <option value="">— 호실 선택 —</option>
-                </select>
+            <div style="display:flex;gap:14px;align-items:center;margin-bottom:10px;background:#f1f3f5;padding:7px 10px;border-radius:5px;font-size:.85rem">
+                <label style="margin:0;cursor:pointer;font-weight:600"><input type="radio" name="incScope" value="room" checked onchange="onIncScopeChange()"> 호실</label>
+                <label style="margin:0;cursor:pointer;font-weight:600"><input type="radio" name="incScope" value="common" onchange="onIncScopeChange()"> 🏢 공용부 (복도·공동화장실)</label>
+            </div>
+
+            <div class="form-group" id="incRoomBox">
+                <label>대상 호실 (번호 입력 · 440 입력 시 4층 전체)</label>
+                <input type="text" id="m_roomSearch" class="form-control" list="mRoomsDatalist"
+                       placeholder="예: 440, 101, B101" autocomplete="off" oninput="onIncRoomSearch(this.value)">
+                <datalist id="mRoomsDatalist"></datalist>
+                <input type="hidden" id="m_roomId" value="">
+                <div id="m_roomChips" style="margin-top:6px"></div>
+                <div id="m_roomPicked" style="font-size:.78rem;color:#0d9488;font-weight:600;margin-top:4px"></div>
+            </div>
+
+            <div id="incCommonBox" style="display:none">
+                <div class="form-group">
+                    <label>건물 선택</label>
+                    <select id="m_buildingId" class="form-control"><option value="">— 건물 선택 —</option></select>
+                </div>
+                <div class="form-group">
+                    <label>공용 구역명</label>
+                    <input type="text" id="m_commonArea" class="form-control" placeholder="예: 1층 복도, 공동화장실" list="incAreaList">
+                    <datalist id="incAreaList">
+                        <option value="공용 전체"><option value="1층 복도"><option value="공동화장실"><option value="계단·엘리베이터"><option value="주차장"><option value="옥상·외부"></datalist>
+                </div>
             </div>
             <div class="form-group">
                 <label>사고 유형 분류</label>
@@ -192,6 +213,11 @@ async function loadContractsModule() {
 
 // room_id → 빌딩명+호실 / 임차인명 / 전화번호 매핑
 function getEnrich(item) {
+    // 공용부 건은 건물+구역명으로 표시
+    if (item.scope === 'common') {
+        var b = (ALL_ROOMS.find(function(r){ return r.building_id == item.building_id; }) || {}).building_name || '';
+        return { roomStr: '🏢 ' + (b ? b + ' ' : '') + (item.common_area || '공용'), tenantName: '', tenantPhone: '' };
+    }
     var rm = ALL_ROOMS.find(function(r){ return r.id == item.room_id; });
     var roomStr = rm ? ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim() : ('호실 ID:' + item.room_id);
     var ct = ALL_CONTRACTS.find(function(c){ return c.room_id == item.room_id; });
@@ -212,16 +238,62 @@ async function loadRoomsModule() {
     try {
         var res = await fetch('/api/v1/rooms');
         ALL_ROOMS = await res.json() || [];
-        var sel = document.getElementById('m_roomId');
-        sel.innerHTML = '<option value="">— 호실 선택 —</option>';
+        var dl = document.getElementById('mRoomsDatalist');
+        dl.innerHTML = '';
         ALL_ROOMS.forEach(function(rm) {
             if (!rm.id) return;
-            var opt = document.createElement('option');
-            opt.value = rm.id; // INTEGER PK (FK로 수신)
-            opt.textContent = ((rm.building_name || '') + ' ' + (rm.room || rm.room_no || '')).trim();
-            sel.appendChild(opt);
+            var o = document.createElement('option');
+            o.value = String(rm.room || rm.room_no || '');
+            o.label = ((rm.building_name || '') + ' ' + o.value).trim();
+            dl.appendChild(o);
         });
     } catch(e) { console.error('[호실 로드 실패]', e); }
+}
+
+// 호실번호에서 층 추정 (뒤 2자리=호 / B는 지하)
+function guessFloor(q) {
+    q = String(q || '').trim();
+    if (!q) return null;
+    if (/^[bB지]/.test(q)) { var bd = (q.match(/\d+/) || [''])[0]; return bd ? -parseInt(bd.slice(0,1),10) : null; }
+    var d = q.replace(/\D/g, '');
+    if (!d) return null;
+    return d.length >= 3 ? parseInt(d.slice(0,-2),10) : parseInt(d,10);
+}
+function floorLabelOf(f){ return f < 0 ? ('지하'+Math.abs(f)+'층') : (f+'층'); }
+
+// 같은 층 호실 버튼 표시
+function renderIncChips(q) {
+    var box = document.getElementById('m_roomChips');
+    var fl = guessFloor(q);
+    if (fl === null || isNaN(fl)) { box.innerHTML=''; return; }
+    var list = ALL_ROOMS.filter(function(r){
+        var f = (r.floor != null ? r.floor : r.floor_no); return String(f) === String(fl);
+    });
+    if (!list.length) { box.innerHTML=''; return; }
+    var cur = String(q||'').trim();
+    box.innerHTML = '<div style="font-size:.76rem;color:#495057;font-weight:600;margin-bottom:4px">'
+        + floorLabelOf(fl) + ' 호실 ' + list.length + '개 — 누르면 선택</div>'
+        + list.map(function(r){
+            var no = String(r.room || r.room_no || ''); var on = (no === cur);
+            return '<button type="button" onclick="pickIncRoom(\''+no+'\')" style="margin:0 4px 4px 0;padding:4px 10px;'
+                 + 'font-size:.82rem;font-weight:700;cursor:pointer;border:1px solid '+(on?'#e83e8c':'#bbc4cc')+';border-radius:5px;'
+                 + 'background:'+(on?'#e83e8c':'#fff')+';color:'+(on?'#fff':'#333')+'">'+no+'</button>';
+        }).join('');
+}
+
+function pickIncRoom(no) {
+    document.getElementById('m_roomSearch').value = no;
+    onIncRoomSearch(no);
+}
+
+// 입력/선택 시 호실 확정
+function onIncRoomSearch(q) {
+    renderIncChips(q);
+    var t = String(q||'').trim();
+    var hit = ALL_ROOMS.find(function(r){ return String(r.room || r.room_no || '') === t; });
+    document.getElementById('m_roomId').value = hit ? hit.id : '';
+    document.getElementById('m_roomPicked').textContent =
+        hit ? ('✔ 선택됨: ' + (hit.building_name||'') + ' ' + (hit.room||hit.room_no) + '호') : '';
 }
 
 // 백엔드 /api/v1/incidents 조회
@@ -308,9 +380,36 @@ async function uploadPhotosModule() {
 }
 
 // 🌟 사진 업로드 후 /api/v1/incidents POST 호출 연결
+// 대상 구분 전환 (호실 ↔ 공용부)
+async function onIncScopeChange() {
+    var isCommon = document.querySelector('input[name="incScope"]:checked').value === 'common';
+    document.getElementById('incRoomBox').style.display = isCommon ? 'none' : '';
+    document.getElementById('incCommonBox').style.display = isCommon ? '' : 'none';
+    if (isCommon) {
+        var sel = document.getElementById('m_buildingId');
+        if (sel.options.length <= 1) {
+            try {
+                var res = await fetch('/api/v1/buildings');
+                var list = await res.json() || [];
+                list.forEach(function(b){
+                    var o=document.createElement('option'); o.value=b.id; o.textContent=b.name||('건물 '+b.id); sel.appendChild(o);
+                });
+            } catch(e){ console.error('건물 로드 실패', e); }
+        }
+    }
+}
+
 async function submitMaintenanceModule() {
-    var roomIdVal = parseInt(document.getElementById('m_roomId').value, 10);
-    if (!roomIdVal) return alert('❌ 호실을 선택하세요.');
+    var isCommon = document.querySelector('input[name="incScope"]:checked').value === 'common';
+    var roomIdVal = parseInt(document.getElementById('m_roomId').value, 10) || 0;
+    var buildingIdVal = 0, commonAreaVal = '';
+    if (isCommon) {
+        buildingIdVal = parseInt(document.getElementById('m_buildingId').value, 10) || 0;
+        commonAreaVal = document.getElementById('m_commonArea').value.trim() || '공용 전체';
+        if (!buildingIdVal) return alert('❌ 공용부는 건물을 선택하세요.');
+    } else {
+        if (!roomIdVal) return alert('❌ 호실을 선택하세요.');
+    }
 
     var detail = document.getElementById('m_detail').value.trim();
     var staff = document.getElementById('m_staffName').value.trim();
@@ -329,6 +428,9 @@ async function submitMaintenanceModule() {
     // 2. 백엔드 /api/v1/incidents POST 전송
     var payload = {
         room_id: roomIdVal,
+        scope: isCommon ? 'common' : 'room',
+        building_id: buildingIdVal,
+        common_area: commonAreaVal,
         category: document.getElementById('m_category').value,
         reported_at: reportDate,
         completed_at: document.getElementById('m_completeDate').value || '',

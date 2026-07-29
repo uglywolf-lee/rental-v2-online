@@ -111,23 +111,27 @@ def handle_auth_endpoint(path, data):
     conn = get_db()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT * FROM contacts WHERE representative_name = ? OR id = 999", (emp_no,))
+        # 입력한 아이디(사번/이메일)로만 조회. 비활성(is_active=0) 계정은 로그인 불가.
+        cur.execute("""SELECT * FROM contacts
+                       WHERE representative_name = ? AND category='staff'
+                         AND (is_active IS NULL OR is_active = 1)
+                       ORDER BY id LIMIT 1""", (emp_no,))
         user = cur.fetchone()
 
         if user:
             u = dict(user)
-            db_pw = u.get('password_hash', '')
-            
-            if password == db_pw or input_pw_hash == db_pw:
+            db_pw = u.get('password_hash', '') or ''
+
+            if db_pw and (password == db_pw or input_pw_hash == db_pw):
                 return 200, {
                     'status': 'success',
                     'message': '로그인 성공',
                     'user': {
-                        'employee_no': u.get('representative_name', 'EMP-001'),
-                        'name': u.get('company_or_name', '최상위관리자'),
-                        'role': u.get('role', 'super_admin')
+                        'employee_no': u.get('representative_name') or emp_no,
+                        'name': u.get('company_or_name') or '',
+                        'role': u.get('role') or 'office_worker'
                     },
-                    'token': 'master_sys_884621'
+                    'token': 'sess_' + str(u.get('id'))
                 }
 
         return 401, {'status': 'error', 'message': '아이디 또는 비밀번호가 일치하지 않습니다.'}
@@ -142,6 +146,18 @@ def handle_post_api(path, data):
         cur = conn.cursor()
 
         if path == '/api/v1/buildings':
+            bid_edit = data.get('id')
+            if bid_edit:                      # 수정
+                _snapshot(cur, 'buildings', bid_edit)
+                fields, vals = [], []
+                for k in ('name', 'address', 'floors', 'rooms_count', 'is_active'):
+                    if k in data:
+                        fields.append(k + '=?'); vals.append(data[k])
+                if fields:
+                    vals.append(bid_edit)
+                    cur.execute("UPDATE buildings SET %s WHERE id=?" % ','.join(fields), vals)
+                    conn.commit()
+                return 200, {'id': bid_edit, 'success': True, 'message': '건물 정보 수정 완료'}
             name = data.get('name')
             addr = data.get('address')
             floors = int(data.get('floors', 1) or 1)
@@ -153,6 +169,26 @@ def handle_post_api(path, data):
             return 201, {'id': bid, 'success': True, 'message': '건물 등록 완료'}
 
         elif path == '/api/v1/rooms':
+            rid_edit = data.get('id')
+            if rid_edit:                      # 수정
+                _snapshot(cur, 'rooms', rid_edit)
+                fields, vals = [], []
+                mapping = {
+                    'building_id': 'building_id', 'floor_no': 'floor_no', 'floor': 'floor_no',
+                    'room_no': 'room_no', 'room': 'room_no',
+                    'area_sqm': 'area_sqm', 'area': 'area_sqm',
+                    'current_room_status': 'current_room_status', 'status': 'current_room_status',
+                    'is_active': 'is_active',
+                }
+                used = set()
+                for k, col in mapping.items():
+                    if k in data and col not in used:
+                        used.add(col); fields.append(col + '=?'); vals.append(data[k])
+                if fields:
+                    vals.append(rid_edit)
+                    cur.execute("UPDATE rooms SET %s WHERE id=?" % ','.join(fields), vals)
+                    conn.commit()
+                return 200, {'id': rid_edit, 'success': True, 'message': '호실 정보 수정 완료'}
             b_id = int(data.get('building_id') or 0)
             floor = int(data.get('floor_no') or data.get('floor') or 1)
             room_no = str(data.get('room_no') or data.get('room') or '')
@@ -207,8 +243,29 @@ def handle_post_api(path, data):
                 return 201, {'id': new_cid, 'success': True, 'message': '연락처/팀원 등록 완료'}
 
         elif path == '/api/v1/bills':
+            bill_edit = data.get('id')
+            if bill_edit:                        # 수정 (되돌리기용 스냅샷 후 갱신)
+                _snapshot(cur, 'bills', bill_edit)
+                fields, vals = [], []
+                for k in ('room_id', 'building_id', 'scope', 'common_area', 'bill_type',
+                          'elec_usage', 'elec_cost', 'water_cost', 'gas_cost', 'net_cost',
+                          'due_date', 'status'):
+                    if k in data:
+                        fields.append(k + '=?'); vals.append(data[k])
+                if fields:
+                    vals.append(bill_edit)
+                    cur.execute("UPDATE bills SET %s WHERE id=?" % ','.join(fields), vals)
+                    conn.commit()
+                return 200, {'id': bill_edit, 'success': True, 'message': '공과금 수정 완료'}
             room_id = int(data.get('room_id') or 0)
-            if not room_id:
+            scope = str(data.get('scope') or 'room')
+            building_id = int(data.get('building_id') or 0)
+            common_area = str(data.get('common_area') or '')
+            # 공용(복도/공동화장실 등)은 호실 대신 건물 기준
+            if scope == 'common':
+                if not building_id:
+                    return 400, {'error': '공용 비용은 건물을 선택해 주세요.'}
+            elif not room_id:
                 return 400, {'error': '올바른 호실(room_id FK)을 선택해 주세요.'}
             elec = int(data.get('elec_usage', 0) or 0)
             elec_cost = int(data.get('elec_cost', 0) or 0)
@@ -218,16 +275,22 @@ def handle_post_api(path, data):
             due = str(data.get('due_date', '') or '')
             status = str(data.get('status', '미납(고지대기)'))
             cur.execute("""
-                INSERT INTO bills (room_id, elec_usage, elec_cost, water_cost, gas_cost, net_cost, due_date, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (room_id, elec, elec_cost, water, gas, net, due, status))
+                INSERT INTO bills (room_id, building_id, scope, common_area, elec_usage, elec_cost, water_cost, gas_cost, net_cost, due_date, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (room_id, building_id, scope, common_area, elec, elec_cost, water, gas, net, due, status))
             bid = cur.lastrowid
             conn.commit()
             return 201, {'id': bid, 'success': True, 'message': '공과금 고지 등록 완료'}
 
         elif path == '/api/v1/incidents':
             room_id = int(data.get('room_id') or 0)
-            if not room_id:
+            i_scope = str(data.get('scope') or 'room')
+            i_building = int(data.get('building_id') or 0)
+            i_common = str(data.get('common_area') or '')
+            if i_scope == 'common':
+                if not i_building:
+                    return 400, {'error': '공용 유지보수는 건물을 선택해 주세요.'}
+            elif not room_id:
                 return 400, {'error': '올바른 호실(room_id FK)을 선택해 주세요.'}
             cat = str(data.get('category', '시설파손'))
             rep_at = str(data.get('reported_at', ''))
@@ -238,9 +301,9 @@ def handle_post_api(path, data):
             status = str(data.get('status', '접수중'))
             photos = str(data.get('photos_json') or '[]')
             cur.execute("""
-                INSERT INTO incidents (room_id, category, reported_at, completed_at, description, reported_by_name, estimated_cost, status, photos_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (room_id, cat, rep_at, comp_at, desc, staff, cost, status, photos))
+                INSERT INTO incidents (room_id, building_id, scope, common_area, category, reported_at, completed_at, description, reported_by_name, estimated_cost, status, photos_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (room_id, i_building, i_scope, i_common, cat, rep_at, comp_at, desc, staff, cost, status, photos))
             iid = cur.lastrowid
             conn.commit()
             return 201, {'id': iid, 'success': True, 'message': '유지보수/파손신고 등록 완료'}

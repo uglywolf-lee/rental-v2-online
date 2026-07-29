@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>계약서 관리 (B) - OCR 자동채움</title>
+<title>계약서 관리 (B) - 원본 뷰어</title>
 <style>
   :root{--primary:#5b21b6;--border:#dee2e6;--bg:#f8f9fa;--muted:#6c757d;--ok:#28a745;--warn:#f0ad4e;--danger:#dc3545;--white:#fff}
   *{box-sizing:border-box;margin:0;padding:0}
@@ -11,6 +11,14 @@
   .right{width:65%;display:flex;flex-direction:column;background:#525659}
   .panel-title{font-size:1.05rem;color:var(--primary);font-weight:bold;border-bottom:2px solid var(--primary);padding-bottom:8px;margin-bottom:14px}
   .upload-box{background:#f3effc;border:1px dashed #b79ce8;border-radius:8px;padding:12px;margin-bottom:14px}
+  /* 업로드 2칸 좌우 배치 */
+  .upload-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .upload-2col .upload-box{margin-bottom:0}
+  .upload-2col .upload-box input[type=file]{font-size:.78rem;padding:6px 8px}
+  /* 파일 목록·상태: 1줄 유지(넘치면 가로 스크롤) → 세로로 밀리지 않음 */
+  #docFileList,#idFileList{white-space:nowrap;overflow-x:auto;max-height:2em;margin-top:5px}
+  #docFileList a,#idFileList a{max-width:150px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+  #ocrStatus{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:5px 8px;margin-top:5px}
   .upload-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
   .form-group{margin-bottom:10px}
   label{display:block;font-size:.8rem;font-weight:600;color:#495057;margin-bottom:3px}
@@ -36,7 +44,16 @@
   .st-ok{background:#e6f4ea;color:#1e7e34}
   .st-warn{background:#fff8e1;color:#8a6d00}
   .st-err{background:#fdecea;color:#a12622}
+  /* 특약: 우측 상단 가로 전체 (3줄 고정, 넘치면 스크롤) */
+  .terms-bar{background:#2f3235;padding:8px 12px 10px;border-bottom:1px solid #1f2123}
+  .terms-bar label{color:#cfd3d6;font-size:.76rem;font-weight:600;margin-bottom:4px;display:block}
+  .terms-bar textarea{width:100%;height:4.6em;line-height:1.45;resize:vertical;padding:7px 9px;border:1px solid #55595c;border-radius:5px;font-family:inherit;font-size:.86rem;background:#fff;color:#222}
   .viewer-head{background:#3a3d40;color:#e0e0e0;padding:8px 14px;font-size:.8rem;display:flex;justify-content:space-between;align-items:center}
+  .vbtn{background:#4a4e52;color:#dfe3e6;border:1px solid #616569;border-radius:5px;padding:4px 11px;font-size:.78rem;font-weight:700;cursor:pointer;margin-left:8px}
+  .vbtn:hover{background:#5a5f63}
+  .vbtn.active{background:#7c3aed;border-color:#7c3aed;color:#fff}
+  #viewerNav{margin-left:10px;color:#c9ced2}
+  #viewerNav button{background:#4a4e52;color:#dfe3e6;border:1px solid #616569;border-radius:4px;padding:2px 8px;font-size:.76rem;cursor:pointer;margin:0 2px}
   .viewer-body{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:10px}
   .viewer-body iframe{width:100%;height:100%;border:none;background:#fff}
   .viewer-body img{max-width:100%;max-height:100%;box-shadow:0 4px 14px rgba(0,0,0,.4)}
@@ -48,20 +65,21 @@
 <body>
 
   <div class="left">
-    <div class="panel-title">📄 B. 계약서 등록 · OCR 자동채움</div>
+    <div class="panel-title">📄 B. 계약서 등록 · 원본 대조 뷰어</div>
 
-    <div class="upload-box">
-      <label>원본 문서 업로드 (PDF / 사진) <span style="color:var(--danger);font-weight:700">⚠️ 대조확인</span></label>
-      <div class="upload-row">
-        <input type="file" id="docFile" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="handleFilePicked()">
-        <select id="docType" class="form-control" style="width:auto">
-          <option value="lease">계약서</option>
-          <option value="id">신분증</option>
-          <option value="passport">여권</option>
-        </select>
-        <button type="button" class="btn btn-ocr" id="btnOcr" onclick="runOcr()" disabled>🔍 OCR 채우기</button>
+    <div class="upload-2col">
+      <div class="upload-box">
+        <label>📄 계약서 원본 <span style="color:var(--danger);font-weight:700">⚠️ 대조확인</span></label>
+        <input type="file" id="docFile" class="form-control" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="handleFilePicked()">
+        <div id="docFileList" class="hint"></div>
+        <div id="ocrStatus"></div>
       </div>
-      <div id="ocrStatus"></div>
+
+      <div class="upload-box" style="background:#eef7f0;border-color:#9ccfae">
+        <label>🪪 신분증 사본 <span style="font-weight:400;color:var(--muted)">(필요시)</span></label>
+        <input type="file" id="idFile" class="form-control" multiple accept="image/*,.pdf" onchange="handleIdPicked()">
+        <div id="idFileList" class="hint"></div>
+      </div>
     </div>
 
     <form id="contractForm" onsubmit="event.preventDefault();saveContract();">
@@ -69,7 +87,7 @@
         <legend>계약 기본</legend>
         <div class="form-group">
           <label>연동 호실 (선택)</label>
-          <select id="roomId" class="form-control"><option value="">— 호실 선택 —</option></select>
+          <select id="roomId" class="form-control" onchange="onRoomChanged()"><option value="">— 호실 선택 —</option></select>
           <div class="hint" id="roomHint"></div>
         </div>
         <div class="grid2">
@@ -80,27 +98,25 @@
             </select>
           </div>
           <div class="form-group">
-            <label>소재지(주소)</label>
-            <input type="text" id="hostAddress" class="form-control">
+            <label>소재지(주소) <span style="font-weight:400;color:var(--muted);font-size:.72rem">— 호실 선택 시 자동</span></label>
+            <input type="text" id="hostAddress" class="form-control" oninput="this.dataset.auto='0'">
           </div>
         </div>
         <div class="grid3">
-          <div class="form-group"><label>보증금(원)</label><input type="number" id="deposit" class="form-control" value="0"></div>
-          <div class="form-group"><label>월차임(원)</label><input type="number" id="rent" class="form-control" value="0"></div>
-          <div class="form-group"><label>관리비(원)</label><input type="number" id="maint" class="form-control" value="0"></div>
+          <div class="form-group"><label>보증금(만원)</label><input type="number" id="deposit" class="form-control" value="0" placeholder="예: 5000 = 5,000만원" oninput="updateAmountHint()"></div>
+          <div class="form-group"><label>월차임(만원)</label><input type="number" id="rent" class="form-control" value="0" placeholder="예: 350 = 350만원" oninput="updateAmountHint()"></div>
+          <div class="form-group"><label>관리비(원)</label><input type="number" id="maint" class="form-control" value="0" placeholder="원 단위"></div>
         </div>
+        <div class="hint" id="amountHint" style="margin:-4px 0 8px"></div>
         <div class="grid2">
           <div class="form-group"><label>계약 시작일</label><input type="text" inputmode="numeric" id="startDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD"></div>
           <div class="form-group"><label>계약 종료일</label><input type="text" inputmode="numeric" id="endDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD"></div>
         </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>임대인</legend>
-        <div class="grid3">
-          <div class="form-group"><label>성명</label><input type="text" id="ownerName" class="form-control"></div>
-          <div class="form-group"><label>주민번호(마스킹)</label><input type="text" id="ownerRrn" class="form-control"></div>
-          <div class="form-group"><label>전화</label><input type="text" id="ownerPhone" class="form-control"></div>
+        <div class="form-group" style="background:#f3effc;border:1px solid #d6c9f0;border-radius:5px;padding:7px 10px;">
+          <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-size:.84rem;white-space:nowrap">
+            <input type="checkbox" id="vatApplied" checked style="width:16px;height:16px;cursor:pointer">
+            부가세 10% 적용 <span style="color:var(--muted);font-weight:400">(단기계약은 해제)</span>
+          </label>
         </div>
       </fieldset>
 
@@ -111,48 +127,65 @@
           <div class="form-group"><label>주민번호(마스킹)</label><input type="text" id="tenantRrn" class="form-control"></div>
           <div class="form-group"><label>전화</label><input type="text" id="tenantPhone" class="form-control"></div>
         </div>
-        <div class="form-group">
-          <label>🪪 임차인 신분증(앞면) 사본 저장</label>
-          <input type="file" id="tenantIdFront" class="form-control" accept="image/*,.pdf" onchange="uploadTenantIdFront()">
-          <div class="hint" id="tenantIdFrontStatus"></div>
-        </div>
       </fieldset>
-
-      <fieldset id="passportBox" style="display:none">
-        <legend>여권 (영문명 기준)</legend>
-        <div class="grid3">
-          <div class="form-group"><label>Surname(성)</label><input type="text" id="pSurname" class="form-control"></div>
-          <div class="form-group"><label>Given names(이름)</label><input type="text" id="pGiven" class="form-control"></div>
-          <div class="form-group"><label>여권번호</label><input type="text" id="pNo" class="form-control"></div>
-        </div>
-        <div class="grid2">
-          <div class="form-group"><label>국적</label><input type="text" id="pNat" class="form-control"></div>
-          <div class="form-group"><label>생년월일</label><input type="text" id="pBirth" class="form-control"></div>
-        </div>
-      </fieldset>
-
-      <div class="form-group">
-        <label>특약사항</label>
-        <textarea id="specialTerms" class="form-control" placeholder="특약 조항"></textarea>
-      </div>
 
       <button type="submit" class="btn btn-save">💾 계약서 저장 (원본문서 첨부)</button>
     </form>
   </div>
 
   <div class="right">
-    <div class="viewer-head"><span>📎 원본 문서 뷰어 (대조용)</span><span id="viewerName"></span></div>
+    <div class="terms-bar">
+      <label for="specialTerms">📝 특약사항 (가로 전체 사용 · 길게 입력 가능)</label>
+      <textarea id="specialTerms" placeholder="특약 조항을 입력하세요. 여러 줄 입력 가능합니다."></textarea>
+    </div>
+    <div class="viewer-head">
+      <span>
+        📎 원본 뷰어
+        <button type="button" class="vbtn active" id="vbtnDoc" onclick="switchViewer('doc')">📄 계약서</button>
+        <button type="button" class="vbtn" id="vbtnId" onclick="switchViewer('id')">🪪 신분증</button>
+        <span id="viewerNav"></span>
+      </span>
+      <span id="viewerName"></span>
+    </div>
     <div class="viewer-body" id="viewer">
-      <div class="viewer-empty">좌측에서 계약서 PDF나 사진을 업로드하면<br>여기에 원본이 표시됩니다.<br>OCR 채우기 → 칸 대조 → 저장 순서로 진행하세요.</div>
+      <div class="viewer-empty">좌측에서 계약서 PDF나 사진을 업로드하면<br>여기에 원본이 표시됩니다.<br>원본을 보며 좌측 칸을 입력한 뒤 저장하세요.</div>
     </div>
   </div>
 
 <script src="auth.js"></script>
 <script src="date8.js"></script>
 <script>
-var UPLOADED = null;   // {name, path}
-var TENANT_ID_FRONT = null;   // 임차인 신분증 앞면 {name, path}
+var DOC_FILES = [];    // 계약서 원본들 [{name, path}]
+var ID_FILES  = [];    // 신분증 사본들 [{name, path}]
 var ALL_ROOMS = [];
+
+// 파일 여러 개 업로드 공통 처리
+async function uploadMany(files, bucket, listElId, label){
+  var listEl = document.getElementById(listElId);
+  for (var i=0; i<files.length; i++){
+    var f = files[i];
+    listEl.innerHTML = label + ' 업로드 중... (' + (i+1) + '/' + files.length + ')';
+    try{
+      var res = await fetch('/api/v1/upload', {method:'POST', headers:{'X-File-Name':encodeURIComponent(f.name)}, body:f});
+      var d = await res.json();
+      if (d.filepath) bucket.push({name:f.name, path:d.filepath});
+    }catch(e){ /* 개별 실패는 건너뜀 */ }
+  }
+  renderFileList(bucket, listElId);
+  return bucket;
+}
+
+// 업로드된 파일 목록 표시 (클릭하면 우측 뷰어에 표시)
+function renderFileList(bucket, listElId){
+  var el = document.getElementById(listElId);
+  if (!bucket.length){ el.innerHTML=''; return; }
+  var mode = (listElId === 'docFileList') ? 'doc' : 'id';
+  el.innerHTML = bucket.map(function(x, i){
+    return '<a href="javascript:void(0)" onclick="VIEW_IDX=' + i + ';switchViewerKeepIdx(\'' + mode + '\')" '
+         + 'style="display:inline-block;margin:3px 6px 0 0;padding:2px 7px;background:#fff;border:1px solid #ccc;border-radius:4px;text-decoration:none;color:#333">'
+         + '📎 ' + (i+1) + '. ' + x.name + '</a>';
+  }).join('');
+}
 
 function setStatus(msg, cls){
   var el=document.getElementById('ocrStatus');
@@ -160,107 +193,113 @@ function setStatus(msg, cls){
 }
 
 // 1) 파일 선택 → 서버 업로드 → 원본 뷰어 표시
+// 계약서 원본 (여러 장)
 async function handleFilePicked(){
   var fi=document.getElementById('docFile');
-  if(!fi.files || !fi.files[0]) return;
-  var f=fi.files[0];
-  setStatus('업로드 중...', 'st-warn');
-  try{
-    var res=await fetch('/api/v1/upload',{method:'POST',headers:{'X-File-Name':encodeURIComponent(f.name)},body:f});
-    var d=await res.json();
-    if(!d.filepath){ setStatus('업로드 실패: '+(d.error||''),'st-err'); return; }
-    UPLOADED={name:f.name, path:d.filepath};
-    showViewer(d.filepath, f.name);
-    document.getElementById('btnOcr').disabled=false;
-    setStatus('업로드 완료. [OCR 채우기]를 누르세요.','st-ok');
-  }catch(e){ setStatus('업로드 통신 오류: '+e.message,'st-err'); }
+  if(!fi.files || !fi.files.length) return;
+  setStatus('계약서 업로드 중...', 'st-warn');
+  await uploadMany(fi.files, DOC_FILES, 'docFileList', '계약서');
+  if (DOC_FILES.length){
+    VIEW_IDX = DOC_FILES.length-1; switchViewerKeepIdx('doc');
+    setStatus('✅ 계약서 ' + DOC_FILES.length + '장 저장','st-ok');
+  } else {
+    setStatus('업로드 실패','st-err');
+  }
+  fi.value='';
 }
 
-// 임차인 신분증(앞면) 사본 업로드 → documents_json에 함께 저장
-async function uploadTenantIdFront(){
-  var fi=document.getElementById('tenantIdFront');
-  if(!fi.files || !fi.files[0]) return;
-  var f=fi.files[0];
-  var st=document.getElementById('tenantIdFrontStatus');
-  st.textContent='업로드 중...';
-  try{
-    var res=await fetch('/api/v1/upload',{method:'POST',headers:{'X-File-Name':encodeURIComponent(f.name)},body:f});
-    var d=await res.json();
-    if(d.filepath){ TENANT_ID_FRONT={name:f.name, path:d.filepath};
-      st.innerHTML='✅ 신분증 앞면 저장됨: <a href="/'+d.filepath+'" target="_blank">'+f.name+'</a>'; }
-    else st.textContent='❌ 업로드 실패: '+(d.error||'');
-  }catch(e){ st.textContent='❌ 업로드 오류: '+e.message; }
+// 신분증 사본 (필요시, 여러 장)
+async function handleIdPicked(){
+  var fi=document.getElementById('idFile');
+  if(!fi.files || !fi.files.length) return;
+  await uploadMany(fi.files, ID_FILES, 'idFileList', '신분증');
+  if (ID_FILES.length){
+    VIEW_IDX = ID_FILES.length-1; switchViewerKeepIdx('id');
+  }
+  fi.value='';
+}
+
+var VIEW_MODE='doc', VIEW_IDX=0;
+
+// 뷰어 전환 (계약서 / 신분증)
+function switchViewer(mode){
+  VIEW_MODE = mode; VIEW_IDX = 0;
+  document.getElementById('vbtnDoc').classList.toggle('active', mode==='doc');
+  document.getElementById('vbtnId').classList.toggle('active', mode==='id');
+  renderCurrentView();
+}
+
+function currentBucket(){ return VIEW_MODE==='doc' ? DOC_FILES : ID_FILES; }
+
+// 현재 모드의 파일을 뷰어에 표시 (여러 장이면 ◀ ▶ 이동)
+function renderCurrentView(){
+  var list = currentBucket();
+  var nav = document.getElementById('viewerNav');
+  if (!list.length){
+    nav.innerHTML='';
+    document.getElementById('viewerName').textContent='';
+    document.getElementById('viewer').innerHTML =
+      '<div class="viewer-empty">' + (VIEW_MODE==='doc' ? '계약서 원본을' : '신분증 사본을') + ' 업로드하면<br>여기에 표시됩니다.</div>';
+    return;
+  }
+  if (VIEW_IDX >= list.length) VIEW_IDX = list.length-1;
+  if (VIEW_IDX < 0) VIEW_IDX = 0;
+  nav.innerHTML = list.length>1
+    ? '<button type="button" onclick="viewStep(-1)">◀</button>' + (VIEW_IDX+1) + ' / ' + list.length + '<button type="button" onclick="viewStep(1)">▶</button>'
+    : '1 / 1';
+  showViewer(list[VIEW_IDX].path, list[VIEW_IDX].name);
+}
+
+function viewStep(d){ VIEW_IDX += d; renderCurrentView(); }
+
+// 업로드 직후: 인덱스 유지한 채 모드만 전환
+function switchViewerKeepIdx(mode){
+  var keep = VIEW_IDX;
+  VIEW_MODE = mode;
+  document.getElementById('vbtnDoc').classList.toggle('active', mode==='doc');
+  document.getElementById('vbtnId').classList.toggle('active', mode==='id');
+  VIEW_IDX = keep;
+  renderCurrentView();
 }
 
 function showViewer(path, name){
   var v=document.getElementById('viewer');
   document.getElementById('viewerName').textContent=name||'';
   var lower=(path||'').toLowerCase();
+  // 파일명에 공백/한글이 있어도 열리도록 URL 인코딩 (경로 구분자 / 는 유지)
+  var url = '/' + String(path||'').split('/').map(encodeURIComponent).join('/');
   if(lower.endsWith('.pdf')){
-    v.innerHTML='<iframe src="/'+path+'"></iframe>';
+    v.innerHTML='<iframe src="'+url+'"></iframe>';
   }else{
-    v.innerHTML='<img src="/'+path+'" alt="원본">';
+    v.innerHTML='<img src="'+url+'" alt="원본">';
   }
 }
 
-// 2) OCR 실행 → 필드 자동채움
-async function runOcr(){
-  if(!UPLOADED){ setStatus('먼저 문서를 업로드하세요.','st-err'); return; }
-  var docType=document.getElementById('docType').value;
-  document.getElementById('passportBox').style.display = (docType==='passport')?'block':'none';
-  setStatus('OCR 분석 중... (문서 크기에 따라 수초~수십초)','st-warn');
-  try{
-    var res=await fetch('/api/v1/ocr',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({filepath:UPLOADED.path, doc_type:docType})});
-    var d=await res.json();
-    if(d.error){ setStatus('OCR 오류: '+d.error,'st-err'); return; }
-    if(!d.engine || !d.engine.ready){
-      setStatus('⚠️ 서버에 OCR 엔진이 설치되어 있지 않습니다. install_ocr.sh 실행 후 다시 시도하세요.','st-err');
-      return;
-    }
-    applyOcr(d.fields||{}, d.confidence||{});
-    var filled=Object.keys(d.fields||{}).length;
-    setStatus('✅ '+filled+'개 필드 추정 완료. 노란칸을 원본과 대조해 확인/수정하세요. '+(d.engine.has_korean?'':'(한글 데이터 미설치 — 숫자/영문 위주)'), d.engine.has_korean?'st-ok':'st-warn');
-  }catch(e){ setStatus('OCR 통신 오류: '+e.message,'st-err'); }
+// 만원 입력값을 원 단위로 환산해 보여줌 (입력 실수 방지)
+function updateAmountHint(){
+  var d = parseInt(document.getElementById('deposit').value||'0',10)*10000;
+  var r = parseInt(document.getElementById('rent').value||'0',10)*10000;
+  document.getElementById('amountHint').textContent =
+    '보증금 ' + d.toLocaleString() + '원 · 월차임 ' + r.toLocaleString() + '원 (저장 시 원 단위로 반영)';
 }
 
-function fill(id, val, conf){
-  if(val===undefined || val===null || val==='') return;
-  var el=document.getElementById(id); if(!el) return;
-  el.value=val;
-  el.classList.add('ocr-filled');
-  // 라벨에 신뢰도 배지
-  var lbl=el.closest('.form-group') ? el.closest('.form-group').querySelector('label') : null;
-  if(lbl && conf && !lbl.querySelector('.badge')){
-    var b=document.createElement('span');
-    b.className='badge b-'+conf; b.textContent='OCR·'+({high:'높음',medium:'보통',low:'낮음'}[conf]||conf);
-    lbl.appendChild(b);
+// 호실 선택 → 등록된 부동산의 소재지(주소) 자동 연동
+function onRoomChanged(){
+  var rid = document.getElementById('roomId').value;
+  var hint = document.getElementById('roomHint');
+  var addrEl = document.getElementById('hostAddress');
+  if(!rid){ hint.textContent=''; return; }
+  var rm = ALL_ROOMS.find(function(r){ return String(r.id) === String(rid); });
+  if(!rm){ hint.textContent=''; return; }
+  var addr = rm.building_address || '';
+  var roomNo = rm.room || rm.room_no || '';
+  var full = (addr + (roomNo ? ' ' + roomNo + '호' : '')).trim();
+  // 비어 있거나 이전 자동입력값이면 갱신 (사용자가 직접 고쳐둔 값은 보존)
+  if(!addrEl.value.trim() || addrEl.dataset.auto === '1'){
+    addrEl.value = full;
+    addrEl.dataset.auto = '1';
   }
-}
-
-function applyOcr(f, c){
-  fill('hostAddress', f.host_address_full, c.host_address_full);
-  fill('leaseType', f.lease_type, c.lease_type);
-  fill('deposit', f.deposit_amount, c.deposit_amount);
-  fill('rent', f.monthly_rent, c.monthly_rent);
-  fill('maint', f.maintenance_fee, c.maintenance_fee);
-  fill('startDate', f.start_date, c.start_date);
-  fill('endDate', f.end_date, c.end_date);
-  fill('ownerRrn', f.owner_rrn_masked, c.owner_rrn_masked);
-  fill('ownerPhone', f.owner_phone, c.owner_phone);
-  fill('tenantRrn', f.tenant_rrn_masked, c.tenant_rrn_masked);
-  fill('tenantPhone', f.tenant_phone, c.tenant_phone);
-  fill('specialTerms', f.special_terms, c.special_terms);
-  // 여권
-  fill('pSurname', f.surname_en, c.surname_en);
-  fill('pGiven', f.given_names_en, c.given_names_en);
-  fill('pNo', f.passport_no, c.passport_no);
-  fill('pNat', f.nationality, c.nationality);
-  fill('pBirth', f.birth_date, c.birth_date);
-  // 신분증
-  fill('tenantRrn', f.rrn_masked, c.rrn_masked);
-  // 임대할부분 힌트
-  if(f.room_no){ document.getElementById('roomHint').textContent='OCR 임대할부분(호): '+f.room_no; }
+  hint.textContent = '🏠 ' + ((rm.building_name||'') + ' ' + roomNo + '호').trim() + (addr ? ' · ' + addr : '');
 }
 
 // 3) 호실 목록 로드
@@ -283,8 +322,9 @@ async function saveContract(){
     room_id: parseInt(document.getElementById('roomId').value||'0',10),
     host_address_full: document.getElementById('hostAddress').value.trim(),
     lease_type: document.getElementById('leaseType').value,
-    deposit_amount: parseInt(document.getElementById('deposit').value||'0',10),
-    monthly_rent: parseInt(document.getElementById('rent').value||'0',10),
+    // 입력은 '만원' 단위 → DB에는 '원' 단위로 저장 (×10,000)
+    deposit_amount: (parseInt(document.getElementById('deposit').value||'0',10) * 10000),
+    monthly_rent: (parseInt(document.getElementById('rent').value||'0',10) * 10000),
     maintenance_fee: parseInt(document.getElementById('maint').value||'0',10),
     start_date: document.getElementById('startDate').value,   // date8 → ISO 반환
     end_date: document.getElementById('endDate').value,
@@ -294,11 +334,11 @@ async function saveContract(){
 
   // 당사자/여권/원본문서 메타는 documents_json 에 함께 보관 (스키마 변경 없이)
   var meta={
-    file: UPLOADED,
-    owner:{name:val('ownerName'), rrn_masked:val('ownerRrn'), phone:val('ownerPhone')},
+    files: DOC_FILES,            // 계약서 원본(여러 장)
+    id_files: ID_FILES,          // 신분증 사본(여러 장)
+    file: DOC_FILES[0] || null,  // 하위호환(기존 뷰어/명세서용 대표 1장)
     tenant:{name:val('tenantName'), rrn_masked:val('tenantRrn'), phone:val('tenantPhone')},
-    tenant_id_front: TENANT_ID_FRONT,
-    passport:{surname:val('pSurname'), given:val('pGiven'), no:val('pNo'), nationality:val('pNat'), birth:val('pBirth')}
+    vat_applied: document.getElementById('vatApplied').checked   // 부가세 적용 여부
   };
   payload.documents_json=JSON.stringify(meta);
 
@@ -308,9 +348,11 @@ async function saveContract(){
     if(res.ok && (d.success||d.id)){
       alert('✅ 계약서 저장 완료 (계약ID: '+(d.id||'?')+'). 원본문서도 함께 첨부되었습니다.');
       document.getElementById('contractForm').reset();
-      TENANT_ID_FRONT=null; var _s=document.getElementById('tenantIdFrontStatus'); if(_s) _s.textContent='';
-      document.querySelectorAll('.ocr-filled').forEach(function(x){x.classList.remove('ocr-filled');});
-      document.querySelectorAll('label .badge').forEach(function(x){x.remove();});
+      DOC_FILES=[]; ID_FILES=[];
+      document.getElementById('docFileList').innerHTML='';
+      document.getElementById('idFileList').innerHTML='';
+      document.getElementById('vatApplied').checked=true;
+      VIEW_IDX=0; switchViewer('doc');
     }else{
       alert('❌ 저장 실패: '+(d.error||'알 수 없는 오류'));
     }

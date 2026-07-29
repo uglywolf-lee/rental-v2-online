@@ -43,6 +43,8 @@ ext_map = {
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
+    allow_reuse_address = True      # 이전 종료 직후에도 같은 포트 즉시 재사용(TIME_WAIT 회피)
+    request_queue_size = 50         # 동시 접속 대기열 확대
 
 
 def json_response(handler, code, obj):
@@ -98,6 +100,12 @@ class Handler(SimpleHTTPRequestHandler):
         if not os.path.extsep in filename:
             filename += '.html'
 
+        # 앱 폴더 기준 절대경로로 해석 (작업디렉터리와 무관하게 uploads/ 등 정상 서빙)
+        filename = urllib.parse.unquote(filename)
+        filename = os.path.normpath(os.path.join(BASE_DIR, filename))
+        if not filename.startswith(BASE_DIR):      # 경로 탈출 방지
+            return self.send_error(403, "Forbidden")
+
         if os.path.exists(filename) and os.path.isfile(filename):
             self.send_response(200)
             for ext_type, content_type in ext_map.items():
@@ -108,11 +116,12 @@ class Handler(SimpleHTTPRequestHandler):
             with open(filename, 'rb') as f:
                 self.wfile.write(f.read())
         else:
-            if os.path.exists('index.html'):
+            _idx = os.path.join(BASE_DIR, 'index.html')
+            if os.path.exists(_idx):
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html; charset=utf-8')
                 self.end_headers()
-                with open('index.html', 'rb') as f:
+                with open(_idx, 'rb') as f:
                     self.wfile.write(f.read())
             else:
                 self.send_error(404, "File Not Found: {}".format(path))
@@ -207,14 +216,39 @@ def main():
     start_auto_backup(300)            # 저장/수정 감지되면 5분마다 자동 백업
     if bpath:
         print("🛟 시작 백업 생성: {}".format(os.path.relpath(bpath, BASE_DIR)))
-    print("\n🏢 부동산 관리 시스템 포터블 통합 서버 실행 완료 (Port: {})".format(PORT))
-    print("🔗 접속 주소: http://localhost:{}".format(PORT))
-    print("🔑 관리자 계정으로 로그인하세요.\n")
-    server = ThreadedHTTPServer(('0.0.0.0', PORT), Handler)
+    # 포트 점유 (이미 사용 중이면 원인을 명확히 알리고 종료)
+    try:
+        server = ThreadedHTTPServer(('0.0.0.0', PORT), Handler)
+    except OSError as e:
+        print("\n" + "=" * 52)
+        print("  [오류] 포트 {} 를 사용할 수 없습니다.".format(PORT))
+        print("  이미 이 프로그램이 실행 중이거나, 다른 프로그램이 포트를 쓰고 있습니다.")
+        print("")
+        print("  해결: 이미 떠 있는 창이 있으면 그 창을 쓰세요.")
+        print("        없다면 작업관리자에서 RealEstate 를 모두 종료 후 다시 실행하세요.")
+        print("  (상세: {})".format(e))
+        print("=" * 52)
+        try:
+            input("\n엔터를 누르면 닫힙니다...")
+        except Exception:
+            pass
+        return
+
+    lan = get_lan_ip()
+    print("\n🏢 부동산 관리 시스템 실행 완료 (Port: {})".format(PORT))
+    print("🔗 이 컴퓨터:  http://localhost:{}".format(PORT))
+    print("🌐 다른 기기:  http://{}:{}".format(lan, PORT))
+    print("🔑 관리자 계정으로 로그인하세요.")
+    print("   (이 창을 닫으면 프로그램이 종료됩니다)\n")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n서버를 안전하게 종료합니다.")
+    finally:
+        try:
+            server.server_close()   # 포트 확실히 반납
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':

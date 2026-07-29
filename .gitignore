@@ -17,3 +17,15 @@ __pycache__/
 *.bak
 *.bak.*
 *.orig
+
+# DB 수동 사본 (원본 building_manager.db 만 관리)
+building_manager_*.db
+
+# 업로드된 계약서/신분증 등 개인정보 — 절대 올리지 않음
+uploads/
+
+# 대화/작업 기록 (개인 메모)
+대화기록.md
+
+# 폐기된 실행 방식 (사용자 PC에 파이썬 설치를 요구 → 설계원칙 위배)
+START_python.bat
