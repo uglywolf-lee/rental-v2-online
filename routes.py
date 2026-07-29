@@ -10,6 +10,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from db import get_db
 
 
+def _audit(cur, actor, action, target, detail=''):
+    """누가·언제·무엇을 했는지 기록 (실패해도 본작업엔 영향 없음)"""
+    try:
+        cur.execute("""INSERT INTO audit_logs (actor, action, target, detail, created_at)
+                       VALUES (?,?,?,?,datetime('now','localtime'))""",
+                    (str(actor or '알수없음'), str(action), str(target), str(detail)[:300]))
+    except Exception:
+        pass
+
+
 def _snapshot(cur, table, target_id, snap_type='auto_snapshot'):
     """수정 전 현재 행을 system_snapshots에 JSON으로 저장(되돌리기용). 실패해도 본작업엔 영향 없음."""
     try:
@@ -87,6 +97,25 @@ def handle_get_api(path):
             cur.execute("SELECT * FROM payments ORDER BY id DESC")
             return 200, [dict(r) for r in cur.fetchall()]
 
+        elif endpoint.startswith('auditlogs'):
+            # 로그는 절대 삭제하지 않음. 날짜별로 조회.
+            day = qs.get('date', [None])[0]          # 'YYYY-MM-DD'
+            if day == 'dates':                        # 기록이 있는 날짜 목록
+                cur.execute("""SELECT substr(created_at,1,10) AS d, COUNT(*) AS n
+                               FROM audit_logs GROUP BY d ORDER BY d DESC""")
+                return 200, [dict(r) for r in cur.fetchall()]
+            if day:
+                cur.execute("""SELECT id, actor, action, target, detail, created_at
+                               FROM audit_logs WHERE substr(created_at,1,10)=?
+                               ORDER BY id DESC""", (day,))
+            else:                                     # 기본: 가장 최근 기록일
+                cur.execute("""SELECT id, actor, action, target, detail, created_at
+                               FROM audit_logs
+                               WHERE substr(created_at,1,10) =
+                                     (SELECT substr(MAX(created_at),1,10) FROM audit_logs)
+                               ORDER BY id DESC""")
+            return 200, [dict(r) for r in cur.fetchall()]
+
         elif endpoint.startswith('snapshots'):
             cur.execute("SELECT id, snapshot_type, table_name, target_id, is_restored, created_at FROM system_snapshots ORDER BY id DESC LIMIT 300")
             return 200, [dict(r) for r in cur.fetchall()]
@@ -139,11 +168,26 @@ def handle_auth_endpoint(path, data):
         conn.close()
 
 
+LABELS = {
+    '/api/v1/buildings': '건물', '/api/v1/rooms': '호실', '/api/v1/contacts': '연락처/직원',
+    '/api/v1/contracts': '계약', '/api/v1/bills': '공과금', '/api/v1/incidents': '유지보수',
+    '/api/v1/payments': '수납',
+}
+
+
 def handle_post_api(path, data):
     """POST API CRUD 처리"""
     conn = get_db()
     try:
         cur = conn.cursor()
+        # ── 작업 로그: 누가 무엇을 했는지 자동 기록 ──
+        _actor = data.get('_actor') or data.get('actor') or ''
+        if path in LABELS:
+            _audit(cur, _actor,
+                   ('수정' if data.get('id') else '등록'),
+                   LABELS[path],
+                   (data.get('company_or_name') or data.get('name') or data.get('room_no')
+                    or data.get('description') or data.get('common_area') or ''))
 
         if path == '/api/v1/buildings':
             bid_edit = data.get('id')
@@ -283,6 +327,20 @@ def handle_post_api(path, data):
             return 201, {'id': bid, 'success': True, 'message': '공과금 고지 등록 완료'}
 
         elif path == '/api/v1/incidents':
+            inc_edit = data.get('id')
+            if inc_edit:                       # 수정
+                _snapshot(cur, 'incidents', inc_edit)
+                fields, vals = [], []
+                for k in ('room_id', 'building_id', 'scope', 'common_area', 'category',
+                          'reported_at', 'completed_at', 'description', 'reported_by_name',
+                          'estimated_cost', 'status', 'photos_json'):
+                    if k in data:
+                        fields.append(k + '=?'); vals.append(data[k])
+                if fields:
+                    vals.append(inc_edit)
+                    cur.execute("UPDATE incidents SET %s WHERE id=?" % ','.join(fields), vals)
+                    conn.commit()
+                return 200, {'id': inc_edit, 'success': True, 'message': '유지보수 내역 수정 완료'}
             room_id = int(data.get('room_id') or 0)
             i_scope = str(data.get('scope') or 'room')
             i_building = int(data.get('building_id') or 0)
@@ -365,6 +423,18 @@ def handle_post_api(path, data):
             return 201, {'id': new_cid, 'success': True, 'message': '계약서 등록 완료'}
 
         elif path == '/api/v1/payments':
+            pay_edit = data.get('id')
+            if pay_edit:                       # 수정
+                _snapshot(cur, 'payments', pay_edit)
+                fields, vals = [], []
+                for k in ('contract_id', 'room_id', 'period', 'pay_date', 'amount', 'pay_type', 'memo'):
+                    if k in data:
+                        fields.append(k + '=?'); vals.append(data[k])
+                if fields:
+                    vals.append(pay_edit)
+                    cur.execute("UPDATE payments SET %s WHERE id=?" % ','.join(fields), vals)
+                    conn.commit()
+                return 200, {'id': pay_edit, 'success': True, 'message': '수납 내역 수정 완료'}
             room_id = int(data.get('room_id') or 0)
             cur.execute("""INSERT INTO payments (contract_id, room_id, period, pay_date, amount, pay_type, memo)
                            VALUES (?, ?, ?, ?, ?, ?, ?)""",

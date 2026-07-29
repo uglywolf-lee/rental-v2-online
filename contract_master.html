@@ -129,7 +129,10 @@
         </div>
       </fieldset>
 
-      <button type="submit" class="btn btn-save">💾 계약서 저장 (원본문서 첨부)</button>
+      <input type="hidden" id="editContractId" value="">
+      <div id="cEditBanner" style="display:none;background:#fff3cd;border:1px solid #ffe08a;border-left:4px solid #f0ad4e;border-radius:5px;padding:8px 10px;margin-bottom:8px;font-size:.8rem;color:#664d03"></div>
+      <button type="submit" class="btn btn-save" id="cSaveBtn">💾 계약서 저장 (원본문서 첨부)</button>
+      <button type="button" class="btn btn-sub" style="width:100%;margin-top:6px" onclick="resetContractForm()">새 계약 입력 (선택 해제)</button>
     </form>
   </div>
 
@@ -318,6 +321,7 @@ async function loadRooms(){
 
 // 4) 저장
 async function saveContract(){
+  var editId = document.getElementById('editContractId').value;
   var payload={
     room_id: parseInt(document.getElementById('roomId').value||'0',10),
     host_address_full: document.getElementById('hostAddress').value.trim(),
@@ -341,13 +345,16 @@ async function saveContract(){
     vat_applied: document.getElementById('vatApplied').checked   // 부가세 적용 여부
   };
   payload.documents_json=JSON.stringify(meta);
+  if (editId) payload.id = parseInt(editId, 10);      // 수정 모드
 
   try{
     var res=await fetch('/api/v1/contracts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     var d=await res.json();
     if(res.ok && (d.success||d.id)){
-      alert('✅ 계약서 저장 완료 (계약ID: '+(d.id||'?')+'). 원본문서도 함께 첨부되었습니다.');
+      alert(editId ? '✏️ 계약 내용이 수정되었습니다. (계약ID: '+editId+')'
+                   : '✅ 계약서 저장 완료 (계약ID: '+(d.id||'?')+'). 원본문서도 함께 첨부되었습니다.');
       document.getElementById('contractForm').reset();
+      resetContractForm();
       DOC_FILES=[]; ID_FILES=[];
       document.getElementById('docFileList').innerHTML='';
       document.getElementById('idFileList').innerHTML='';
@@ -360,7 +367,75 @@ async function saveContract(){
 }
 function val(id){ return (document.getElementById(id).value||'').trim(); }
 
-document.addEventListener('DOMContentLoaded', loadRooms);
+// 수정 모드 해제 (새 계약 입력)
+function resetContractForm(){
+  document.getElementById('editContractId').value = '';
+  document.getElementById('cEditBanner').style.display = 'none';
+  document.getElementById('cSaveBtn').textContent = '💾 계약서 저장 (원본문서 첨부)';
+  document.getElementById('cSaveBtn').style.background = '';
+  document.getElementById('hostAddress').dataset.auto = '';
+  DOC_FILES=[]; ID_FILES=[];
+  document.getElementById('docFileList').innerHTML='';
+  document.getElementById('idFileList').innerHTML='';
+  document.getElementById('vatApplied').checked = true;
+  VIEW_IDX=0; switchViewer('doc');
+  updateAmountHint();
+}
+
+// 기존 계약 불러오기 (계약자 화면의 [수정] → contract_master.html?id=N)
+async function loadContractForEdit(cid){
+  try{
+    var res = await fetch('/api/v1/contracts');
+    var list = await res.json() || [];
+    var c = list.find(function(x){ return String(x.id) === String(cid); });
+    if(!c){ alert('계약 정보를 찾을 수 없습니다.'); return; }
+
+    document.getElementById('editContractId').value = c.id;
+    document.getElementById('roomId').value = c.room_id || '';
+    document.getElementById('hostAddress').value = c.host_address_full || '';
+    document.getElementById('hostAddress').dataset.auto = '0';
+    document.getElementById('leaseType').value = c.lease_type || '월세';
+    // DB는 원 단위 → 화면은 만원 단위
+    document.getElementById('deposit').value = Math.floor((c.deposit_amount||0)/10000);
+    document.getElementById('rent').value    = Math.floor((c.monthly_rent||0)/10000);
+    document.getElementById('maint').value   = c.maintenance_fee || 0;
+    document.getElementById('startDate').value = c.start_date || '';
+    document.getElementById('endDate').value   = c.end_date || '';
+    document.getElementById('specialTerms').value = c.special_terms || '';
+    updateAmountHint();
+
+    // documents_json 복원 (임차인 정보 / 첨부파일 / 부가세)
+    try{
+      var m = JSON.parse(c.documents_json || '{}');
+      if(m.tenant){
+        document.getElementById('tenantName').value  = m.tenant.name || c.tenant_name || '';
+        document.getElementById('tenantRrn').value   = m.tenant.rrn_masked || '';
+        document.getElementById('tenantPhone').value = m.tenant.phone || c.tenant_phone || '';
+      } else {
+        document.getElementById('tenantName').value  = c.tenant_name || '';
+        document.getElementById('tenantPhone').value = c.tenant_phone || '';
+      }
+      document.getElementById('vatApplied').checked = (m.vat_applied !== false);
+      DOC_FILES = Array.isArray(m.files) ? m.files : (m.file ? [m.file] : []);
+      ID_FILES  = Array.isArray(m.id_files) ? m.id_files : (m.tenant_id_front ? [m.tenant_id_front] : []);
+      renderFileList(DOC_FILES,'docFileList');
+      renderFileList(ID_FILES,'idFileList');
+      VIEW_IDX = 0; switchViewer('doc');
+    }catch(e){}
+
+    var b = document.getElementById('cEditBanner');
+    b.style.display='';
+    b.innerHTML = '✏️ <b>' + (c.tenant_name || '') + '</b> 계약(ID ' + c.id + ') 수정 중 — 고친 뒤 아래 버튼으로 저장하세요.';
+    document.getElementById('cSaveBtn').textContent = '✏️ 수정 내용 저장';
+    document.getElementById('cSaveBtn').style.background = '#fd7e14';
+  }catch(e){ alert('계약 불러오기 오류: ' + e.message); }
+}
+
+document.addEventListener('DOMContentLoaded', async function(){
+  await loadRooms();
+  var q = new URLSearchParams(location.search).get('id');
+  if(q) loadContractForEdit(q);
+});
 </script>
 </body>
 </html>

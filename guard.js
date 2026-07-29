@@ -17,3 +17,26 @@
     location.replace('index.html');
   }
 })();
+
+// ===== 작업 로그용: 모든 저장/수정 요청에 로그인한 사용자(_actor)를 자동 첨부 =====
+(function () {
+  if (window.__actorPatched) return;
+  window.__actorPatched = true;
+  var _fetch = window.fetch;
+  window.fetch = function (url, opt) {
+    try {
+      var u = String(url || '');
+      if (opt && String(opt.method || '').toUpperCase() === 'POST'
+          && u.indexOf('/api/v1/') === 0 && typeof opt.body === 'string'
+          && (opt.headers && String(JSON.stringify(opt.headers)).indexOf('json') > -1)) {
+        var d = JSON.parse(opt.body);
+        if (d && typeof d === 'object' && !d._actor) {
+          d._actor = (sessionStorage.getItem('userEmp') || '') +
+                     (sessionStorage.getItem('userRole') ? ' (' + sessionStorage.getItem('userRole') + ')' : '');
+          opt = Object.assign({}, opt, { body: JSON.stringify(d) });
+        }
+      }
+    } catch (e) { /* 실패해도 원래 요청 그대로 진행 */ }
+    return _fetch(url, opt);
+  };
+})();

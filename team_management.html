@@ -110,10 +110,31 @@
 
     <div class="right-panel">
         <div class="right-tabs">
-            <div class="right-tab">팀원명부현황</div>
+            <div class="right-tab" id="tabBtnRoster" onclick="switchTab('roster')">팀원명부현황</div>
+            <div class="right-tab" id="tabBtnLog" onclick="switchTab('log')"
+                 style="background:#e9ecef;color:#6c757d;border-bottom-color:transparent;cursor:pointer">📜 작업 기록</div>
         </div>
 
-        <div class="tab-body">
+        <div class="tab-body" id="tabLog" style="display:none">
+            <div class="alert-box alert-info">📜 누가 · 언제 · 무엇을 했는지 자동으로 남는 기록입니다. <b>기록은 삭제되지 않고 날짜별로 계속 보관</b>됩니다.</div>
+            <div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;margin-bottom:12px;align-items:center">
+                <label style="font-size:.82rem;font-weight:600;color:var(--text-dark);margin:0">날짜</label>
+                <select id="logDateSel" class="form-control" onchange="loadAuditLogs()"></select>
+                <button type="button" class="btn btn-main" style="padding:8px 14px" onclick="loadLogDates()">새로고침</button>
+            </div>
+            <div class="tab-search-box">
+                <input type="text" id="logSearchKw" class="form-control" placeholder="이름·작업·대상으로 검색 (선택한 날짜 안에서)" onkeyup="renderAuditLogs()">
+                <button type="button" class="btn btn-main btn-tab-search" onclick="renderAuditLogs()">검색</button>
+            </div>
+            <div class="excel-table-wrap">
+                <table>
+                    <thead><tr><th style="width:140px">시각</th><th style="width:160px">작업자</th><th style="width:70px">작업</th><th style="width:100px">대상</th><th>내용</th></tr></thead>
+                    <tbody id="auditTbody"><tr><td colspan="5" class="cell-text-center">불러오는 중…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="tab-body" id="tabRoster">
             <div class="tab-search-box">
                 <input type="text" id="teamSearchKw" class="form-control" placeholder="성명 또는 사번으로 시트검색..." onkeyup="filterTeamList()">
                 <button type="button" class="btn btn-main btn-tab-search" onclick="filterTeamList()">현황조회</button>
@@ -331,7 +352,84 @@ async function forceChangePassword() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', loadTeamMembers);
+// ===== 탭 전환 (팀원명부 / 작업기록) =====
+function switchTab(which) {
+    var isLog = (which === 'log');
+    document.getElementById('tabRoster').style.display = isLog ? 'none' : '';
+    document.getElementById('tabLog').style.display = isLog ? '' : 'none';
+    var on = {background:'#fff', color:'var(--primary)', borderBottomColor:'var(--primary)'};
+    var off = {background:'#e9ecef', color:'#6c757d', borderBottomColor:'transparent'};
+    var r = document.getElementById('tabBtnRoster'), l = document.getElementById('tabBtnLog');
+    Object.assign(r.style, isLog ? off : on);
+    Object.assign(l.style, isLog ? on : off);
+    if (isLog) loadLogDates();
+}
+
+// ===== 작업 기록 =====
+var ALL_LOGS = [];
+
+// 기록이 있는 날짜 목록 (건수 포함)
+async function loadLogDates() {
+    var sel = document.getElementById('logDateSel');
+    try {
+        var res = await fetch('/api/v1/auditlogs?date=dates');
+        var days = await res.json() || [];
+        if (!days.length) {
+            sel.innerHTML = '<option value="">기록 없음</option>';
+            document.getElementById('auditTbody').innerHTML =
+                '<tr><td colspan="5" class="cell-text-center">아직 기록이 없습니다.</td></tr>';
+            return;
+        }
+        var prev = sel.value;
+        sel.innerHTML = days.map(function(d) {
+            return '<option value="' + d.d + '">' + d.d + ' (' + d.n + '건)</option>';
+        }).join('');
+        if (prev && days.some(function(d){ return d.d === prev; })) sel.value = prev;
+        loadAuditLogs();
+    } catch(e) {
+        sel.innerHTML = '<option value="">불러오기 실패</option>';
+    }
+}
+
+async function loadAuditLogs() {
+    var tb = document.getElementById('auditTbody');
+    var day = document.getElementById('logDateSel').value;
+    try {
+        var res = await fetch('/api/v1/auditlogs' + (day ? '?date=' + encodeURIComponent(day) : ''));
+        ALL_LOGS = await res.json() || [];
+        renderAuditLogs();
+    } catch(e) {
+        tb.innerHTML = '<tr><td colspan="5" class="cell-text-center">기록을 불러오지 못했습니다.</td></tr>';
+    }
+}
+
+function renderAuditLogs() {
+    var tb = document.getElementById('auditTbody');
+    var kw = (document.getElementById('logSearchKw').value || '').toLowerCase().trim();
+    var list = ALL_LOGS.filter(function(x) {
+        if (!kw) return true;
+        return ((x.actor||'') + ' ' + (x.action||'') + ' ' + (x.target||'') + ' ' + (x.detail||'')).toLowerCase().indexOf(kw) > -1;
+    });
+    if (!list.length) {
+        tb.innerHTML = '<tr><td colspan="5" class="cell-text-center">' + (kw ? '검색 결과가 없습니다.' : '아직 기록이 없습니다.') + '</td></tr>';
+        return;
+    }
+    tb.innerHTML = list.map(function(x) {
+        var color = (x.action === '수정') ? '#fd7e14' : '#198754';
+        return '<tr>'
+            + '<td class="cell-text-center" style="color:#666">' + (x.created_at||'-') + '</td>'
+            + '<td class="cell-text-center"><b>' + (x.actor||'-') + '</b></td>'
+            + '<td class="cell-text-center" style="color:' + color + ';font-weight:700">' + (x.action||'-') + '</td>'
+            + '<td class="cell-text-center">' + (x.target||'-') + '</td>'
+            + '<td style="white-space:normal">' + (x.detail||'') + '</td>'
+            + '</tr>';
+    }).join('');
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+    loadTeamMembers();
+    switchTab('roster');
+});
 </script>
 </body>
 </html>

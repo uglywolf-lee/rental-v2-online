@@ -166,9 +166,11 @@
                 <input type="text" id="payMemo" class="form-control" placeholder="입금자 실명 상이 또는 지연 사유 요약">
             </div>
             
+            <input type="hidden" id="editPaymentId" value="">
+            <div id="payEditBanner" style="display:none;background:#fff3cd;border:1px solid #ffe08a;border-left:4px solid #f0ad4e;border-radius:5px;padding:8px 10px;margin-bottom:8px;font-size:.8rem;color:#664d03"></div>
             <div class="btn-box">
-                <button type="submit" class="btn btn-main">납부 이력 반영 (DB 저장)</button>
-                <button type="button" class="btn btn-sub" onclick="resetPaymentForm()">초기화</button>
+                <button type="submit" class="btn btn-main" id="paySaveBtn">납부 이력 반영 (DB 저장)</button>
+                <button type="button" class="btn btn-sub" onclick="resetPaymentForm()">새로 입력</button>
             </div>
         </form>
     </div>
@@ -216,6 +218,7 @@
 <script>
 var ALL_CONTRACTS = [];
 var ALL_ROOMS = [];
+var ALL_PAYMENTS = [];
 
 // 10원 단위 절사 유틸리티
 function trunc10(num) {
@@ -231,6 +234,12 @@ async function loadPaymentLedgerData() {
 
         const cRes = await fetch('/api/v1/contracts');
         ALL_CONTRACTS = await cRes.json() || [];
+
+        // 수납 이력 (수정 대상 파악용)
+        try {
+            const pRes = await fetch('/api/v1/payments');
+            ALL_PAYMENTS = await pRes.json() || [];
+        } catch(e) { ALL_PAYMENTS = []; }
 
         // 호실 검색용 자동완성 바인딩
         const dl = document.getElementById('rentRoomsDatalist');
@@ -319,6 +328,26 @@ function onRoomSelected(roomId) {
         } catch(e) {}
         document.getElementById('vatApply').checked = vatOn;
         document.getElementById('vatNote').textContent = vnote;
+
+        // 이번 달 수납 기록이 이미 있으면 → 수정 모드로 전환
+        var thisMonth = new Date().toISOString().substring(0,7);
+        var paid = ALL_PAYMENTS.filter(function(p){
+            return String(p.room_id) === String(roomId) && String(p.period||'').substring(0,7) === thisMonth;
+        }).sort(function(a,b){ return b.id - a.id; })[0];
+        if (paid) {
+            document.getElementById('editPaymentId').value = paid.id;
+            document.getElementById('payDate').value = paid.pay_date || '';
+            if (paid.pay_type) document.getElementById('payType').value = paid.pay_type;
+            document.getElementById('payMemo').value = paid.memo || '';
+            var pb = document.getElementById('payEditBanner');
+            pb.style.display = '';
+            pb.innerHTML = '✏️ 이번 달(' + thisMonth + ') 수납 기록이 이미 있습니다 — 저장하면 <b>수정</b>됩니다. ('
+                         + (Number(paid.amount)||0).toLocaleString() + '원)';
+            document.getElementById('paySaveBtn').textContent = '✏️ 수납 내역 수정';
+            document.getElementById('paySaveBtn').style.background = '#fd7e14';
+        } else {
+            clearPayEditMode();
+        }
         
         // 하단 원본 계약서 뷰어 바인딩
         var html = `
@@ -420,11 +449,13 @@ async function submitPayment() {
     var pd = String(payDate).replace(/\D/g, '');
     var period = pd.length >= 6 ? (pd.substring(0,4) + '-' + pd.substring(4,6)) : new Date().toISOString().substring(0,7);
 
+    var editPayId = document.getElementById('editPaymentId').value;
     try {
         var res = await fetch('/api/v1/payments', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
+                id: editPayId ? parseInt(editPayId, 10) : undefined,
                 contract_id: contract ? contract.id : null,
                 room_id: parseInt(roomId, 10),
                 period: period,
@@ -435,7 +466,7 @@ async function submitPayment() {
             })
         });
         if (res.ok) {
-            alert('✅ 월세 수납 기록 완료! (수납 장부에 저장)');
+            alert(editPayId ? '✏️ 수납 내역이 수정되었습니다.' : '✅ 월세 수납 기록 완료! (수납 장부에 저장)');
             resetPaymentForm();
             loadPaymentLedgerData();
         } else {
@@ -446,8 +477,19 @@ async function submitPayment() {
     }
 }
 
+function clearPayEditMode() {
+    document.getElementById('editPaymentId').value = '';
+    document.getElementById('payEditBanner').style.display = 'none';
+    document.getElementById('paySaveBtn').textContent = '납부 이력 반영 (DB 저장)';
+    document.getElementById('paySaveBtn').style.background = '';
+}
+
 function resetPaymentForm() {
     document.getElementById('paymentForm').reset();
+    clearPayEditMode();
+    document.getElementById('roomSelect').value = '';
+    document.getElementById('rentRoomChips').innerHTML = '';
+    document.getElementById('rentRoomPicked').textContent = '';
     document.getElementById('v_contractInfo').innerHTML = '좌측에서 호실을 선택하시면 해당 호실의 실제 계약 정보 및 특약 조항이 표시됩니다.';
     calculateTotalBill();
 }

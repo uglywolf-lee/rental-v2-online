@@ -259,6 +259,17 @@ def init_db_schema():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )""")
 
+        # 8-1. audit_logs (작업 기록: 누가·언제·무엇을)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            actor TEXT,
+            action TEXT,
+            target TEXT,
+            detail TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )""")
+
         # 8. system_snapshots (행단위 스냅샷/되돌리기) — 수정 전 원본 JSON 보관
         cur.execute("""
         CREATE TABLE IF NOT EXISTS system_snapshots (
@@ -288,6 +299,11 @@ def init_db_schema():
             ("incidents", "building_id", "INTEGER DEFAULT 0"),
             ("incidents", "scope", "TEXT DEFAULT 'room'"),
             ("incidents", "common_area", "TEXT"),
+            ("audit_logs", "actor", "TEXT"),
+            ("audit_logs", "action", "TEXT"),
+            ("audit_logs", "target", "TEXT"),
+            ("audit_logs", "detail", "TEXT"),
+            ("audit_logs", "created_at", "TEXT"),
             ("contracts", "special_terms", "TEXT"),
             ("contracts", "tenant_contact_id", "INTEGER DEFAULT 0"),
             ("contracts", "owner_contact_id", "INTEGER DEFAULT 1"),

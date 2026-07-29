@@ -249,8 +249,9 @@
             renderTable(ALL_CONTRACTS);
         }
 
+        // 계약서(B) 화면으로 이동해 해당 계약을 불러와 수정
         function editContractor(contractId) {
-            alert(`[계약 ID: ${contractId}] 수정 기능은 계약서 상세 화면으로 이동하거나 모달 폼으로 연동됩니다.`);
+            location.href = 'contract_master.html?id=' + contractId;
         }
 
         // 📄 임차인 공과금·월세 명세서 출력 (인쇄창)

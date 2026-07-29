@@ -148,9 +148,11 @@
                 <label>추산 수리비 (만원)</label>
                 <input type="number" id="m_costMan" class="form-control" placeholder="예: 320 (=3,200,000원)" min="0">
             </div>
+            <input type="hidden" id="m_editId" value="">
+            <div id="m_editBanner" style="display:none;background:#fff3cd;border:1px solid #ffe08a;border-left:4px solid #f0ad4e;border-radius:5px;padding:8px 10px;margin-bottom:8px;font-size:.8rem;color:#664d03"></div>
             <div class="btn-box">
-                <button type="submit" class="btn btn-main">신규 파손신고등록</button>
-                <button type="button" class="btn btn-sub" onclick="resetFormModule()">초기화</button>
+                <button type="submit" class="btn btn-main" id="m_submitBtn">신규 파손신고등록</button>
+                <button type="button" class="btn btn-sub" onclick="resetFormModule()">새로 입력</button>
             </div>
         </form>
     </div>
@@ -318,7 +320,8 @@ function renderMaintenanceTable(list) {
 
     list.forEach(function(item, idx) {
         var tr = document.createElement('tr');
-        tr.onclick = function() { showDetailModule(item); };
+        tr.title = '클릭하면 왼쪽에서 수정할 수 있습니다';
+        tr.onclick = function() { showDetailModule(item); selectIncidentToForm(item, tr); };
 
         var badgeClass = item.status === '완료' ? 'status-done' : 'status-process';
         var e = getEnrich(item);
@@ -426,6 +429,7 @@ async function submitMaintenanceModule() {
     var savedPhotos = await uploadPhotosModule();
 
     // 2. 백엔드 /api/v1/incidents POST 전송
+    var editId = document.getElementById('m_editId').value;
     var payload = {
         room_id: roomIdVal,
         scope: isCommon ? 'common' : 'room',
@@ -440,6 +444,10 @@ async function submitMaintenanceModule() {
         status: '접수중',
         photos_json: JSON.stringify(savedPhotos) // 🌟 바이너리 저장 후 수신된 상대경로 넘김
     };
+    if (editId) {
+        payload.id = parseInt(editId, 10);
+        if (!savedPhotos.length) delete payload.photos_json;   // 새 사진 없으면 기존 사진 유지
+    }
 
     try {
         var res = await fetch('/api/v1/incidents', {
@@ -449,7 +457,8 @@ async function submitMaintenanceModule() {
         });
         var resJson = await res.json();
         if (res.ok && resJson.id) {
-            alert('✅ DB 등록 및 사진 USB 저장 성공! (신고 ID: ' + resJson.id + ')');
+            alert(editId ? '✏️ 수정되었습니다. (신고 ID: ' + resJson.id + ')'
+                         : '✅ DB 등록 및 사진 저장 성공! (신고 ID: ' + resJson.id + ')');
             resetFormModule();
             loadMaintenanceModule();
         } else {
@@ -490,6 +499,50 @@ function resetFormModule() {
     document.getElementById('maintenanceForm').reset();
     document.getElementById('previewArea').innerHTML = '';
     SELECTED_FILES = [];
+    document.getElementById('m_editId').value = '';
+    document.getElementById('m_editBanner').style.display = 'none';
+    document.getElementById('m_submitBtn').textContent = '신규 파손신고등록';
+    document.getElementById('m_submitBtn').style.background = '';
+    document.getElementById('m_roomId').value = '';
+    document.getElementById('m_roomChips').innerHTML = '';
+    document.getElementById('m_roomPicked').textContent = '';
+    document.querySelectorAll('#maintenanceTbody tr').forEach(function(r){ r.style.background=''; });
+}
+
+// 목록 클릭 → 좌측 폼에 채워 수정 모드로
+function selectIncidentToForm(item, tr) {
+    document.querySelectorAll('#maintenanceTbody tr').forEach(function(r){ r.style.background=''; });
+    if (tr) tr.style.background = '#fff3cd';
+
+    document.getElementById('m_editId').value = item.id;
+    var isCommon = (item.scope === 'common');
+    document.querySelector('input[name="incScope"][value="' + (isCommon?'common':'room') + '"]').checked = true;
+    onIncScopeChange();
+
+    if (isCommon) {
+        setTimeout(function(){
+            var s=document.getElementById('m_buildingId'); if(s) s.value = item.building_id || '';
+        }, 250);
+        document.getElementById('m_commonArea').value = item.common_area || '';
+    } else {
+        var rm = ALL_ROOMS.find(function(r){ return r.id == item.room_id; });
+        var no = rm ? String(rm.room || rm.room_no || '') : '';
+        document.getElementById('m_roomSearch').value = no;
+        onIncRoomSearch(no);
+    }
+
+    document.getElementById('m_category').value = item.category || '시설파손';
+    document.getElementById('m_reportDate').value = (item.reported_at || '').substring(0,10);
+    document.getElementById('m_completeDate').value = (item.completed_at || '').substring(0,10);
+    document.getElementById('m_detail').value = item.description || '';
+    document.getElementById('m_staffName').value = item.reported_by_name || '';
+    document.getElementById('m_costMan').value = item.estimated_cost ? Math.floor(item.estimated_cost/10000) : '';
+
+    var b = document.getElementById('m_editBanner');
+    b.style.display = '';
+    b.innerHTML = '✏️ <b>' + (item.category||'') + '</b> 신고건 수정 중 — 고친 뒤 <b>[수정 내용 저장]</b>을 누르세요.';
+    document.getElementById('m_submitBtn').textContent = '✏️ 수정 내용 저장';
+    document.getElementById('m_submitBtn').style.background = '#fd7e14';
 }
 
 // 숫자 연속 입력 시 YYYY-MM-DD 포맷 자동 변환 함수
