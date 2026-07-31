@@ -8,6 +8,64 @@
 
 ---
 
+## ✅ 구축 완료 상태 (2026-07-31 밤, 집에서 세팅 완료)
+
+**1~7단계 끝났습니다. 남은 것은 8단계(건물 반출·실데이터 이관)뿐입니다.**
+
+| 항목 | 값 |
+|---|---|
+| 호스트명 | `rental` (Orange Pi Zero 2W, Armbian Debian 13 Trixie, 커널 6.18.40-current-sunxi64) |
+| 집 LAN 주소 | `192.168.0.233` (건물로 가면 바뀜 — 신경쓰지 말 것) |
+| **Tailscale 주소** | **`100.114.91.81`** ← 어디서든 이 주소. 건물로 가도 그대로 |
+| 접속 주소 | **http://100.114.91.81:8899** |
+| 계정 | `uglywolf` (sudo), root SSH는 맥의 공개키로 무암호 접속 |
+| 저장소 | microSD 64GB, 첫 부팅에 58G로 자동 확장됨 (1.3G 사용) |
+| RAM | 3.8Gi |
+| 프로그램 위치 | `/home/uglywolf/rental-v2-online` (코드만. **DB·uploads는 아직 비어 있음**) |
+| 자동시작 | `systemd` 서비스 `rental.service` — 부팅 자동실행 + 죽으면 5초 후 재시작 |
+| 로그 보기 | `journalctl -u rental -f` |
+
+### Tailscale 노드
+
+| 이름 | 주소 |
+|---|---|
+| `rental` (오렌지파이) | 100.114.91.81 |
+| `lee-macstudio` (맥) | 100.121.228.34 |
+| `raspberrypi` (집 백업서버) | 100.104.174.40 |
+
+**MagicDNS는 끄고(`--accept-dns=false`) IP로 씁니다.** 라즈베리파이의 DNS 설정을 건드리지 않기 위한
+선택이라, 이름(`rental`)으로는 안 풀립니다. **IP를 쓰세요.**
+
+### 백업 (7단계 — 동작 확인됨)
+
+- 집 라즈베리파이가 **매일 03:30** 에 오렌지파이에서 당겨옵니다(pull).
+- 스크립트: 라즈베리파이의 `/home/uglywolf/부동산백업_가져오기.sh`
+- 목적지: **`/mnt/USB32G/data/부동산백업/`** (32GB exFAT, `db/` 와 `uploads/` 로 나뉨)
+- 기록: 같은 폴더의 `백업기록.txt` — **날짜가 오늘이 아니면 백업이 멈춘 것**
+- 접속 순서: Tailscale IP(`100.114.91.81`) → 실패하면 집 LAN(`192.168.0.233`)
+- exFAT은 권한 개념이 없어 `rsync -rt --no-perms --no-owner --no-group` 를 씁니다 (`-a` 쓰면 에러)
+- ⚠️ **라즈베리파이의 sshd/SFTP 설정은 절대 건드리지 말 것** — 과거에 `uglywolf` SSH가 끊긴 사고가
+  있었습니다. 이 설계는 라즈베리파이에서 SSH 클라이언트만 쓰므로 sshd를 만질 필요가 없습니다.
+- 참고: 라즈베리파이에는 2.8TB 디스크(`/mnt/samba`)도 있습니다. 계약서가 많이 쌓이면 목적지를
+  그쪽으로 바꾸는 편이 낫습니다 (스크립트의 `DEST` 한 줄).
+
+### 이번에 겪은 함정 (다음에 또 만날 것)
+
+- Armbian Imager에 **First-Boot 프로필 화면이 없었다** → SD의 ext4에 직접 써넣어 해결.
+  `brew install e2fsprogs` 후 `debugfs -w` 사용. 맥에서 SD 접근은 **sudo 필수**(사용자가 실행해야 함).
+- 이 이미지는 **NetworkManager가 없다**. `nmcli`/`nmtui` 없음.
+  네트워크는 **netplan + systemd-networkd + wpa_supplicant**. WiFi는 `/etc/netplan/30-wifis-dhcp.yaml`.
+- 무선 인터페이스 이름을 확정하려고 `/etc/systemd/network/98-wlan0.link` 로 `wlan0` 고정.
+- **WiFi 절전 끄기는 이미지에 이미 포함**되어 있다 (`10-wifi-disable-powermanagement.rules`).
+- `armbian-firstlogin` 마법사는 `/root/.not_logged_in_yet` 을 읽지만 **tty가 있어야만** 돌고,
+  SSH로 실행하니 응답 없이 멈췄다 → **마법사를 버리고 `useradd`·`timedatectl` 로 직접 설정**했다.
+- 권한 없는 `nmap -sn` 은 열린 포트가 거의 없는 기기를 "꺼짐"으로 판정한다 →
+  기기 찾기는 **공유기 관리화면**이 가장 정확했다. (`nmap -p 22 --open` 은 쓸 수 있음)
+- 집 네트워크가 **두 대역/두 대역폭으로 갈려 있다**. Chrome에서 `ERR_ADDRESS_UNREACHABLE` 이
+  났지만 사파리에서는 접속됐다. Tailscale 주소를 쓰면 이 문제가 사라진다.
+
+---
+
 ## 왜 하려는가
 
 임대인(이은석)이 대림빌딩까지 **30~40km를 오가며** 프로그램을 확인하고 있습니다.
@@ -173,10 +231,11 @@ FR_net_wifi_countrycode='KR'
 
 접속 성공 후 즉시:
 
-- **WiFi 절전 끄기** — `iw wlan0 set power_save off` 를 부팅 시 적용되도록 영구 설정.
-  안 하면 접속할 때 간헐적으로 수 초 멈춥니다. (직원이 "느려요" 하고 전화하는 원인)
+- ~~WiFi 절전 끄기~~ → **이미지에 이미 들어 있습니다.**
+  `/etc/udev/rules.d/10-wifi-disable-powermanagement.rules` 가 이미지에 포함되어 있어
+  별도 설정이 필요 없습니다. (확인만 하면 됨: `iw wlan0 get power_save`)
 - 공유기에서 MAC 기준 **고정 IP** 할당
-- 시스템 업데이트, 타임존 `Asia/Seoul` 확인
+- 시스템 업데이트, 타임존은 preseed로 `Asia/Seoul` 설정됨 — `timedatectl` 로 확인
 
 ## 4단계 — 프로그램 이관
 
@@ -207,10 +266,22 @@ FR_net_wifi_countrycode='KR'
 
 **현장 WiFi 추가** — 건물에 가져갔을 때 스스로 붙게 만드는 단계.
 
-- `sudo nmtui` → Add a connection → Wi-Fi → 현장 SSID·비밀번호 입력
-  (메뉴 화면이라 사용자가 직접 하기 쉽고, 명령 기록에 비밀번호가 남지 않습니다)
-- 숨김 SSID면 `802-11-wireless.hidden yes` 필요
-- `nmcli connection show` 로 집·현장 두 개가 모두 저장됐는지 확인
+> ⚠️ **이 이미지에는 NetworkManager가 없습니다.** `nmcli`·`nmtui` 둘 다 없고
+> 네트워크 스택은 **systemd-networkd + wpa_supplicant + netplan** 입니다.
+> (`/etc/NetworkManager/conf.d` 는 armbian-config가 남긴 설정 잔재일 뿐입니다)
+
+- `/etc/netplan/30-wifis-dhcp.yaml` 의 `access-points:` 아래에 현장 SSID를 **한 벌 더** 추가합니다.
+  netplan은 여러 AP를 나열하면 잡히는 쪽에 붙습니다.
+  ```yaml
+        access-points:
+          "집SSID":
+            password: "..."
+          "현장SSID":
+            password: "..."
+  ```
+- 파일 권한은 **600** 유지 (netplan이 경고합니다)
+- `sudo netplan apply` 후 `networkctl status wlan0` 으로 확인
+- 숨김 SSID면 해당 AP 아래에 `hidden: true`
 - `ip link show wlan0` 으로 **MAC 주소를 받아 적어둘 것** (현장 공유기 고정IP 예약용)
 
 **Tailscale** — 건물 IP를 몰라도 접속되게 만드는 단계.
