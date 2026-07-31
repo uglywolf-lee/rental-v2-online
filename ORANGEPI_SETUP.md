@@ -127,7 +127,35 @@
 이 방식이면 ext4 접근, debugfs, 라즈베리파이 경유, 모니터·키보드가 **전부 불필요**합니다.
 부팅하면 보드가 스스로 WiFi에 붙고 SSH 접속 대기 상태가 됩니다.
 
-> **대체 경로** — Imager의 First-Boot 프로필이 이 보드에서 동작하지 않을 때만 검토.
+### ⚠️ 2026-07-31 실제 결과 — First-Boot 프로필이 없었다
+
+사용자가 구운 Armbian Imager 버전에는 **First-Boot Setup 화면이 없었습니다.** 그냥 굽고 끝.
+→ SD에 WiFi 정보가 들어가지 않았으므로 **부팅해도 집 WiFi에 붙지 못합니다.** 아래 대체 경로로 진행하세요.
+
+현재 상태: SD는 맥 본체 카드슬롯에 삽입됨 = `/dev/disk5` (63.9GB, `disk5s1` = Linux 1.5GB, 첫 부팅 전).
+`e2fsprogs` 는 **아직 미설치**. brew 는 `/opt/homebrew/bin/brew` 에 있음.
+
+**다음 세션에 할 일 (5분)**
+
+1. `brew install e2fsprogs`
+2. `/tmp/armbian_first_run.txt` 를 만들되 **비밀번호 칸은 비워두고**, 사용자가 텍스트 편집기로
+   직접 채우게 한다 (대화에 비밀번호가 남지 않게)
+3. `debugfs -w /dev/disk5s1` 로 `/boot/armbian_first_run.txt` 에 써넣는다
+4. 오렌지파이에 꽂고 전원 → 집 네트워크에서 IP 탐색 → SSH 진입 (3단계로 이어짐)
+
+넣을 내용(집 WiFi 기준):
+```
+FR_general_delete_this_file_after_completion=1
+FR_net_change_defaults=1
+FR_net_wifi_enabled=1
+FR_net_wifi_ssid='집WiFi이름'
+FR_net_wifi_key='여기에_비밀번호'
+FR_net_wifi_countrycode='KR'
+```
+
+안 되면 **SD를 집 라즈베리파이(`192.168.75.125`)에 카드리더로 물려** 네이티브 마운트 후 같은 파일을 쓰면 확실합니다.
+
+> **대체 경로 (참고)** — 원래 이 항목은 First-Boot 프로필이 동작하지 않을 때의 예비안이었습니다.
 > Allwinner 계열 Armbian은 단일 ext4 파티션이라 macOS에서 볼륨이 보이지 않습니다.
 > (a) SD카드를 카드리더로 집 라즈베리파이(`192.168.75.125`)에 물려 네이티브 마운트 후
 > `/boot/armbian_first_run.txt` 작성, 또는 (b) 맥에서 `brew install e2fsprogs` 후 `debugfs -w`.
