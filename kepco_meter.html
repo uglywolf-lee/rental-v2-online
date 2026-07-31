@@ -17,7 +17,6 @@
   .btn{border:none;border-radius:5px;padding:8px 15px;font-size:.85rem;font-weight:700;cursor:pointer;color:#fff}
   .btn-save{background:var(--ok)}
   .btn-xls{background:#1d6f42}
-  .btn-mail{background:#0d6efd}
   .btn-sub{background:var(--muted)}
   .wrap{flex:1;overflow:auto;padding:14px 18px}
   table{width:100%;border-collapse:collapse;background:#fff;font-size:.86rem}
@@ -42,7 +41,6 @@
       <input type="month" id="ym">
       <button class="btn btn-save" onclick="saveAll()">💾 검침값 저장</button>
       <button class="btn btn-xls" onclick="downloadExcel()">📗 엑셀 파일 만들기</button>
-      <button class="btn btn-mail" onclick="openMail()">✉️ 메일 보내기</button>
       <button class="btn btn-sub" onclick="clearAll()">입력 비우기</button>
       <span class="badge" id="cnt"></span>
     </div>
@@ -326,19 +324,10 @@ function downloadExcel(){
   var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = '한전검침표_' + bldName + '_' + (ym||'') + '.csv';
+  var fileName = '한전검침표_' + bldName + '_' + (ym||'') + '.csv';
+  a.download = fileName;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  alert('📗 파일이 저장되었습니다.\n\n다운로드 폴더의 "한전검침표_...csv" 파일을\n메일에 첨부해서 보내시면 됩니다.');
-}
-
-function openMail(){
-  var ym = document.getElementById('ym').value || '';
-  var bld = document.getElementById('bldSel').selectedOptions[0];
-  var bldName = bld ? bld.textContent : '';
-  var subject = '[' + bldName + '] ' + ym + ' 검침 결과 제출';
-  var body = bldName + ' ' + ym + ' 검침 결과를 첨부와 같이 보내드립니다.\n\n'
-           + '※ 먼저 [엑셀 파일 만들기] 를 눌러 저장한 파일을 이 메일에 첨부해 주세요.\n';
-  window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  alert('📗 엑셀 파일이 만들어졌습니다.\n\n다운로드 폴더에 있습니다.\n\n    ' + fileName + '\n\n이 파일을 평소 쓰시는 메일로 보내시면 됩니다.');
 }
 
 function clearAll(){

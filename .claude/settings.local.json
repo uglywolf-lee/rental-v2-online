@@ -20,7 +20,22 @@
       "Bash(ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_remote uglywolf@192.168.0.156 'echo \"30 3 * * * /bin/bash /home/uglywolf/부동산백업_가져오기.sh\" > /tmp/ct.txt; crontab /tmp/ct.txt; echo \"crontab 명령 결과: $?\"; echo \"=== 확인:\"; crontab -l; echo \"=== cron.allow/deny:\"; ls -l /etc/cron.allow /etc/cron.deny 2>&1 | head -2')",
       "Bash(ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_remote uglywolf@192.168.0.156 'sudo nohup tailscale up --hostname=raspberrypi --accept-dns=false > /tmp/tsup.log 2>&1 & sleep 10; cat /tmp/tsup.log')",
       "Bash(ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_remote uglywolf@192.168.0.156 'echo \"=== Tailscale 상태:\"; tailscale status 2>&1 | head -4; echo \"=== rental 이름으로 접속되나:\"; ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new uglywolf@rental \"echo 성공: \\\\$\\(hostname\\) / \\\\$\\(tailscale ip -4\\)\" 2>&1 | tail -2')",
-      "Bash(ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_remote uglywolf@192.168.0.156 'sed -i \"s|for H in rental 192.168.0.233|for H in 100.114.91.81 192.168.0.233|\" ~/부동산백업_가져오기.sh; grep \"for H in\" ~/부동산백업_가져오기.sh; echo \"=== Tailscale 경유 접속:\"; ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new uglywolf@100.114.91.81 \"echo 성공: \\\\$\\(hostname\\)\"; echo \"=== 백업 실행:\"; bash ~/부동산백업_가져오기.sh; tail -3 /mnt/USB32G/data/부동산백업/백업기록.txt')"
+      "Bash(ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_remote uglywolf@192.168.0.156 'sed -i \"s|for H in rental 192.168.0.233|for H in 100.114.91.81 192.168.0.233|\" ~/부동산백업_가져오기.sh; grep \"for H in\" ~/부동산백업_가져오기.sh; echo \"=== Tailscale 경유 접속:\"; ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new uglywolf@100.114.91.81 \"echo 성공: \\\\$\\(hostname\\)\"; echo \"=== 백업 실행:\"; bash ~/부동산백업_가져오기.sh; tail -3 /mnt/USB32G/data/부동산백업/백업기록.txt')",
+      "Bash(ssh -o BatchMode=yes root@100.114.91.81 'systemctl stop rental; sleep 1; systemctl is-active rental')",
+      "Bash(rsync -a --delete-after --exclude .git --exclude _backups --exclude __pycache__ --exclude uploads --exclude building_manager*.db --exclude *.db-journal --exclude .DS_Store --exclude git_history_by_time --exclude git_restore_by_time --exclude db/ --exclude .claude ./ uglywolf@100.114.91.81:rental-v2-online/)",
+      "Bash(ssh -o BatchMode=yes uglywolf@100.114.91.81 'rm -f ~/rental-v2-online/building_manager.db-journal')",
+      "Bash(rsync -a building_manager.db uglywolf@100.114.91.81:rental-v2-online/building_manager.db)",
+      "Bash(ssh -o BatchMode=yes root@100.114.91.81 'systemctl start rental; sleep 4; echo \"서비스: $\\(systemctl is-active rental\\)\"; echo \"=== HTTP:\"; curl -s -o /dev/null -w \"index %{http_code}\\\\n\" http://127.0.0.1:8899/; echo \"=== 데이터 확인:\"; python3 -c \" *)",
+      "Bash(ssh -o BatchMode=yes uglywolf@100.114.91.81 'ls -la ~/rental-v2-online/_backups/daily/ 2>/dev/null | tail -3')",
+      "Bash(ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_remote uglywolf@192.168.0.156 'bash ~/부동산백업_가져오기.sh; tail -2 /mnt/USB32G/data/부동산백업/백업기록.txt; echo \"=== 받은 파일:\"; ls -la /mnt/USB32G/data/부동산백업/db/ | tail -4')",
+      "Bash(python3 -)",
+      "Bash(python3 -m py_compile db.py)",
+      "Bash(rsync -a db.py uglywolf@100.114.91.81:rental-v2-online/db.py)",
+      "Bash(ssh -o BatchMode=yes root@100.114.91.81 'systemctl restart rental; sleep 4; echo \"서비스: $\\(systemctl is-active rental\\)\"; curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://127.0.0.1:8899/; echo \"=== 갱신된 일자별 백업:\"; ls -la /home/uglywolf/rental-v2-online/_backups/daily/; echo \"=== 백업상태.txt:\"; cat /home/uglywolf/rental-v2-online/_backups/백업상태.txt')",
+      "Bash(ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_remote uglywolf@192.168.0.156 'bash ~/부동산백업_가져오기.sh; tail -1 /mnt/USB32G/data/부동산백업/백업기록.txt; ls -l /mnt/USB32G/data/부동산백업/db/; echo \"=== 받은 DB 내용 확인:\"; python3 -c \" *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'fix: 일자별 백업을 '\\\\''그 날의 최신'\\\\''으로 갱신 — 처음 것만 남겨 낮에 데이터가 바뀌어도 낡은 백업이 유지되던 문제 *)",
+      "Bash(cp db.py ~/claude_부동산/)"
     ]
   }
 }
