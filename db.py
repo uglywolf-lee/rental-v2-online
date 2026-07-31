@@ -52,6 +52,16 @@ def _resolve_drive_dir():
     return None
 
 
+def _needs_copy(src, dst):
+    """대상이 없거나, 원본이 더 새로우면 True. (하루치 백업이 갱신될 때 사본도 따라가게)"""
+    try:
+        if not os.path.exists(dst):
+            return True
+        return os.path.getmtime(src) > os.path.getmtime(dst) + 1
+    except Exception:
+        return True
+
+
 def backup_to_drive(src_file):
     """일자별 백업 파일을 드라이브 동기화 폴더(<드라이브>/부동산백업)로 복사. 폴더 없으면 조용히 통과."""
     base = _resolve_drive_dir()
@@ -61,7 +71,7 @@ def backup_to_drive(src_file):
         target = os.path.join(base, '부동산백업')
         os.makedirs(target, exist_ok=True)
         dst = os.path.join(target, os.path.basename(src_file))
-        if not os.path.exists(dst):
+        if _needs_copy(src_file, dst):
             shutil.copy2(src_file, dst)
         return dst
     except Exception:
@@ -78,7 +88,7 @@ def backup_to_pc(src_file):
             return None
         os.makedirs(PC_BACKUP_DIR, exist_ok=True)
         dst = os.path.join(PC_BACKUP_DIR, os.path.basename(src_file))
-        if not os.path.exists(dst):
+        if _needs_copy(src_file, dst):
             shutil.copy2(src_file, dst)
             for old in sorted(glob.glob(os.path.join(PC_BACKUP_DIR, 'db_*.db')))[:-DAILY_KEEP]:
                 try: os.remove(old)
@@ -162,12 +172,14 @@ def backup_db(reason='auto'):
             except Exception: pass
     except Exception:
         pass
-    # 일자별 백업: 하루 1개만 (오늘 것 없으면 생성, 최근 DAILY_KEEP일치 유지)
+    # 일자별 백업: 하루 1개 파일, 그 날의 최신 상태로 갱신 (최근 DAILY_KEEP일치 유지)
     try:
         os.makedirs(DAILY_DIR, exist_ok=True)
         today = datetime.datetime.now().strftime('%Y%m%d')
         daily_dst = os.path.join(DAILY_DIR, 'db_%s.db' % today)
-        if not os.path.exists(daily_dst) and os.path.exists(dst):
+        # 하루치 파일은 '그 날의 최신'으로 계속 갱신한다. 처음 것만 남기면 낮에 데이터가 바뀌어도
+        # 다음날까지 낡은 백업이 유지되고, 원격 백업도 낡은 것을 가져간다.
+        if os.path.exists(dst):
             shutil.copy2(dst, daily_dst)
             for old in sorted(glob.glob(os.path.join(DAILY_DIR, 'db_*.db')))[:-DAILY_KEEP]:
                 try: os.remove(old)
