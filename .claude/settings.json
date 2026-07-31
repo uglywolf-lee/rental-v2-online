@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Notion__notion-search",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-get-teams",
+      "mcp__claude_ai_Google_Drive__search_files",
+      "mcp__claude_ai_Google_Drive__read_file_content",
+      "Bash(nmap -sn *)",
+      "Bash(nmap -p 22 *)",
+      "Bash(diskutil list *)",
+      "Bash(curl -s -o /dev/null -w *)"
+    ]
+  }
+}
