@@ -32,6 +32,8 @@
     sessionStorage.removeItem('userRole');
     sessionStorage.removeItem('userEmp');
     sessionStorage.removeItem('_sess');
+    // 서류 보기 창에 로그인 상태를 넘겨주던 표도 함께 지운다 (안 지우면 로그아웃 후에도 열림)
+    try { localStorage.removeItem('_docWinPass'); } catch (e) {}
     location.href = 'index.html';
   };
 

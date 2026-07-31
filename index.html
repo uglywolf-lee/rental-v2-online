@@ -59,6 +59,16 @@ function doLogin(){
     sessionStorage.setItem('userEmp', u.employee_no || data.emp || emp);
     sessionStorage.setItem('userRole', u.role || data.role || 'office_worker');
     sessionStorage.setItem('_sess', Date.now());
+    // 서류 보기 창(별도 창)이 로그인 상태를 이어받을 수 있게 표를 남긴다.
+    //   새 창은 sessionStorage 를 물려받지 못하는 브라우저가 있어서 필요하다.
+    //   로그아웃하면 auth.js 가 지운다. 12시간 지나면 무효.
+    try {
+      localStorage.setItem('_docWinPass', JSON.stringify({
+        ts: Date.now(),
+        emp: u.employee_no || data.emp || emp,
+        role: u.role || data.role || 'office_worker'
+      }));
+    } catch (e) {}
     location.href='main.html';
   })
   .catch(e => { alert('로그인 에러: ' + e.message); });

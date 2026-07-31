@@ -210,8 +210,8 @@
                 const roomInfo = ctr.room_no ? `${ctr.room_no}호` : (ctr.host_address_full || '-');
 
                 tr.innerHTML = `
-                    <td class="cell-text-center">${roomInfo}</td>
-                    <td class="cell-text-center"><strong>${ctr.tenant_name || '-'}</strong></td>
+                    <td class="cell-text-center" data-doc-contract="${ctr.id}" title="누르면 계약서·신분증이 새 창으로 열립니다">${roomInfo}</td>
+                    <td class="cell-text-center" data-doc-contract="${ctr.id}" title="누르면 계약서·신분증이 새 창으로 열립니다"><strong>${ctr.tenant_name || '-'}</strong> 📄</td>
                     <td class="cell-text-center">${ctr.tenant_phone || '-'}</td>
                     <td class="cell-num-right">${ctr.start_date || '-'}</td>
                     <td class="cell-num-right">${ctr.end_date || '-'}</td>

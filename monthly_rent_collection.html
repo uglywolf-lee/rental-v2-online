@@ -462,8 +462,8 @@ function renderLedgerTable(list) {
         var roomNoOnly = rm ? String(rm.room || rm.room_no || '') : '';
 
         tr.innerHTML = `
-            <td class="cell-text-center"><b>${roomStr}</b></td>
-            <td class="cell-text-center">${item.tenant_name || '-'}</td>
+            <td class="cell-text-center" data-doc-room="${roomNoOnly}" title="누르면 계약서·신분증이 새 창으로 열립니다"><b>${roomStr}</b></td>
+            <td class="cell-text-center" data-doc-room="${roomNoOnly}" title="누르면 계약서·신분증이 새 창으로 열립니다">${item.tenant_name || '-'} 📄</td>
             <td class="cell-text-center">${todayStr.substring(0, 7)}</td>
             <td class="cell-text-center">매월 15일</td>
             <td class="cell-num-right">${pay ? (pay.pay_date || '-') : '-'}</td>

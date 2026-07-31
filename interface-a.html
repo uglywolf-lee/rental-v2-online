@@ -424,7 +424,7 @@ function renderRoomTable(){
                 <td class="cell-text-center">${floorLabel(rm.floor != null ? rm.floor : rm.floor_no)}</td>
                 <td class="cell-text-center">${roomNo || '-'}</td>
                 <td class="cell-num-right">${areaVal ? Number(areaVal).toFixed(3) : '-'}</td>
-                <td class="cell-text-center">-</td>
+                <td class="cell-text-center">${roomNo ? `<button type="button" title="계약서·신분증 보기" onclick="event.stopPropagation(); openDocsByRoom('${roomNo}')" style="background:#f3f0fa;color:#5a2fb8;border:1px solid #d0bfff;padding:3px 9px;border-radius:3px;cursor:pointer;font-size:.75rem;font-weight:700">📄 서류</button>` : '-'}</td>
                 <td class="cell-text-center">${rm.status || rm.current_room_status || '-'}</td>
                 <td class="col-active">1</td>
                 <td class="cell-text-center"><button type="button" style="background:#fd7e14;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:.75rem;font-weight:700">✏️ 수정</button></td>

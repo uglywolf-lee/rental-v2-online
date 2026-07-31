@@ -125,6 +125,10 @@
         /* 총합산 셀 강조 스타일 */
         .cell-total { font-weight: bold; text-decoration: underline; text-underline-offset: 3px; }
 
+        /* 누르면 서류가 열리는 칸 */
+        .cell-doc { cursor: pointer; color: #5a2fb8; }
+        .cell-doc:hover { background: #f3f0fa; text-decoration: underline; }
+
         .status-wait { color: #b58900; font-weight: bold; background: #fffbeb; padding: 2px 4px; border-radius: 3px; display: inline-block; font-size: 0.75rem; }
         .status-overdue { color: var(--danger); font-weight: bold; background: #fff5f5; padding: 2px 4px; border-radius: 3px; display: inline-block; font-size: 0.75rem; }
 
@@ -210,12 +214,20 @@ function fmt(num) {
     return trunc10(num).toLocaleString('ko-KR') + '원';
 }
 
-var ALL_BILLS = [];   // 호실별 실제 공과금
+var ALL_BILLS = [];    // 호실별 실제 공과금
+var ROOM_BY_ID = {};   // 호실 id → 호실 정보 (옛 계약서는 room_no 가 비어 있어 여기서 보완)
+
+// 계약서·신분증 창 열기(openDocs)는 guard.js 에 있습니다.
+//   여기서 다시 만들면 guard.js 것을 덮어써 로그인 정보가 전달되지 않습니다. 만들지 마세요.
 
 async function loadDashboardData() {
     try {
         const res = await fetch('/api/v1/contracts');
         CONTRACT_LIST = await res.json() || [];
+        try {
+            const rmRes = await fetch('/api/v1/rooms');
+            (await rmRes.json() || []).forEach(function(r){ ROOM_BY_ID[r.id] = r; });
+        } catch(e) {}
         try {
             const bRes = await fetch('/api/v1/bills');
             ALL_BILLS = await bRes.json() || [];
@@ -269,12 +281,19 @@ function renderLedgerTable(list) {
             ? '<span class="status-overdue">연체</span>' 
             : '<span class="status-wait">대기</span>';
 
-        var roomStr = item.host_address_full || (item.building_name ? (item.building_name + ' ' + item.room_no + '호') : '미지정');
+        // 대상 호실 — 주소 전체는 너무 길어서 '건물이름 + 호실'만 보여준다
+        var roomNo = item.room_no || (ROOM_BY_ID[item.room_id] ?
+                     (ROOM_BY_ID[item.room_id].room_no || ROOM_BY_ID[item.room_id].room) : '');
+        var bldName = item.building_name ||
+                      (ROOM_BY_ID[item.room_id] ? (ROOM_BY_ID[item.room_id].building_name || '') : '');
+        var roomStr = roomNo ? ((bldName ? bldName + ' ' : '') + roomNo + '호') : '미지정';
 
         tr.innerHTML = `
             <td class="col-no">${idx + 1}</td>
-            <td class="cell-text-center"><b>${roomStr}</b></td>
-            <td class="cell-text-center">${item.tenant_name || '-'}</td>
+            <td class="cell-text-center cell-doc" title="누르면 계약서·신분증이 새 창으로 열립니다"
+                onclick="openDocs(${item.id})"><b>${roomStr}</b></td>
+            <td class="cell-text-center cell-doc" title="누르면 계약서·신분증이 새 창으로 열립니다"
+                onclick="openDocs(${item.id})">${item.tenant_name || '-'} 📄</td>
             <td class="cell-num-right">${item.tenant_phone || '-'}</td>
             <td class="cell-day">15일</td>
             <td class="cell-num-right">${fmt(rent)}</td>

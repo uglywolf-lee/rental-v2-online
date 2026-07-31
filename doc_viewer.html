@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>서류 보기</title>
+<style>
+  :root{--primary:#6f42c1;--border:#dee2e6;--muted:#6c757d;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Malgun Gothic','Segoe UI',-apple-system,sans-serif;
+       height:100vh;display:flex;flex-direction:column;background:#2b2d30;overflow:hidden}
+
+  /* 위: 누구 것인지 한눈에 */
+  .head{background:#fff;border-bottom:3px solid var(--primary);padding:10px 14px;flex-shrink:0}
+  .head .room{font-size:1.5rem;font-weight:900;color:#111;line-height:1.1}
+  .head .who{font-size:1rem;color:#333;margin-top:2px}
+  .head .sub{font-size:.8rem;color:var(--muted);margin-top:3px;line-height:1.5}
+  .head .sub b{color:#333}
+
+  /* 탭: 계약서 / 신분증 */
+  .tabs{display:flex;gap:6px;background:#3a3d40;padding:7px 10px 0;flex-shrink:0}
+  .tab{background:#4a4e52;color:#dfe3e6;border:none;border-radius:6px 6px 0 0;
+       padding:8px 18px;font-size:.9rem;font-weight:700;cursor:pointer}
+  .tab.on{background:#fff;color:#111}
+  .tab .n{font-size:.75rem;opacity:.75;margin-left:4px}
+
+  /* 페이지 이동 */
+  .nav{background:#3a3d40;color:#c9ced2;padding:6px 12px;font-size:.82rem;
+       display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .nav button{background:#4a4e52;color:#dfe3e6;border:1px solid #616569;border-radius:4px;
+              padding:4px 12px;font-size:.82rem;cursor:pointer;font-weight:700}
+  .nav button:hover{background:#5a5e62}
+  .nav button:disabled{opacity:.35;cursor:default}
+  .nav .name{margin-left:auto;color:#9aa0a6;font-size:.78rem;
+             max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* 서류 본문 */
+  .body{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:8px}
+  .body iframe{width:100%;height:100%;border:none;background:#fff;border-radius:4px}
+  .body img{max-width:100%;max-height:100%;box-shadow:0 4px 16px rgba(0,0,0,.5);border-radius:4px}
+  .empty{color:#9aa0a6;font-size:.95rem;text-align:center;line-height:1.9;padding:24px}
+  .empty b{color:#dfe3e6}
+</style>
+<script src="guard.js"></script>
+</head>
+<body>
+
+  <div class="head">
+    <div class="room" id="hRoom">불러오는 중…</div>
+    <div class="who" id="hWho"></div>
+    <div class="sub" id="hSub"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" id="tabDoc" onclick="setMode('doc')">📄 계약서<span class="n" id="nDoc"></span></button>
+    <button class="tab"    id="tabId"  onclick="setMode('id')">🪪 신분증<span class="n" id="nId"></span></button>
+  </div>
+
+  <div class="nav">
+    <button id="btnPrev" onclick="move(-1)">◀ 이전</button>
+    <span id="pageInfo">-</span>
+    <button id="btnNext" onclick="move(1)">다음 ▶</button>
+    <span class="name" id="fileName"></span>
+  </div>
+
+  <div class="body" id="body">
+    <div class="empty">불러오는 중…</div>
+  </div>
+
+<script>
+var MODE = 'doc';      // doc = 계약서, id = 신분증
+var DOCS = [], IDS = [], IDX = { doc:0, id:0 };
+
+function qs(k){ return new URLSearchParams(location.search).get(k); }
+
+async function init(){
+  var cid  = qs('contract');
+  var room = qs('room');
+  try{
+    var contracts = await (await fetch('/api/v1/contracts')).json() || [];
+    var rooms     = await (await fetch('/api/v1/rooms')).json() || [];
+    var roomMap = {};
+    rooms.forEach(function(r){ roomMap[r.id] = r; });
+
+    var ctr = null, isPast = false;
+    if (cid)  ctr = contracts.find(function(c){ return String(c.id) === String(cid); });
+
+    if (!ctr && room){
+      // 호실번호로 그 호실의 계약을 모두 모은다
+      //   (옛 계약서는 room_no 가 비어 있어 rooms 에서 맞춰본다)
+      var mine = contracts.filter(function(c){
+        var no = c.room_no || (roomMap[c.room_id] ? (roomMap[c.room_id].room_no || roomMap[c.room_id].room) : '');
+        return String(no) === String(room);
+      });
+      var today = new Date().toISOString().split('T')[0];
+
+      // ① 오늘 유효한 계약을 먼저 (지금 살고 있는 사람)
+      ctr = mine.filter(function(c){
+        return (!c.start_date || c.start_date <= today) && (!c.end_date || c.end_date >= today);
+      }).sort(function(a,b){ return b.id - a.id; })[0];
+
+      // ② 없으면(공실) 가장 최근에 끝난 계약을 보여준다
+      if (!ctr){
+        ctr = mine.sort(function(a,b){
+          var ae = a.end_date || '', be = b.end_date || '';
+          if (ae !== be) return be.localeCompare(ae);
+          return b.id - a.id;
+        })[0];
+        if (ctr) isPast = true;
+      }
+    }
+    if (!ctr){ showEmpty('이 호실은 등록된 계약이 없습니다.'); return; }
+
+    var rm  = roomMap[ctr.room_id] || {};
+    var no  = ctr.room_no || rm.room_no || rm.room || '?';
+    var meta = {};
+    try{ meta = JSON.parse(ctr.documents_json || '{}'); }catch(e){}
+    var tn = (meta.tenant && meta.tenant.name) || ctr.tenant_name || '-';
+
+    document.title = no + '호 · ' + tn;
+    document.getElementById('hRoom').innerHTML = (rm.building_name || '') + ' ' + no + '호'
+      + (isPast ? '<span style="font-size:.8rem;font-weight:700;color:#c92a2a;background:#fff5f5;'
+                + 'border:1px solid #ffc9c9;border-radius:4px;padding:2px 8px;margin-left:10px;'
+                + 'vertical-align:middle">공실 · 직전 계약</span>' : '');
+    document.getElementById('hWho').innerHTML = '<b>' + tn + '</b>';
+
+    var phone = (meta.tenant && meta.tenant.phone) || ctr.tenant_phone || '';
+    var rrn   = (meta.tenant && meta.tenant.rrn_masked) || '';
+    var sub = [];
+    if (phone) sub.push('연락처 <b>' + phone + '</b>');
+    if (rrn)   sub.push('생년/식별 <b>' + rrn + '</b>');
+    if (ctr.start_date || ctr.end_date)
+      sub.push('계약 <b>' + (ctr.start_date||'?') + ' ~ ' + (ctr.end_date||'?') + '</b>');
+    var rent = Number(ctr.monthly_rent)||0, maint = Number(ctr.maintenance_fee)||0;
+    if (rent || maint)
+      sub.push('월세 <b>' + rent.toLocaleString() + '원</b> · 관리비 <b>' + maint.toLocaleString() + '원</b>');
+    document.getElementById('hSub').innerHTML = sub.join(' &nbsp;|&nbsp; ');
+
+    DOCS = (meta.files || []).slice();
+    if (!DOCS.length && meta.file) DOCS = [meta.file];
+    IDS  = (meta.id_files || []).slice();
+
+    document.getElementById('nDoc').textContent = DOCS.length ? '(' + DOCS.length + ')' : '';
+    document.getElementById('nId').textContent  = IDS.length  ? '(' + IDS.length  + ')' : '';
+
+    setMode(DOCS.length ? 'doc' : (IDS.length ? 'id' : 'doc'));
+  }catch(e){
+    showEmpty('자료를 불러오지 못했습니다.');
+  }
+}
+
+function list(){ return MODE === 'doc' ? DOCS : IDS; }
+
+function setMode(m){
+  MODE = m;
+  document.getElementById('tabDoc').className = 'tab' + (m === 'doc' ? ' on' : '');
+  document.getElementById('tabId').className  = 'tab' + (m === 'id'  ? ' on' : '');
+  render();
+}
+
+function move(d){
+  var L = list();
+  IDX[MODE] = Math.max(0, Math.min(L.length - 1, IDX[MODE] + d));
+  render();
+}
+
+function showEmpty(msg){
+  document.getElementById('body').innerHTML = '<div class="empty">' + msg + '</div>';
+  document.getElementById('pageInfo').textContent = '-';
+  document.getElementById('fileName').textContent = '';
+  document.getElementById('btnPrev').disabled = true;
+  document.getElementById('btnNext').disabled = true;
+}
+
+function render(){
+  var L = list(), i = IDX[MODE];
+  var what = (MODE === 'doc' ? '계약서' : '신분증');
+  if (!L.length){
+    showEmpty('등록된 ' + what + ' 가 없습니다.<br><br>'
+            + '<b>계약서 등록·수정</b> 화면에서 올리면 여기에 나옵니다.');
+    return;
+  }
+  var f = L[i] || {};
+  var path = f.path || f.filepath || '';
+  var ext  = (path.split('.').pop() || '').toLowerCase();
+  var body = document.getElementById('body');
+
+  // 파일이 실제로 있는지 먼저 확인한다.
+  //   없으면 예전엔 로그인 화면이 대신 나와 "비밀번호를 묻는" 것처럼 보였다.
+  //   원인을 숨기지 말고 그대로 알려 준다.
+  body.innerHTML = '<div class="empty">불러오는 중…</div>';
+  fetch(encodeURI(path), { method: 'HEAD' }).then(function(res){
+    var ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!res.ok || ct.indexOf('text/html') === 0){
+      body.innerHTML = '<div class="empty">'
+        + '<b>계약서 원본 파일을 찾지 못했습니다.</b><br><br>'
+        + '기록에는 있는데 서버에 파일이 없습니다.<br>'
+        + '<span style="color:#c9ced2;font-size:.85rem">' + (f.name || path) + '</span><br><br>'
+        + '계약서 스캔이 들어있는 <b>uploads 폴더</b>가 서버로 옮겨졌는지 확인해 주세요.'
+        + '</div>';
+      return;
+    }
+    if (ext === 'pdf'){
+      body.innerHTML = '<iframe src="' + encodeURI(path) + '"></iframe>';
+    } else if (['png','jpg','jpeg','gif','webp','bmp'].indexOf(ext) > -1){
+      body.innerHTML = '<img src="' + encodeURI(path) + '" alt="' + (f.name||'') + '">';
+    } else {
+      body.innerHTML = '<div class="empty">이 형식은 화면에서 볼 수 없습니다.<br><br>'
+                     + '<a href="' + encodeURI(path) + '" download style="color:#8ab4f8">파일 내려받기</a></div>';
+    }
+  }).catch(function(){
+    body.innerHTML = '<div class="empty">파일을 불러오지 못했습니다.<br><br>'
+                   + '<span style="color:#c9ced2;font-size:.85rem">' + (f.name || path) + '</span></div>';
+  });
+
+  document.getElementById('pageInfo').textContent = (i+1) + ' / ' + L.length;
+  document.getElementById('fileName').textContent = f.name || '';
+  document.getElementById('btnPrev').disabled = (i <= 0);
+  document.getElementById('btnNext').disabled = (i >= L.length - 1);
+}
+
+// 키보드 좌우로도 넘기기 (창을 옆에 띄워두고 보기 편하게)
+document.addEventListener('keydown', function(e){
+  if (e.key === 'ArrowLeft')  move(-1);
+  if (e.key === 'ArrowRight') move(1);
+});
+
+init();
+</script>
+</body>
+</html>

@@ -114,14 +114,31 @@ class Handler(SimpleHTTPRequestHandler):
                 if filename.endswith(ext_type):
                     self.send_header('Content-type', content_type)
                     break
+            # 화면·기능 파일은 절대 캐시하지 않는다.
+            #   프로그램을 업데이트해도 브라우저가 옛 파일을 계속 쓰는 사고를 막는다.
+            #   (계약서 스캔·사진은 자주 바뀌지 않으므로 캐시를 허용해 속도를 지킨다)
+            if filename.endswith(('.html', '.js', '.css')):
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
             self.end_headers()
             with open(filename, 'rb') as f:
                 self.wfile.write(f.read())
         else:
+            # 파일이 없을 때 무조건 로그인 화면을 내보내면 원인이 숨는다.
+            #   PDF·사진·js 자리에 로그인 화면이 들어가 "비밀번호를 묻는" 것처럼 보였다.
+            #   → 화면(html) 요청만 로그인으로 보내고, 첨부파일류는 정직하게 404 를 낸다.
+            _asset = filename.lower().endswith(
+                ('.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp',
+                 '.js', '.css', '.csv', '.xlsx', '.zip', '.txt', '.ico'))
+            if _asset:
+                return self.send_error(404, "File Not Found: {}".format(path))
+
             _idx = os.path.join(BASE_DIR, 'index.html')
             if os.path.exists(_idx):
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                 self.end_headers()
                 with open(_idx, 'rb') as f:
                     self.wfile.write(f.read())

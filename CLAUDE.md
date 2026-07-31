@@ -72,6 +72,42 @@
 - **호실·계약 중복 생성 금지** → 409 반환, "불러와 수정" 흐름
 - 계약서가 없는 호실은 **공실**
 
+## 3-1. ⚠️ 오렌지파이 배포는 rsync 로 — git pull 을 쓰지 말 것
+
+**`building_manager.db` 가 git에 추적되고 있습니다.**
+그래서 오렌지파이에서 `git pull` 을 하면 **커밋에 들어있는 DB가 현장 실데이터를 조용히 덮어씁니다.**
+
+- 그날 입력한 계약·수납·검침이 **사라집니다**
+- 오류 메시지가 없습니다. 화면은 멀쩡해 보입니다
+- 며칠 지나서야 "어? 그때 넣은 게 없네" 하고 알게 됩니다 → 그땐 복구가 어렵습니다
+
+**→ 해결: 배포는 git이 아니라 rsync 로 합니다. DB가 이동 경로에 아예 없습니다.**
+
+맥에서 실행 (한 덩어리로 복사해 붙여넣기):
+
+```bash
+rsync -a --delete-after --exclude '.git' --exclude '_backups' --exclude 'uploads' \
+  --exclude 'building_manager*.db' --exclude '__pycache__' --exclude '.claude' \
+  --exclude 'drive_backup_path.txt' \
+  ~/rental-v2-online/ uglywolf@100.114.91.81:rental-v2-online/ && \
+ssh root@100.114.91.81 'systemctl restart rental'
+```
+
+제외 항목을 **하나도 빼지 마세요.** 각각 이유가 있습니다.
+
+| 제외 | 이유 |
+|---|---|
+| `building_manager*.db` | **현장 실데이터.** 이게 핵심입니다 |
+| `uploads` | 계약서·신분증 스캔 원본 |
+| `_backups` | 기기별 자동 백업 |
+| `drive_backup_path.txt` | 백업 경로 설정 — **기기마다 달라야 함** |
+| `.git` `__pycache__` `.claude` | 옮길 이유 없음 |
+
+rsync는 제외한 파일을 **삭제 대상에서도 빼줍니다.** `--delete-after` 를 써도 오렌지파이의
+DB·uploads·백업은 안전합니다. 전송이 끝난 뒤에 지우므로 중간에 끊겨도 문제 없습니다.
+
+**DB를 옮겨야 할 때만** 따로, 의도적으로 `scp` 를 씁니다. 그때도 받는 쪽 DB를 먼저 복사해 두세요.
+
 ## 4. 지금까지 고친 대표적인 함정
 
 - `if (!fr.src)` 로 iframe 로딩 판정하면 항상 참 → `dataset.loaded` 사용

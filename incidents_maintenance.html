@@ -226,6 +226,7 @@ function getEnrich(item) {
     var ct = ALL_CONTRACTS.find(function(c){ return c.room_id == item.room_id; });
     return {
         roomStr: roomStr || ('호실 ID:' + item.room_id),
+        roomNo: rm ? String(rm.room || rm.room_no || '') : '',   // 서류 창 열기용
         tenantName: ct ? (ct.tenant_name || '') : '',
         tenantPhone: ct ? (ct.tenant_phone || '') : ''
     };
@@ -332,7 +333,7 @@ function renderMaintenanceTable(list) {
 
         tr.innerHTML = `
             <td class="col-no">${idx + 1}</td>
-            <td class="cell-text-center">${e.roomStr}</td>
+            <td class="cell-text-center"${e.roomNo ? ` data-doc-room="${e.roomNo}" title="누르면 계약서·신분증이 새 창으로 열립니다"` : ''}>${e.roomStr}${e.roomNo ? ' 📄' : ''}</td>
             <td class="cell-text-center">${phoneCell}</td>
             <td class="cell-text-center">${item.category || '-'}</td>
             <td class="cell-num-right">${item.reported_at || '-'}</td>
