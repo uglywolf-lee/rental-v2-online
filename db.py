@@ -20,6 +20,8 @@ DAILY_DIR = os.path.join(_APP_DIR, '_backups', 'daily')
 DAILY_KEEP = 30        # 일자별 최근 N일치 보관
 # PC 내장 드라이브(사용자 폴더) 사본 — USB 유실/손상 대비 (앱이 USB에서 돌아도 PC에 사본 유지)
 PC_BACKUP_DIR = os.path.join(os.path.expanduser('~'), '부동산백업')
+# 첨부파일(계약서 사진·PDF·신분증) 실물 폴더 — DB에는 경로만 들어가므로 이 폴더가 없으면 계약서가 열리지 않는다
+UPLOAD_DIR = os.path.join(_APP_DIR, 'uploads')
 
 
 def get_db():
@@ -86,6 +88,54 @@ def backup_to_pc(src_file):
         return None
 
 
+def sync_uploads(base_dir):
+    """계약서 사진·PDF 원본을 base_dir/uploads 로 증분 복사. 반환: (새로 복사한 개수, 전체 개수)
+
+    uploads/ 안의 파일은 한번 저장되면 바뀌지 않으므로 '대상에 없는 것만' 복사하면 된다.
+    → 매일 GB를 다시 복사하지 않고, 새 계약서만 몇 개 넘어간다.
+    DB 백업만으로는 복구가 안 된다(DB엔 경로만 있고 실물은 여기 있음)."""
+    if not base_dir or not os.path.isdir(UPLOAD_DIR):
+        return (0, 0)
+    copied = 0
+    total = 0
+    try:
+        target_root = os.path.join(base_dir, 'uploads')
+        for root, _dirs, files in os.walk(UPLOAD_DIR):
+            rel = os.path.relpath(root, UPLOAD_DIR)
+            tdir = target_root if rel == '.' else os.path.join(target_root, rel)
+            for fn in files:
+                if fn.startswith('.'):
+                    continue
+                total += 1
+                src = os.path.join(root, fn)
+                dst = os.path.join(tdir, fn)
+                try:
+                    if os.path.exists(dst) and os.path.getsize(dst) == os.path.getsize(src):
+                        continue          # 이미 사본이 있고 크기도 같음 → 건너뜀
+                    os.makedirs(tdir, exist_ok=True)
+                    shutil.copy2(src, dst)
+                    copied += 1
+                except Exception:
+                    pass                  # 한 파일이 실패해도 나머지는 계속 복사
+    except Exception:
+        pass
+    return (copied, total)
+
+
+def write_backup_status(lines):
+    """백업이 조용히 실패하는 것을 막기 위한 사람이 읽는 기록 — _backups/백업상태.txt"""
+    try:
+        os.makedirs(os.path.join(_APP_DIR, '_backups'), exist_ok=True)
+        p = os.path.join(_APP_DIR, '_backups', '백업상태.txt')
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write('마지막 백업: {}\n\n'.format(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            for ln in lines:
+                f.write(ln + '\n')
+            f.write('\n※ 이 파일의 시각이 오늘이 아니면 백업이 멈춘 것입니다. 관리자에게 알려주세요.\n')
+    except Exception:
+        pass
+
+
 def backup_db(reason='auto'):
     """building_manager.db를 일관된 스냅샷으로 _backups/auto에 롤링 저장. 반환: 백업 경로 or None"""
     if not os.path.exists(DB_PATH):
@@ -124,6 +174,19 @@ def backup_db(reason='auto'):
                 except Exception: pass
         backup_to_drive(daily_dst)   # 드라이브 동기화 폴더로도 하루 1개(폴더 있을 때만)
         backup_to_pc(daily_dst)      # PC 내장드라이브(사용자폴더)에도 사본 — USB 유실 대비
+        # 첨부파일(계약서 원본) 사본 — DB만 백업하면 복구 후 계약서가 열리지 않는다
+        status = []
+        c1, t1 = sync_uploads(PC_BACKUP_DIR)
+        status.append('계약서 원본 {}개 → {} (새로 복사 {}개)'.format(t1, PC_BACKUP_DIR, c1))
+        drive_base = _resolve_drive_dir()
+        if drive_base:
+            dbase = os.path.join(drive_base, '부동산백업')
+            c2, t2 = sync_uploads(dbase)
+            status.append('계약서 원본 {}개 → {} (새로 복사 {}개)'.format(t2, dbase, c2))
+        else:
+            status.append('구글드라이브 폴더를 찾지 못했습니다 (drive_backup_path.txt 확인)')
+        status.insert(0, 'DB 백업: {}'.format(os.path.basename(dst)))
+        write_backup_status(status)
     except Exception:
         pass
     return dst
@@ -293,6 +356,7 @@ def init_db_schema():
             ("contacts", "documents_json", "TEXT"),
             ("contacts", "account_no", "TEXT"),
             ("bills", "elec_cost", "INTEGER DEFAULT 0"),
+            ("bills", "water_usage", "INTEGER DEFAULT 0"),   # 수도 당월 지침(누적) — 다음달 전월지침 자동채움용
             ("bills", "building_id", "INTEGER DEFAULT 0"),      # 공용비용: 건물 단위 귀속
             ("bills", "scope", "TEXT DEFAULT 'room'"),          # 'room'=호실별, 'common'=공용(복도/공동화장실 등)
             ("bills", "common_area", "TEXT"),                   # 공용 구역명(예: 1층 복도, 공동화장실)

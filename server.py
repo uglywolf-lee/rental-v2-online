@@ -24,6 +24,8 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(BASE_DIR)   # 정적 파일 서빙을 앱 폴더 기준으로 고정
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024    # 첨부파일 1개 상한 (사진·PDF는 이 안에 들어옴. 동영상 실수 업로드 차단)
+_DRAIN_LIMIT = 300 * 1024 * 1024       # 초과분을 버릴 때의 한계 — 메모리에 올리지 않고 조각으로 흘려보냄
 
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -139,8 +141,20 @@ class Handler(SimpleHTTPRequestHandler):
                 length = int(self.headers.get('Content-Length', 0))
                 if length == 0:
                     return json_response(self, 400, {'error': '업로드할 파일 데이터가 없습니다.'})
+                if length > MAX_UPLOAD_BYTES:
+                    left = min(length, _DRAIN_LIMIT)   # 본문을 조각으로 버림 (메모리 보호 + 브라우저에 이유 전달)
+                    while left > 0:
+                        chunk = self.rfile.read(min(1048576, left))
+                        if not chunk:
+                            break
+                        left -= len(chunk)
+                    return json_response(self, 413, {'error': '파일이 너무 큽니다. 한 개당 25MB까지 올릴 수 있습니다. (지금 파일: {:.1f}MB) 사진을 다시 찍거나 PDF로 저장해서 올려 주세요.'.format(length / 1048576.0)})
                 raw_filename = self.headers.get('X-File-Name', 'file.dat')
                 filename = urllib.parse.unquote(raw_filename)
+                # 경로 탈출 방지: 폴더 구분자를 없애고 파일명만 남긴다 (uploads/ 밖으로 저장 불가)
+                filename = os.path.basename(filename.replace('\\', '/').strip())
+                if not filename or filename in ('.', '..'):
+                    filename = 'file.dat'
                 import time
 
                 # 파일 종류별 저장 구역(subdir) 분류
