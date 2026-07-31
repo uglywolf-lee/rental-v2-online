@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>수도요금 배분</title>
+<script src="guard.js"></script>
+<style>
+  :root{--primary:#0d6efd;--border:#dee2e6;--bg:#f8f9fa;--muted:#6c757d;--ok:#198754;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Malgun Gothic','Segoe UI',sans-serif;background:var(--bg);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .top{background:#fff;border-bottom:2px solid var(--primary);padding:8px 14px}
+  .top h1{font-size:.95rem;color:var(--primary);display:inline-block;margin-right:10px}
+  .sum{font-size:.78rem !important;padding:6px 10px !important;margin-top:6px !important}
+  .hint{font-size:.76rem;color:var(--muted)}
+  .bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .bar label{font-size:.8rem;font-weight:700;color:#495057}
+  .bar input,.bar select{padding:6px 9px;border:1px solid var(--border);border-radius:4px;font-size:.85rem}
+  .btn{border:none;border-radius:5px;padding:7px 14px;font-size:.84rem;font-weight:700;cursor:pointer;color:#fff}
+  .btn-calc{background:var(--primary)}
+  .btn-save{background:var(--ok)}
+  .btn-xls{background:#1d6f42}
+  .btn-sub{background:var(--muted)}
+  .sum{background:#e7f5ff;border:1px solid #a5d8ff;border-radius:5px;padding:7px 11px;margin-top:8px;font-size:.83rem;color:#0b5ed7}
+  .wrap{flex:1;overflow:auto;padding:12px 16px}
+  table{width:100%;border-collapse:collapse;background:#fff;font-size:.85rem}
+  th{background:#f1f3f5;border:1px solid #bbc4cc;padding:6px;position:sticky;top:0;z-index:5;white-space:nowrap}
+  td{border:1px solid #ced4da;padding:4px 6px;text-align:center}
+  tr.fh td{background:#eef4ff;font-weight:800;color:#0b5ed7;text-align:left}
+  input.m{width:100%;padding:3px 5px;border:1px solid #bbc4cc;border-radius:3px;text-align:right;font-size:.85rem}
+  .amt{font-weight:700;color:#0b5ed7}
+  .foot{background:#fff;border-top:1px solid var(--border);padding:8px 16px;font-size:.76rem;color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1>💧 수도요금 배분</h1>
+    <span class="hint">고지서 총액 + 호실 검침 → 자동 계산</span>
+    <div class="bar">
+      <label>청구 년월</label>
+      <input type="month" id="ym">
+      <button class="btn btn-calc" onclick="calcAll()">🧮 배분 계산</button>
+      <button class="btn btn-save" onclick="saveAll()">💾 호실에 저장</button>
+      <button class="btn btn-xls" onclick="downloadExcel()">📗 엑셀 파일</button>
+      <button class="btn btn-sub" onclick="clearAll()">비우기</button>
+    </div>
+
+    <!-- 고지서 장수대로 입력 -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:7px">
+      <div style="background:#e7f5ff;border:1px solid #74c0fc;border-radius:5px;padding:7px 9px">
+        <div style="font-size:.75rem;font-weight:800;color:#0b5ed7">① 40mm 계량기 <span style="background:#0b5ed7;color:#fff;padding:1px 5px;border-radius:3px">배분</span></div>
+        <div style="font-size:.68rem;color:#666;margin:2px 0 4px">상가·오피스텔 실사용분 (예: 737,920원)</div>
+        <input type="number" id="total" placeholder="총액(원)" style="width:100%;padding:5px" oninput="calcAll()">
+        <label style="display:block;margin-top:4px;font-size:.72rem;font-weight:600">배분 대상
+          <select id="grpSel" onchange="renderRows()" style="width:100%;padding:4px;margin-top:2px;font-size:.75rem">
+            <option value="general">상가·오피스텔 (지하2~7층, 10층)</option>
+            <option value="office">오피스텔만 (4~7층, 10층)</option>
+            <option value="home">8·9층 (세대별 직접 고지 · 요금만 입력)</option>
+          </select>
+        </label>
+      </div>
+      <div style="background:#fff5f5;border:1px solid #ffc9c9;border-radius:5px;padding:7px 9px">
+        <div style="font-size:.75rem;font-weight:800;color:#c92a2a">② 32mm 미사용 <span style="background:#c92a2a;color:#fff;padding:1px 5px;border-radius:3px">건물부담</span></div>
+        <div style="font-size:.68rem;color:#666;margin:2px 0 4px">사용량 0 · 기본요금만 (예: 18,800원)</div>
+        <input type="number" id="baseB1B2" placeholder="금액(원)" style="width:100%;padding:5px" oninput="calcAll()">
+        <input type="hidden" id="baseSpare" value="0">
+      </div>
+      <div style="background:#fffbf0;border:1px solid #ffe08a;border-radius:5px;padding:7px 9px">
+        <div style="font-size:.75rem;font-weight:800;color:#8a6d00">③ 청구 옵션</div>
+        <div style="font-size:.68rem;color:#666;margin:2px 0 4px">2개월 합산 고지 · 정기검침 2일</div>
+        <label style="display:block;font-size:.73rem;font-weight:700;cursor:pointer;margin-bottom:3px">
+          <input type="checkbox" id="splitMonth" onchange="calcAll()" style="vertical-align:middle"> 1개월분으로 나눔 (÷2)
+        </label>
+        <label style="display:block;font-size:.73rem;font-weight:700;cursor:pointer">
+          <input type="checkbox" id="useWelfare" onchange="calcAll()" style="vertical-align:middle"> 복지감면 적용
+        </label>
+        <div style="display:flex;gap:4px;margin-top:3px">
+          <input type="number" id="welfareAmt" placeholder="감면액" style="width:50%;padding:4px;font-size:.72rem" oninput="calcAll()">
+          <input type="text" id="welfareRoom" placeholder="대상 호실" style="width:50%;padding:4px;font-size:.72rem" oninput="calcAll()">
+        </div>
+      </div>
+      <input type="hidden" id="aptAmt" value=""><input type="hidden" id="aptUse" value="">
+    </div>
+    <div style="background:#f8f9fa;border:1px solid var(--border);border-radius:5px;padding:7px 10px;margin-top:7px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:.74rem;font-weight:800;color:#495057">서울시 요율(1㎥)</span>
+        <label style="font-size:.75rem">상수도 <input type="number" id="rWater" value="1270" style="width:75px;padding:3px 5px" oninput="calcAll()"></label>
+        <label style="font-size:.75rem">하수도 <input type="number" id="rSewer" value="1550" style="width:75px;padding:3px 5px" oninput="calcAll()"></label>
+        <label style="font-size:.75rem">물이용부담금 <input type="number" id="rFund" value="170" style="width:70px;padding:3px 5px" oninput="calcAll()"></label>
+        <span style="font-size:.75rem;color:#0b5ed7;font-weight:800" id="unitSum">= 톤당 2,990원</span>
+        <span style="border-left:1px solid #ccc;padding-left:10px;font-size:.75rem">기본요금
+          <input type="number" id="baseFee" value="32000" style="width:85px;padding:3px 5px" oninput="calcAll()">원
+        </span>
+        <label style="font-size:.75rem">
+          <select id="baseShare" onchange="calcAll()" style="padding:3px 5px;font-size:.75rem">
+            <option value="equal">호실 균등 분담</option>
+            <option value="usage">사용량 비례 분담</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="sum" id="sumBox">사용량을 입력하면 합계가 표시됩니다.</div>
+  </div>
+
+  <div class="wrap">
+    <table>
+      <thead><tr>
+        <th style="width:80px">층</th><th style="width:90px">호실</th>
+        <th style="width:115px">지난 검침</th><th style="width:115px">이번 검침</th>
+        <th style="width:95px">사용량(톤)</th><th style="width:105px">사용요금</th>
+        <th style="width:100px">기본요금</th><th style="width:125px">청구액(원)</th>
+      </tr></thead>
+      <tbody id="tb"><tr><td colspan="7">불러오는 중…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    ※ 배분 방식: <b>호실 금액 = 고지서 총액 × (그 호실 사용량 ÷ 전체 호실 사용량 합계)</b><br>
+    ※ 복도·공동화장실 등 공용 사용분은 각 호실 사용량 비율대로 자동 분담됩니다.
+  </div>
+
+<script>
+var ROOMS=[], BILLS=[], ROWS=[];
+function fl(f){ return f<0 ? ('지하 '+Math.abs(f)+'층') : (f+'층'); }
+function won(n){ return (Math.floor(Number(n)||0)).toLocaleString(); }
+
+async function init(){
+  document.getElementById('ym').value = new Date().toISOString().substring(0,7);
+  try{
+    ROOMS = await (await fetch('/api/v1/rooms')).json() || [];
+    BILLS = await (await fetch('/api/v1/bills')).json() || [];
+  }catch(e){}
+  renderRows();
+}
+
+function inGroup(f, g){
+  if (g === 'home')    return (f === 8 || f === 9);           // 8·9층 (세대별 직접 고지)
+  if (g === 'office')  return (f >= 4 && f !== 8 && f !== 9); // 오피스텔만 (4~7층·10층)
+  return !(f === 8 || f === 9);                               // 기본: 상가+오피스텔
+}
+function isHomeMode(){ return document.getElementById('grpSel').value === 'home'; }
+
+// 지난 검침 지침 자동 채움 (수도는 2개월마다 검침이라 '전월'이 아님)
+// 이번 달(현재 청구월)에 이미 저장한 건인지 판정 — 잘못 넣은 값을 되불러 고치기 위함
+function isThisMonth(b){
+  var d = String(b.created_at || b.due_date || '');
+  var now = new Date();
+  var ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  return d.indexOf(ym) === 0;
+}
+
+function waterHistory(roomId){
+  return BILLS.filter(function(x){
+    return x.scope !== 'common' && String(x.room_id) === String(roomId) && x.water_usage;
+  }).sort(function(a,b){ return b.id - a.id; });
+}
+
+// 지난 검침 — 이번 달 저장분이 있으면 그 전 건을 씀
+function lastWaterReading(roomId){
+  var h = waterHistory(roomId);
+  if (h.length && isThisMonth(h[0])) h = h.slice(1);
+  return h.length ? (h[0].water_usage || '') : '';
+}
+
+// 이번 검침 — 이번 달에 이미 저장했다면 그 값을 되돌려 채움(수정 가능)
+function currentWaterReading(roomId){
+  var h = waterHistory(roomId);
+  return (h.length && isThisMonth(h[0])) ? (h[0].water_usage || '') : '';
+}
+
+// 8·9층: 이번 달에 이미 넣은 요금을 되돌려 채움(수정 가능)
+function currentWaterAmount(roomId){
+  var b = BILLS.filter(function(x){
+    return x.scope !== 'common' && String(x.room_id) === String(roomId) && x.water_cost && isThisMonth(x);
+  }).sort(function(a,b){ return b.id - a.id; })[0];
+  return b ? (b.water_cost || '') : '';
+}
+
+function renderRows(){
+  var g = document.getElementById('grpSel').value;
+  var list = ROOMS.filter(function(r){
+    var f = (r.floor!=null? r.floor : r.floor_no); return inGroup(Number(f), g);
+  }).sort(function(a,b){
+    var fa=(a.floor!=null?a.floor:a.floor_no), fb=(b.floor!=null?b.floor:b.floor_no);
+    if(fa!==fb) return fa-fb;
+    return String(a.room||a.room_no).localeCompare(String(b.room||b.room_no));
+  });
+  ROWS = list.map(function(r){
+    var no = String(r.room||r.room_no||'');
+    return { id:r.id, floor:Number(r.floor!=null?r.floor:r.floor_no), room:no,
+             common: (no === '1000') };      // 1000호(사옥) = 공용 → 건물 부담
+  });
+  var homeMode = isHomeMode();
+  var html='', last=null;
+  ROWS.forEach(function(r,i){
+    if(r.floor!==last){ html += '<tr class="fh"><td colspan="7">'+fl(r.floor)+'</td></tr>'; last=r.floor; }
+    if (homeMode) {
+      // 8·9층: 계량기 값이 우리에게 안 오므로 '고지 요금'만 직접 입력
+      html += '<tr>'
+        + '<td>'+fl(r.floor)+'</td><td><b>'+r.room+'</b></td>'
+        + '<td colspan="4" style="color:#888;font-size:.78rem">세대별 직접 고지 (계량기 값 없음)</td>'
+        + '<td><input class="m" type="number" id="h_'+i+'" placeholder="요금(원)" value="'+currentWaterAmount(r.id)+'" oninput="calcAll()"></td>'
+        + '</tr>';
+    } else {
+      html += '<tr'+(r.common?' style="background:#fff5f5"':'')+'>'
+        + '<td>'+fl(r.floor)+'</td><td><b>'+r.room+'</b>'
+        + (r.common?'<div style="font-size:.66rem;color:#c92a2a;font-weight:700">건물주 부담</div>':'')+'</td>'
+        + '<td><input class="m" type="number" id="p_'+i+'" value="'+lastWaterReading(r.id)+'" oninput="calcAll()"></td>'
+        + '<td><input class="m" type="number" id="c_'+i+'" value="'+currentWaterReading(r.id)+'" oninput="calcAll()"></td>'
+        + '<td id="u_'+i+'">-</td><td id="r_'+i+'">-</td><td id="b_'+i+'">-</td><td class="amt" id="a_'+i+'">-</td>'
+        + '</tr>';
+    }
+  });
+  document.getElementById('tb').innerHTML = html || '<tr><td colspan="7">해당 호실이 없습니다.</td></tr>';
+  // 이번 달에 이미 저장한 칸은 노란색으로 표시 — 바로 고칠 수 있음
+  ROWS.forEach(function(r, i){
+    ['c_'+i, 'h_'+i].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && el.value !== '') {
+        el.style.background = '#fff9db';
+        el.title = '이번 달에 이미 저장한 값입니다. 잘못되었으면 여기서 고친 뒤 다시 저장하세요.';
+      }
+    });
+  });
+  calcAll();
+}
+
+function calcAll(){
+  // 8·9층 모드: 세대별 요금만 입력받아 합계만 표시
+  if (isHomeMode()) {
+    var tot = 0, cnt = 0;
+    ROWS.forEach(function(_, i){
+      var el = document.getElementById('h_'+i);
+      var v = el ? (Number(el.value)||0) : 0;
+      if (v) { tot += v; cnt++; }
+    });
+    document.getElementById('sumBox').innerHTML =
+      '<span style="background:#6741d9;color:#fff;padding:2px 9px;border-radius:3px;font-weight:800">8·9층 · 세대별 직접 고지</span>'
+      + ' <span style="font-size:.78rem;color:#666">계량기 값이 건물로 오지 않아 <b>요금만</b> 입력합니다. (배분 계산 없음)</span>'
+      + '<br>입력된 세대 <b>' + cnt + '</b>곳 · 요금 합계 <b>' + won(tot) + '원</b>';
+    return;
+  }
+  var div = document.getElementById('splitMonth').checked ? 2 : 1;   // 1개월분으로 나눌지
+  var total = (Number(document.getElementById('total').value) || 0) / div;
+  var uses = ROWS.map(function(_,i){
+    var p = parseFloat(document.getElementById('p_'+i).value);
+    var c = parseFloat(document.getElementById('c_'+i).value);
+    return (isNaN(p)||isNaN(c)) ? 0 : Math.max(0, c-p);
+  });
+  var sum = uses.reduce(function(a,b){ return a+b; }, 0);
+  var assigned = 0, commonAmt = 0;
+  var wOn = document.getElementById('useWelfare').checked;
+  var wAmt = Number(document.getElementById('welfareAmt').value) || 0;
+  var wRooms = (document.getElementById('welfareRoom').value || '').split(/[,\s]+/).filter(function(x){ return x; });
+  // 서울시 요율표 기준 톤당 단가 = 상수도 + 하수도 + 물이용부담금
+  var rW = Number(document.getElementById('rWater').value)||0;
+  var rS = Number(document.getElementById('rSewer').value)||0;
+  var rF = Number(document.getElementById('rFund').value)||0;
+  var unitPrice = rW + rS + rF;
+  document.getElementById('unitSum').textContent = '= 톤당 ' + won(unitPrice) + '원';
+  // 기본요금 (고지서 기본요금을 호실들이 분담)
+  var baseFee = (Number(document.getElementById('baseFee').value)||0) / div;
+  var shareMode = document.getElementById('baseShare').value;
+  // 실제로 검침값이 들어간 호실 수(공용 제외) — 기본요금 균등 분담 기준
+  var payUsed = ROWS.filter(function(r,i){ return !r.common && uses[i] > 0; }).length || 1;
+  ROWS.forEach(function(r,i){
+    var u = uses[i];
+    document.getElementById('u_'+i).textContent = u ? u.toLocaleString() : '-';
+    var ratio = sum>0 ? (u/sum) : 0;
+    // 사용요금 = 사용량 × 서울시 요율 (10원 절사)
+    var useAmt = Math.floor(u*unitPrice/10)*10;
+    document.getElementById('r_'+i).innerHTML = u
+      ? won(useAmt)+'<div style="font-size:.65rem;color:#888">'+u.toLocaleString()+'톤×'+won(unitPrice)+'</div>' : '-';
+    // 기본요금 분담
+    var baseAmt = 0;
+    if (baseFee>0 && !r.common && sum>0 && u>0){   // 검침이 들어간 호실에만 분담
+      baseAmt = (shareMode==='usage') ? Math.floor(baseFee*ratio/10)*10
+                                      : Math.floor(baseFee/payUsed/10)*10;
+    }
+    document.getElementById('b_'+i).textContent = baseAmt ? won(baseAmt) : '-';
+    var amt = useAmt + baseAmt;
+    // 복지감면: 지정한 호실에서 감면액을 뺌
+    var cut = 0;
+    if (wOn && wAmt > 0 && wRooms.indexOf(r.room) > -1) {
+      cut = Math.floor((wAmt / Math.max(1, wRooms.length)) / div / 10) * 10;
+      amt = Math.max(0, amt - cut);
+    }
+    if (r.common) commonAmt += amt;      // 1000호(공용) → 임차인 청구 아님
+    else assigned += amt;
+    var cell = document.getElementById('a_'+i);
+    cell.textContent = amt ? won(amt) : '-';
+    cell.innerHTML = (amt ? won(amt) : '-') + (cut ? '<div style="font-size:.66rem;color:#198754">감면 -'+won(cut)+'</div>' : '');
+    cell.style.color = r.common ? '#c92a2a' : '#0b5ed7';
+  });
+  var n = uses.filter(function(x){ return x>0; }).length;
+  var b12   = (Number(document.getElementById('baseB1B2').value) || 0) / div;
+  var spare = (Number(document.getElementById('baseSpare').value) || 0) / div;
+  var apt   = (Number(document.getElementById('aptAmt').value) || 0) / div;
+  var aptU  = Number(document.getElementById('aptUse').value) || 0;
+  var diff = (total>0) ? (total - assigned - commonAmt) : 0;      // 고지서 대비 차액
+  var ownerCost = b12 + spare + commonAmt + diff;                 // 미사용계량기 + 1000호 + 차액
+  var grand = total + b12 + spare + apt;
+
+  var sep = '<span style="color:#adb5bd;margin:0 8px">|</span>';
+  document.getElementById('sumBox').innerHTML =
+      '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px 0;line-height:1.6">'
+    + '<span style="background:'+(div===2?'#fff3cd':'#dbe9ff')+';padding:1px 7px;border-radius:3px;font-weight:800">'
+      + (div===2 ? '1개월분(÷2)' : '2개월분') + '</span>'
+    + '<span style="background:#0b5ed7;color:#fff;padding:1px 8px;border-radius:3px;font-weight:800;margin-left:6px">톤당 '+won(unitPrice)+'원</span>'
+    + '<span style="font-size:.72rem;color:#666;margin-left:5px">서울시 요금기준 (상수도 '+won(rW)+' + 하수도 '+won(rS)+' + 물이용부담금 '+won(rF)+')</span>'
+    + (wOn && wAmt ? '<span style="background:#e6f4ea;color:#198754;padding:1px 7px;border-radius:3px;font-weight:700;margin-left:6px">감면 '+won(wAmt)+'</span>' : '')
+    + sep
+    + '<b>①</b> ' + n + '곳 · ' + sum.toLocaleString() + '톤 → <b style="color:#0b5ed7">' + won(assigned) + '원</b>'
+    + (total>0 ? ' <span style="font-size:.73rem;color:#666">/고지 '+won(total)+'</span>'
+        + (Math.abs(diff) < 1000
+            ? '<span style="color:#198754;font-weight:700;font-size:.73rem"> 차이 '+won(diff)+'</span>'
+            : '<span style="color:#c92a2a;font-weight:700;font-size:.73rem"> 차이 '+won(diff)+' 확인</span>') : '')
+    + sep
+    + '<b>②</b> 미사용 ' + won(b12) + '원'
+    + (commonAmt ? ' · 1000호 '+won(commonAmt) : '')
+    + ' → <b style="color:#c92a2a">건물주 ' + won(ownerCost) + '원</b>'
+    + sep
+    + '<b style="font-size:.9rem">총 ' + won(grand) + '원</b>'
+    + '</div>';
+}
+
+async function saveAll(){
+  // 8·9층: 입력한 요금을 각 호실에 그대로 저장
+  if (isHomeMode()) {
+    var list = [];
+    ROWS.forEach(function(r, i){
+      var el = document.getElementById('h_'+i);
+      var v = el ? (Number(el.value)||0) : 0;
+      if (v) list.push({ id:r.id, amt:v });
+    });
+    if(!list.length) return alert('입력된 요금이 없습니다.');
+    if(!confirm(list.length + '개 세대의 수도요금을 저장할까요?')) return;
+    var ym0 = document.getElementById('ym').value || '';
+    var ok0 = 0;
+    for (var k=0;k<list.length;k++){
+      try{
+        var r0 = await fetch('/api/v1/bills',{method:'POST',headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ room_id:list[k].id, water_cost:list[k].amt,
+                                 due_date: ym0? (ym0+'-05'):'', status:'미납(고지대기)' })});
+        if(r0.ok) ok0++;
+      }catch(e){}
+    }
+    BILLS = await (await fetch('/api/v1/bills')).json() || [];
+    alert('💾 저장 완료 — ' + ok0 + '세대');
+    return;
+  }
+
+  var total = Number(document.getElementById('total').value) || 0;
+  if(!total) return alert('고지서 총액을 먼저 입력하세요.');
+  var ym = document.getElementById('ym').value || '';
+  var targets = [];
+  ROWS.forEach(function(r,i){
+    if (r.common) return;                    // 1000호는 건물주 부담 → 임차인 청구 저장 제외
+    var a = document.getElementById('a_'+i).textContent.replace(/[^0-9]/g,'');
+    var cur = document.getElementById('c_'+i).value;      // 이번 검침 지침
+    if(a) targets.push({ id:r.id, amt:Number(a), meter: cur===''? 0 : Number(cur) });
+  });
+  if(!targets.length) return alert('배분된 금액이 없습니다. 사용량을 입력하고 [배분 계산]을 눌러주세요.');
+  if(!confirm(targets.length+'개 호실에 수도요금을 저장할까요?')) return;
+  var ok=0;
+  for(var i=0;i<targets.length;i++){
+    try{
+      var res = await fetch('/api/v1/bills',{method:'POST',headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ room_id:targets[i].id, water_cost:targets[i].amt,
+                               water_usage: targets[i].meter,     // 다음 검침의 '지난 검침'으로 자동 사용
+                               due_date: ym? (ym+'-05'):'', status:'미납(고지대기)' })});
+      if(res.ok) ok++;
+    }catch(e){}
+  }
+  BILLS = await (await fetch('/api/v1/bills')).json() || [];
+  alert('💾 저장 완료 — '+ok+'건');
+}
+
+function downloadExcel(){
+  var g = document.getElementById('grpSel').selectedOptions[0].textContent;
+  var ym = document.getElementById('ym').value || '';
+  var total = document.getElementById('total').value || '';
+  var lines = ['수도요금 배분표','청구년월,'+ym,'',
+    '[고지서 내역]',
+    '① 실검침(배분),'+total+',대상: '+g,
+    '② 지하1·2층 기본요금(건물부담),'+(document.getElementById('baseB1B2').value||0),
+    '③ 예비관 25mm(건물부담),'+(document.getElementById('baseSpare').value||0),
+    '④ 아파트 8·9층(단독고지),'+(document.getElementById('aptAmt').value||0)+',검침량(톤),'+(document.getElementById('aptUse').value||0),
+    '',
+    '[호실별 배분]',
+    '층,호실,전월지침,당월지침,사용량(톤),톤당단가(원),청구금액(원)'];
+  ROWS.forEach(function(r,i){
+    lines.push([fl(r.floor), r.room,
+      document.getElementById('p_'+i).value, document.getElementById('c_'+i).value,
+      document.getElementById('u_'+i).textContent, document.getElementById('r_'+i).textContent,
+      document.getElementById('a_'+i).textContent.replace(/,/g,'')].join(','));
+  });
+  var blob = new Blob(['﻿'+lines.join('\r\n')], {type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='수도요금배분_'+ym+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+function clearAll(){
+  if(!confirm('입력을 모두 지울까요?')) return;
+  ROWS.forEach(function(_,i){
+    document.getElementById('p_'+i).value=''; document.getElementById('c_'+i).value='';
+  });
+  ['total','baseB1B2','baseSpare','aptAmt','aptUse'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  calcAll();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

@@ -219,8 +219,15 @@ async function handleAssetSubmit(event) {
             body: JSON.stringify({building_id:bldgId, floor_no:floors, room_no:roomNo, area_sqm:area, current_room_status:'비어있다'})
         });
         const room = await r2.json();
+        if (!r2.ok || room.duplicate) {
+            alert('⚠️ ' + (room.error || '등록 실패'));
+            await loadBuildings();
+            if (room.id) { var t = ALL_ROOMS_A.find(function(x){ return String(x.id)===String(room.id); }); if (t) selectRoomToForm(t, null); }
+            return;
+        }
         alert('✅ 완료 — 건물:' + name + ' / 호실:' + roomNo);
         clearRoomInputs();
+        loadBuildings();
     } catch(e) {
         alert('등록 오류: ' + e.message);
     }

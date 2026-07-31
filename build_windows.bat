@@ -25,7 +25,10 @@ echo [3/3] Copying app files (HTML / JS / DB)...
 set "OUT=dist\RealEstate"
 for %%F in (index.html main.html interface-a.html contract_master.html contractor_roster.html utility_bills.html monthly_rent_collection.html incidents_maintenance.html g_h_i_dashboard.html auditlog.html team_management.html partner_roster.html daily_report.html) do copy /Y "%%F" "%OUT%\" >nul
 for %%F in (auth.js guard.js date8.js) do copy /Y "%%F" "%OUT%\" >nul
-copy /Y building_manager.db "%OUT%\" >nul 2>nul
+REM DB is NOT shipped by default (protects live data on site).
+REM The app creates a new empty DB on first run.
+REM For a brand-new install, uncomment the next line:
+REM copy /Y building_manager.db "%OUT%\" >nul 2>nul
 REM one-time setup script (firewall + auto-start) shipped with the app
 copy /Y install_service.bat "%OUT%\" >nul 2>nul
 copy /Y drive_backup_path.txt "%OUT%\" >nul 2>nul

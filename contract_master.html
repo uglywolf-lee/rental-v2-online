@@ -406,6 +406,21 @@ async function saveContract(){
   };
   if(!payload.start_date){ return alert('❌ 계약 시작일을 확인해 주세요.'); }
 
+  // 계약 기간 검증: 종료일이 시작일보다 뒤 + 최소 1개월
+  if (payload.end_date) {
+    var _s = new Date(String(payload.start_date).substring(0,10));
+    var _e = new Date(String(payload.end_date).substring(0,10));
+    if (!isNaN(_s) && !isNaN(_e)) {
+      if (_e <= _s) {
+        return alert('❌ 계약 종료일은 시작일보다 뒤여야 합니다.\n\n시작: ' + payload.start_date + '\n종료: ' + payload.end_date);
+      }
+      var _min = new Date(_s); _min.setMonth(_min.getMonth() + 1);
+      if (_e < _min) {
+        return alert('❌ 계약 기간은 최소 1개월 이상이어야 합니다.\n\n시작: ' + payload.start_date + '\n종료: ' + payload.end_date);
+      }
+    }
+  }
+
   // 당사자/여권/원본문서 메타는 documents_json 에 함께 보관 (스키마 변경 없이)
   var meta={
     files: DOC_FILES,            // 계약서 원본(여러 장)
@@ -431,6 +446,8 @@ async function saveContract(){
       document.getElementById('idFileList').innerHTML='';
       document.getElementById('vatApplied').checked=true;
       VIEW_IDX=0; switchViewer('doc');
+    }else if(d.duplicate && d.id){
+      if(confirm('⚠️ ' + d.error + '\n\n지금 그 계약을 불러와 수정할까요?')) loadContractForEdit(d.id);
     }else{
       alert('❌ 저장 실패: '+(d.error||'알 수 없는 오류'));
     }

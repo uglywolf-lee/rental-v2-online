@@ -175,6 +175,7 @@
                         <th>연락처</th>
                         <th class="th-day">약정일</th>
                         <th>월세 금액</th>
+                        <th>관리비</th>
                         <th>전기</th>
                         <th>수도</th>
                         <th>가스</th>
@@ -187,7 +188,7 @@
                 </thead>
                 <tbody id="dashboardTableBody">
                     <tr>
-                        <td colspan="14" class="cell-text-center">데이터를 불러오는 중입니다...</td>
+                        <td colspan="15" class="cell-text-center">데이터를 불러오는 중입니다...</td>
                     </tr>
                 </tbody>
             </table>
@@ -230,7 +231,7 @@ function renderLedgerTable(list) {
     tbody.innerHTML = '';
 
     if(!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14" class="cell-text-center">등록된 수납 대상자가 없습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="15" class="cell-text-center">등록된 수납 대상자가 없습니다.</td></tr>';
         return;
     }
 
@@ -255,8 +256,13 @@ function renderLedgerTable(list) {
             var meta = JSON.parse(item.documents_json || '{}');
             if (meta && meta.vat_applied === false) vatOn = false;
         } catch(e) {}
-        var vat = vatOn ? trunc10(rent * 0.1) : 0;
-        var total = trunc10(rent + elec + water + gas + net + vat);
+        // 부가세 = 관리비 × 10%
+        //   월세는 부가세 포함 금액으로 받아 따로 처리하므로 여기서 더하지 않습니다.
+        //   공과금 실비도 제외입니다. (명세서 contractor_roster.html 과 반드시 같은 규칙)
+        var maint = Number(item.maintenance_fee) || 0;
+        var vat = vatOn ? trunc10(maint * 0.1) : 0;
+        // 총합산 = 월세 + 관리비 + 부가세 + 공과금 실비 (관리비 누락 버그 수정)
+        var total = trunc10(rent + maint + vat + elec + water + gas + net);
 
         var isOverdue = item.end_date && item.end_date < todayStr;
         var statusBadge = isOverdue 
@@ -272,6 +278,7 @@ function renderLedgerTable(list) {
             <td class="cell-num-right">${item.tenant_phone || '-'}</td>
             <td class="cell-day">15일</td>
             <td class="cell-num-right">${fmt(rent)}</td>
+            <td class="cell-num-right">${fmt(maint)}</td>
             <td class="cell-num-right">${fmt(elec)}</td>
             <td class="cell-num-right">${fmt(water)}</td>
             <td class="cell-num-right">${fmt(gas)}</td>

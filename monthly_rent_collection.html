@@ -148,7 +148,11 @@
 
             <div class="row-grid">
                 <div class="form-group">
-                    <label>부가세 (월세 10% / 10원 절사 / 원)
+                    <label>부가세 (10% / 10원 절사)
+                        <span style="font-weight:400;font-size:.72rem;color:#666;display:block;margin-top:2px">
+                            <input type="checkbox" id="vatRent" checked onchange="calculateTotalBill()" style="vertical-align:middle"> 월세
+                            <input type="checkbox" id="vatAdmin" checked onchange="calculateTotalBill()" style="vertical-align:middle;margin-left:6px"> 관리비
+                        </span>
                         <span style="font-weight:400;font-size:.75rem;color:#666;">
                             <input type="checkbox" id="vatApply" checked onchange="calculateTotalBill()" style="vertical-align:middle;margin-left:6px;">
                             적용
@@ -222,6 +226,7 @@
 var ALL_CONTRACTS = [];
 var ALL_ROOMS = [];
 var ALL_PAYMENTS = [];
+var ALL_BILLS = [];
 
 // 10원 단위 절사 유틸리티
 function trunc10(num) {
@@ -243,6 +248,12 @@ async function loadPaymentLedgerData() {
             const pRes = await fetch('/api/v1/payments');
             ALL_PAYMENTS = await pRes.json() || [];
         } catch(e) { ALL_PAYMENTS = []; }
+
+        // 공과금(검침 화면에서 입력한 값) — 호실 선택 시 자동 반영
+        try {
+            const bRes = await fetch('/api/v1/bills');
+            ALL_BILLS = await bRes.json() || [];
+        } catch(e) { ALL_BILLS = []; }
 
         // 호실 검색용 자동완성 바인딩
         const dl = document.getElementById('rentRoomsDatalist');
@@ -322,6 +333,19 @@ function onRoomSelected(roomId) {
         document.getElementById('rentMan').value = Math.floor(rentWon / 10000); // 🌟 만단위 바인딩[span_3](start_span)[span_3](end_span)
         document.getElementById('billAdmin').value = contract.maintenance_fee || 0;
 
+        // 공과금 검침 화면에서 입력한 그 호실의 최신 공과금을 자동으로 채움
+        var bill = ALL_BILLS.filter(function(b){
+            return b.scope !== 'common' && String(b.room_id) === String(roomId);
+        }).sort(function(a,b){ return b.id - a.id; })[0];
+        if (bill) {
+            document.getElementById('billElec').value  = bill.elec_cost  || 0;
+            document.getElementById('billWater').value = bill.water_cost || 0;
+            document.getElementById('billGas').value   = bill.gas_cost   || 0;
+            document.getElementById('billNet').value   = bill.net_cost   || 0;
+        } else {
+            ['billElec','billWater','billGas','billNet'].forEach(function(id){ document.getElementById(id).value = 0; });
+        }
+
         // 계약서에 저장된 부가세 적용 여부를 그대로 따라감 (단기계약 등 미적용 반영)
         var vatOn = true, vnote = '';
         try {
@@ -378,10 +402,23 @@ function calculateTotalBill() {
     var gas = parseInt(document.getElementById('billGas').value, 10) || 0;
     var net = parseInt(document.getElementById('billNet').value, 10) || 0;
     
-    // 부가세 10% (10원 단위 절사) — 계약서에서 '부가세 미적용'이면 0
+    // 부가세 10% = (월세 + 관리비) × 10%  ※ 공과금 실비는 제외 (이미 부가세 포함 고지분)
+    // 관리비 0원인 세대는 자동으로 월세분만 계산됨
     var applyVat = document.getElementById('vatApply').checked;
-    var vat = applyVat ? trunc10(rentWon * 0.1) : 0;
+    var onRent  = document.getElementById('vatRent').checked;
+    var onAdmin = document.getElementById('vatAdmin').checked;
+    var vatBase = (onRent ? rentWon : 0) + (onAdmin ? admin : 0);
+    var vat = applyVat ? trunc10(vatBase * 0.1) : 0;
     document.getElementById('vatAmount').value = vat;
+    var vn = document.getElementById('vatNote');
+    if (vn && applyVat) {
+        var parts = [];
+        if (onRent)  parts.push('월세 ' + rentWon.toLocaleString());
+        if (onAdmin && admin) parts.push('관리비 ' + admin.toLocaleString());
+        vn.textContent = parts.length
+            ? '과세대상: ' + parts.join(' + ') + ' = ' + vatBase.toLocaleString() + '원 (공과금 제외)'
+            : '과세대상 없음';
+    }
     
     // 총 수납액 (10원 단위 절사)
     var total = trunc10(rentWon + admin + elec + water + gas + net + vat);
@@ -408,7 +445,7 @@ function renderLedgerTable(list) {
         // 계약서의 부가세 설정 반영
         var vatOn = true;
         try { var mm = JSON.parse(item.documents_json || '{}'); if (mm && mm.vat_applied === false) vatOn = false; } catch(e) {}
-        var vat = vatOn ? trunc10(rent * 0.1) : 0;
+        var vat = vatOn ? trunc10((rent + admin) * 0.1) : 0;   // 월세+관리비 과세
         var total = trunc10(rent + admin + vat);
 
         // 이번 달 실제 수납 기록 조회 → 없으면 '미납'

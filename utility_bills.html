@@ -192,13 +192,37 @@
         
         <!-- 우측 상단: 공과금 통합 연속 입력판 -->
         <div class="right-top-batch">
+            <div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:2px solid var(--primary)">
+                <button type="button" id="tabBtnBatch" onclick="switchUtilTab('batch')"
+                        style="padding:8px 16px;font-size:.88rem;font-weight:700;cursor:pointer;border:1px solid var(--primary);border-bottom:none;border-radius:5px 5px 0 0;background:var(--primary);color:#fff">
+                    📋 공과금 입력판
+                </button>
+                <button type="button" id="tabBtnKepco" onclick="switchUtilTab('kepco')"
+                        style="padding:8px 16px;font-size:.88rem;font-weight:700;cursor:pointer;border:1px solid #ccc;border-bottom:none;border-radius:5px 5px 0 0;background:#e9ecef;color:#6c757d">
+                    ⚡ 한전 검침표 (엑셀·메일)
+                </button>
+                <button type="button" id="tabBtnWater" onclick="switchUtilTab('water')"
+                        style="padding:8px 16px;font-size:.88rem;font-weight:700;cursor:pointer;border:1px solid #ccc;border-bottom:none;border-radius:5px 5px 0 0;background:#e9ecef;color:#6c757d">
+                    💧 수도요금 배분
+                </button>
+            </div>
+
+            <div id="waterPane" style="display:none;flex:1;min-height:0">
+                <iframe id="waterFrame" style="width:100%;height:100%;min-height:560px;border:1px solid var(--border);border-radius:5px;background:#fff"></iframe>
+            </div>
+
+            <div id="kepcoPane" style="display:none;flex:1;min-height:0">
+                <iframe id="kepcoFrame" style="width:100%;height:100%;min-height:560px;border:1px solid var(--border);border-radius:5px;background:#fff"></iframe>
+            </div>
+
+            <div id="batchPane">
             <div class="batch-title">
-                <span>📋 공과금 통합 고속 연속 입력판</span>
+                <span>📋 호실별 요금 연속 입력·수정판</span>
                 <span class="batch-badge" id="batchCountBadge">전체 호실</span>
             </div>
             <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-bottom:10px">
                 <input type="text" id="batchSearchKw" class="form-control" style="font-size:.9rem"
-                       placeholder="호실 검색 — 440 입력 시 4층 전체가 나옵니다 (B1, 8 등도 가능)"
+                       placeholder="호실 검색 — 440 입력 시 4층 전체 (B1, 8 등도 가능)"
                        oninput="renderBatchTable()">
                 <button type="button" class="btn btn-main" style="flex:none;width:70px;padding:8px" onclick="renderBatchTable()">검색</button>
                 <button type="button" class="btn btn-sub" style="flex:none;width:70px;padding:8px" onclick="document.getElementById('batchSearchKw').value='';renderBatchTable()">전체</button>
@@ -207,32 +231,31 @@
                 <button type="button" class="btn btn-main" style="flex:none;padding:9px 18px;font-size:.9rem" onclick="saveAllBatchRows()">
                     💾 화면의 호실 일괄 저장
                 </button>
-                <span style="font-size:.78rem;color:var(--text-muted)">값을 입력한 줄만 저장됩니다. 이미 저장된 줄은 <b>수정</b>됩니다.</span>
+                <span style="font-size:.78rem;color:var(--text-muted)">값이 있는 줄만 저장됩니다. ⚡전기·💧수도는 전용 탭에서 자동으로 채워지며, 잘못 들어온 값은 여기서 바로 고칠 수 있습니다.</span>
             </div>
             <div class="excel-table-wrap">
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 70px;">호실</th>
-                            <th class="th-electric-last">⚡ 전기 전월</th>
-                            <th class="th-electric-now">⚡ 전기 당월누적</th>
-                            <th style="background:#fff5f5;color:#c92a2a;min-width:95px;">⚡ 전기 요금(원)</th>
-                            <th style="background: #e7f5ff; color: #0b7285;">🚰 수도(톤)</th>
-                            <th style="background: #e7f5ff; color: #0b7285;">🚰 수도(원)</th>
+                            <th style="width: 82px;">호실</th>
+                            <th style="background:#fff5f5;color:#c92a2a;">⚡ 전기 요금(원)</th>
+                            <th style="background:#e7f5ff;color:#1971c2;">💧 수도 요금(원)</th>
                             <th style="background: #fff9db; color: #f59f00;">🔥 가스 요금(원)</th>
-                            <th style="border-left: 1px solid #dee2e6; background: #f9fafb; color: #64748b;">🌐 통신요금</th>
-                            <th style="width: 60px; text-align: center;">작업</th>
+                            <th style="border-left: 1px solid #dee2e6; background: #f9fafb; color: #64748b;">🌐 통신요금(원)</th>
+                            <th style="background:#f1f3f5;color:#212529;width:110px;">합계(원)</th>
+                            <th style="width: 70px; text-align: center;">작업</th>
                         </tr>
                     </thead>
                     <tbody id="batchTableBody">
                         <tr>
-                            <td colspan="9" class="cell-text-center">호실목록을 불러오는 중입니다...</td>
+                            <td colspan="7" class="cell-text-center">호실목록을 불러오는 중입니다...</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
+            </div><!-- /batchPane -->
         </div>
-        
+
         <!-- 우측 하단: 실시간 백체크 시트 (DB 연동) -->
         <div class="right-bottom-history">
             <div class="history-title">👀 실시간 백체크 (최근 등록 완료된 DB 장부 이력)</div>
@@ -313,6 +336,27 @@
         } catch(e) {
             console.error('[bills DB 로드 오류]', e);
         }
+    }
+
+    // 우측 탭 전환 (공과금 입력판 ↔ 한전 검침표)
+    function switchUtilTab(which) {
+        var isKepco = (which === 'kepco'), isWater = (which === 'water');
+        document.getElementById('batchPane').style.display = (isKepco||isWater) ? 'none' : '';
+        document.getElementById('kepcoPane').style.display = isKepco ? 'flex' : 'none';
+        document.getElementById('waterPane').style.display = isWater ? 'flex' : 'none';
+        var on = {background:'var(--primary)', color:'#fff', borderColor:'var(--primary)'};
+        var off = {background:'#e9ecef', color:'#6c757d', borderColor:'#ccc'};
+        Object.assign(document.getElementById('tabBtnBatch').style, (isKepco||isWater) ? off : on);
+        Object.assign(document.getElementById('tabBtnKepco').style, isKepco ? on : off);
+        Object.assign(document.getElementById('tabBtnWater').style, isWater ? on : off);
+        // iframe.src 는 빈 문자열이어도 현재 주소로 채워지므로 별도 플래그로 판단
+        var fr = document.getElementById('kepcoFrame');
+        if (isKepco && !fr.dataset.loaded) { fr.src = 'kepco_meter.html'; fr.dataset.loaded = '1'; }
+        var wf = document.getElementById('waterFrame');
+        if (isWater && !wf.dataset.loaded) { wf.src = 'water_bill.html'; wf.dataset.loaded = '1'; }
+        // 하단 백체크 시트는 입력판에서만 표시
+        var hist = document.querySelector('.right-bottom-history');
+        if (hist) hist.style.display = 'none';
     }
 
     // 대상 구분 전환 (호실별 ↔ 공용부)
@@ -434,7 +478,7 @@
         tbody.innerHTML = '';
 
         if (!ALL_ROOMS || ALL_ROOMS.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="cell-text-center">등록된 호실이 없습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="cell-text-center">등록된 호실이 없습니다.</td></tr>';
             return;
         }
 
@@ -460,7 +504,7 @@
         if (bEl) bEl.textContent = badge;
 
         if (!view.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="cell-text-center">검색 결과가 없습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="cell-text-center">검색 결과가 없습니다.</td></tr>';
             return;
         }
 
@@ -473,42 +517,52 @@
                 ? '<button type="button" class="btn-table-save" style="background:#fd7e14" onclick="saveBatchRow(' + rm.id + ", '" + roomName + '\')">수정</button>'
                 : '<button type="button" class="btn-table-save" onclick="saveBatchRow(' + rm.id + ", '" + roomName + '\')">저장</button>';
 
+            var sum0 = (Number(v('elec_cost'))||0) + (Number(v('water_cost'))||0)
+                     + (Number(v('gas_cost'))||0)  + (Number(v('net_cost'))||0);
             tr.innerHTML = `
                 <td><b>${roomName}</b>${ex ? '<div style="font-size:.68rem;color:#0d9488">저장됨</div>' : ''}</td>
-                <td class="td-electric-val">${ex && ex.elec_usage ? ex.elec_usage : '미정'}</td>
-                <td><input type="number" id="b_elec_${rm.id}" class="table-input" placeholder="누적값" value="${v('elec_usage')}"></td>
-                <td><input type="number" id="b_elecCost_${rm.id}" class="table-input" style="background:#fff5f5;" placeholder="총액(원)" value="${v('elec_cost')}"></td>
-                <td><input type="number" id="b_wTon_${rm.id}" class="table-input" placeholder="톤수"></td>
-                <td><input type="number" id="b_wCost_${rm.id}" class="table-input" placeholder="금액" value="${v('water_cost')}"></td>
-                <td><input type="number" id="b_gas_${rm.id}" class="table-input" style="background:#fffbeb;" placeholder="가스비" value="${v('gas_cost')}"></td>
-                <td><input type="number" id="b_net_${rm.id}" class="table-input" placeholder="통신비" value="${v('net_cost')}"></td>
+                <td><input type="number" id="b_elecCost_${rm.id}" class="table-input" style="background:#fff5f5;" placeholder="한전 탭 자동" value="${v('elec_cost')}" oninput="recalcRowTotal(${rm.id})"></td>
+                <td><input type="number" id="b_waterCost_${rm.id}" class="table-input" style="background:#e7f5ff;" placeholder="수도 탭 자동" value="${v('water_cost')}" oninput="recalcRowTotal(${rm.id})"></td>
+                <td><input type="number" id="b_gas_${rm.id}" class="table-input" style="background:#fffbeb;" placeholder="가스비" value="${v('gas_cost')}" oninput="recalcRowTotal(${rm.id})"></td>
+                <td><input type="number" id="b_net_${rm.id}" class="table-input" placeholder="통신비" value="${v('net_cost')}" oninput="recalcRowTotal(${rm.id})"></td>
+                <td id="b_sum_${rm.id}" class="td-num-align-right" style="font-weight:700;color:#212529;background:#f8f9fa">${sum0 ? sum0.toLocaleString() : '-'}</td>
                 <td>${btn}</td>
             `;
             tbody.appendChild(tr);
         });
     }
 
+    // 행 합계 실시간 재계산
+    function recalcRowTotal(roomId) {
+        var g = function(id){ var e=document.getElementById(id); return e ? (Number(e.value)||0) : 0; };
+        var s = g('b_elecCost_'+roomId) + g('b_waterCost_'+roomId) + g('b_gas_'+roomId) + g('b_net_'+roomId);
+        var cell = document.getElementById('b_sum_'+roomId);
+        if (cell) cell.textContent = s ? s.toLocaleString() : '-';
+    }
+
     // 🌟 5. 배치 행 DB 실제 POST 전송 기능 추가
     // 한 줄 저장/수정 (silent=true 면 알림 없이 처리 → 일괄저장용)
     async function saveBatchRow(roomId, roomName, silent) {
         var g = function(id){ var e=document.getElementById(id); return e ? e.value : ''; };
-        var elecNow  = parseInt(g('b_elec_' + roomId), 10) || 0;
         var elecCost = trunc10(g('b_elecCost_' + roomId) || 0);
-        var waterCost= trunc10(g('b_wCost_' + roomId) || 0);
+        var waterCost= trunc10(g('b_waterCost_' + roomId) || 0);
         var gasCost  = trunc10(g('b_gas_' + roomId) || 0);
         var netCost  = trunc10(g('b_net_' + roomId) || 0);
         var dueDate  = document.getElementById('u_dueDate').value || new Date().toISOString().split('T')[0];
 
         // 아무것도 입력 안 한 줄은 건너뜀
-        if (!elecNow && !elecCost && !waterCost && !gasCost && !netCost) {
-            if (!silent) alert('입력된 값이 없습니다. 요금이나 검침값을 넣어 주세요.');
+        if (!elecCost && !waterCost && !gasCost && !netCost) {
+            if (!silent) alert('입력된 값이 없습니다. 요금을 넣어 주세요.\n(전기는 [한전 검침표], 수도는 [수도요금 배분] 탭에서 자동으로 채워집니다)');
             return false;
         }
 
+        // 검침량(사용량)은 전용 탭 값 유지, 금액은 이 화면에서 수정 가능
+        var prev = LATEST_BILL_BY_ROOM[roomId] || {};
         var payload = {
             room_id: roomId,
-            elec_usage: elecNow,
-            elec_cost: elecCost,
+            elec_usage: prev.elec_usage || 0,
+            elec_cost:  elecCost,
+            water_usage: prev.water_usage || 0,
             water_cost: waterCost,
             gas_cost: gasCost,
             net_cost: netCost,
@@ -545,9 +599,10 @@
         var rows = document.querySelectorAll('#batchTableBody tr');
         var targets = [];
         rows.forEach(function(tr) {
-            var inp = tr.querySelector('input[id^="b_elec_"]');
+            var inp = tr.querySelector('input[id^="b_gas_"]');
             if (!inp) return;
-            var rid = inp.id.replace('b_elec_', '');
+            var rid = inp.id.replace('b_gas_', '');
+
             var name = (tr.querySelector('b') ? tr.querySelector('b').textContent : rid);
             targets.push({ id: rid, name: name });
         });

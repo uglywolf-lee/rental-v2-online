@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>한전 검침표</title>
+<script src="guard.js"></script>
+<style>
+  :root{--primary:#dc3545;--border:#dee2e6;--bg:#f8f9fa;--muted:#6c757d;--ok:#198754;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Malgun Gothic','Segoe UI',sans-serif;background:var(--bg);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .top{background:#fff;border-bottom:2px solid var(--primary);padding:12px 18px}
+  .top h1{font-size:1.05rem;color:var(--primary);display:inline-block;margin-right:14px}
+  .top .hint{font-size:.78rem;color:var(--muted)}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}
+  .bar label{font-size:.82rem;font-weight:700;color:#495057}
+  .bar input,.bar select{padding:6px 9px;border:1px solid var(--border);border-radius:4px;font-size:.86rem}
+  .btn{border:none;border-radius:5px;padding:8px 15px;font-size:.85rem;font-weight:700;cursor:pointer;color:#fff}
+  .btn-save{background:var(--ok)}
+  .btn-xls{background:#1d6f42}
+  .btn-mail{background:#0d6efd}
+  .btn-sub{background:var(--muted)}
+  .wrap{flex:1;overflow:auto;padding:14px 18px}
+  table{width:100%;border-collapse:collapse;background:#fff;font-size:.86rem}
+  th{background:#f1f3f5;border:1px solid #bbc4cc;padding:7px;position:sticky;top:0;z-index:5;white-space:nowrap}
+  td{border:1px solid #ced4da;padding:4px 7px;text-align:center}
+  tr.floor-head td{background:#fff5f5;font-weight:800;color:#c92a2a;text-align:left;padding:6px 9px}
+  input.m{width:100%;padding:4px 6px;border:1px solid #bbc4cc;border-radius:3px;text-align:right;font-size:.86rem}
+  input.m:focus{border-color:var(--primary);background:#fffdfd;outline:none}
+  .use{font-weight:700;color:#0b7285}
+  .badge{background:#e7f5ff;color:#0b5ed7;font-size:.75rem;padding:3px 8px;border-radius:4px}
+  .foot{background:#fff;border-top:1px solid var(--border);padding:9px 18px;font-size:.78rem;color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1>⚡ 한전 검침표</h1>
+    <span class="hint">호실별 계량기 지침을 입력하고 → 저장 → 엑셀 파일로 만들어 한전에 보내세요.</span>
+    <div class="bar">
+      <label>건물</label>
+      <select id="bldSel" onchange="renderRows()"></select>
+      <label>검침 년월</label>
+      <input type="month" id="ym">
+      <button class="btn btn-save" onclick="saveAll()">💾 검침값 저장</button>
+      <button class="btn btn-xls" onclick="downloadExcel()">📗 엑셀 파일 만들기</button>
+      <button class="btn btn-mail" onclick="openMail()">✉️ 메일 보내기</button>
+      <button class="btn btn-sub" onclick="clearAll()">입력 비우기</button>
+      <span class="badge" id="cnt"></span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <table>
+      <thead><tr>
+        <th style="width:90px">층</th>
+        <th style="width:110px">호실</th>
+        <th style="width:130px">전월 지침</th>
+        <th style="width:130px">당월 지침</th>
+        <th style="width:110px">사용량(kWh)</th>
+        <th>비고</th>
+      </tr></thead>
+      <tbody id="tb"><tr><td colspan="6">불러오는 중…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="foot" id="foot">
+    ※ 지하2·지하1·2·3층(상가 단독층)은 <b>층 단위 한 줄</b>, <b>1층은 호실별 3줄</b>, 4층 이상은 호실별입니다.<br>
+    ※ <b>단독계약(검침 불가)</b>은 한전과 직접 계약한 <b>상가층</b>에만 표시됩니다. 체크하면 입력이 잠기고 <b>지침·사용량 0</b>으로 기록되며, 저장·엑셀에는 그대로 포함됩니다.
+  </div>
+
+<script>
+var ROOMS = [], BILLS = [], BLDS = [], ROWS = [];
+
+function floorLabel(f){ return f < 0 ? ('지하 ' + Math.abs(f) + '층') : (f + '층'); }
+
+async function init(){
+  document.getElementById('ym').value = new Date().toISOString().substring(0,7);
+  try{
+    ROOMS = await (await fetch('/api/v1/rooms')).json() || [];
+    BILLS = await (await fetch('/api/v1/bills')).json() || [];
+    BLDS  = await (await fetch('/api/v1/buildings')).json() || [];
+  }catch(e){}
+  var sel = document.getElementById('bldSel');
+  sel.innerHTML = BLDS.map(function(b){ return '<option value="'+b.id+'">'+(b.name||'건물'+b.id)+'</option>'; }).join('');
+  renderRows();
+}
+
+// 상가층(3층 이하)은 층 단위 1줄, 4층 이상은 호실별
+function buildRows(){
+  var bid = document.getElementById('bldSel').value;
+  var list = ROOMS.filter(function(r){ return String(r.building_id) === String(bid); });
+  var byFloor = {};
+  list.forEach(function(r){
+    var f = (r.floor != null ? r.floor : r.floor_no);
+    (byFloor[f] = byFloor[f] || []).push(r);
+  });
+  var rows = [];
+  Object.keys(byFloor).map(Number).sort(function(a,b){ return a-b; }).forEach(function(f){
+    var rs = byFloor[f].sort(function(a,b){
+      return String(a.room||a.room_no).localeCompare(String(b.room||b.room_no));
+    });
+    if (f <= 3 && f !== 1) {            // 지하2~지하1·2·3층 = 단독층 사용 → 층 단위 1줄
+      rows.push({ floor:f, label:floorLabel(f), roomText:'(층 전체)', roomId:rs[0].id,
+                  note:'상가 단독층 · ' + rs.map(function(r){ return String(r.room||r.room_no); }).join(',') });
+    } else {                            // 1층(3개 호실) + 4층 이상 = 호실별
+      rs.forEach(function(r){
+        var no = String(r.room||r.room_no);
+        rows.push({ floor:f, label:floorLabel(f), roomText:no, roomId:r.id,
+                    note: (no === '1000') ? '건물주 부담' : '' });
+      });
+    }
+  });
+  return rows;
+}
+
+// 이번 달(현재 청구월)에 이미 저장한 건인지 판정 — 잘못 넣은 값을 되불러 고치기 위함
+function isThisMonth(b){
+  var d = String(b.created_at || b.due_date || '');
+  var now = new Date();
+  var ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  return d.indexOf(ym) === 0;
+}
+
+// 해당 호실의 전기 검침 이력 (최신순)
+function elecHistory(roomId){
+  return BILLS.filter(function(x){ return x.scope !== 'common' && String(x.room_id) === String(roomId) && x.elec_usage; })
+              .sort(function(a,b){ return b.id - a.id; });
+}
+
+// 지난 검침(전월 지침) — 이번 달 저장분이 있으면 그 전 건을 씀
+function lastReading(roomId){
+  var h = elecHistory(roomId);
+  if (h.length && isThisMonth(h[0])) h = h.slice(1);   // 이번 달 저장분은 '지난 검침'이 아님
+  return h.length ? (h[0].elec_usage || '') : '';
+}
+
+// 이번 검침 — 이번 달에 이미 저장했다면 그 값을 입력창에 되돌려 채움(수정 가능)
+function currentReading(roomId){
+  var h = elecHistory(roomId);
+  return (h.length && isThisMonth(h[0])) ? (h[0].elec_usage || '') : '';
+}
+
+function renderRows(){
+  ROWS = buildRows();
+  var tb = document.getElementById('tb');
+  if(!ROWS.length){ tb.innerHTML = '<tr><td colspan="6">등록된 호실이 없습니다.</td></tr>'; return; }
+  var html = '', lastF = null;
+  ROWS.forEach(function(r, i){
+    if (r.floor !== lastF){
+      html += '<tr class="floor-head"><td colspan="6">' + r.label + '</td></tr>';
+      lastF = r.floor;
+    }
+    html += '<tr>'
+      + '<td>' + r.label + '</td>'
+      + '<td><b>' + r.roomText + '</b></td>'
+      + '<td><input class="m" type="number" id="p_'+i+'" value="'+lastReading(r.roomId)+'" oninput="calcUse('+i+')"></td>'
+      + '<td><input class="m" type="number" id="c_'+i+'" value="'+currentReading(r.roomId)+'" oninput="calcUse('+i+')"></td>'
+      + '<td class="use" id="u_'+i+'">-</td>'
+      + '<td style="text-align:left;font-size:.76rem">'
+      +   (r.floor <= 3     // 상가층(지하2~3층)만 단독계약 가능
+            ? '<label style="cursor:pointer;font-weight:700;color:#c92a2a">'
+              + '<input type="checkbox" id="d_'+i+'" onchange="toggleDirect('+i+')" style="vertical-align:middle"> 단독계약(검침 불가)'
+              + '</label>'
+            : '')
+      +   '<span style="color:#888;margin-left:6px">' + (r.note||'') + '</span>'
+      + '</td>'
+      + '</tr>';
+  });
+  tb.innerHTML = html;
+  // 이번 달에 이미 저장한 줄은 사용량을 즉시 다시 계산해 보여줌 (값 확인 후 바로 수정 가능)
+  ROWS.forEach(function(r, i){
+    var c = document.getElementById('c_'+i);
+    if (c && c.value !== '') {
+      c.style.background = '#fff9db';
+      c.title = '이번 달에 이미 저장한 값입니다. 잘못되었으면 여기서 고친 뒤 다시 저장하세요.';
+      calcUse(i);
+    }
+  });
+  // 저장해둔 단독계약 상태 복원
+  var saved = loadDirectSet();
+  ROWS.forEach(function(r,i){
+    if (saved.indexOf(String(r.roomId)) > -1) {
+      var el = document.getElementById('d_'+i);
+      if (el) { el.checked = true; toggleDirect(i); }
+    }
+  });
+  updateCount();
+}
+
+// 단독계약(한전과 직접 계약) → 검침 입력 잠금
+function toggleDirect(i){
+  var on = document.getElementById('d_'+i).checked;
+  ['p_'+i, 'c_'+i].forEach(function(id){
+    var el = document.getElementById(id);
+    el.disabled = on;
+    el.style.background = on ? '#f1f3f5' : '';
+    if (on) el.value = '';
+  });
+  var u = document.getElementById('u_'+i);
+  u.textContent = on ? '0 (단독계약)' : '-';
+  u.style.color = on ? '#c92a2a' : '#0b7285';
+  var tr = document.getElementById('d_'+i).closest('tr');
+  if (tr) tr.style.background = on ? '#fff5f5' : '';
+  saveDirectSet();      // 다음에 열어도 유지 (해지 시 체크만 해제)
+  updateCount();
+}
+
+function isDirect(i){
+  var el = document.getElementById('d_'+i);
+  return el ? el.checked : false;
+}
+
+// 단독계약 상태를 기억 (계약 해지하면 체크만 풀면 됨)
+var DIRECT_KEY = 'kepco_direct_rooms';
+function loadDirectSet(){
+  try { return JSON.parse(localStorage.getItem(DIRECT_KEY) || '[]'); } catch(e){ return []; }
+}
+function saveDirectSet(){
+  var list = [];
+  ROWS.forEach(function(r,i){ if(isDirect(i)) list.push(String(r.roomId)); });
+  try { localStorage.setItem(DIRECT_KEY, JSON.stringify(list)); } catch(e){}
+}
+
+function updateCount(){
+  var direct = 0;
+  ROWS.forEach(function(_,i){ if(isDirect(i)) direct++; });
+  document.getElementById('cnt').textContent =
+    '전체 ' + ROWS.length + '줄' + (direct ? ' (검침 ' + (ROWS.length - direct) + ' · 단독계약 ' + direct + '줄은 0)' : '');
+}
+
+function calcUse(i){
+  var p = parseFloat(document.getElementById('p_'+i).value);
+  var c = parseFloat(document.getElementById('c_'+i).value);
+  var el = document.getElementById('u_'+i);
+  if (isNaN(p) || isNaN(c)) { el.textContent = '-'; return; }
+  var u = c - p;
+  el.textContent = u.toLocaleString();
+  el.style.color = (u < 0) ? '#dc3545' : '#0b7285';
+}
+
+function collect(){
+  return ROWS.map(function(r, i){
+    if (isDirect(i)) {
+      // 단독계약도 목록에는 포함 (한전 제출용) — 값은 0으로
+      return { label:r.label, room:r.roomText, prev:0, cur:0, use:0, roomId:r.roomId,
+               note:'단독계약(한전 직접)', direct:true };
+    }
+    var p = document.getElementById('p_'+i).value;
+    var c = document.getElementById('c_'+i).value;
+    var u = (p !== '' && c !== '') ? (Number(c) - Number(p)) : '';
+    return { label:r.label, room:r.roomText, prev:p, cur:c, use:u, roomId:r.roomId, note:r.note, direct:false };
+  });
+}
+
+// 검침값을 각 호실에 저장 (당월 지침 → elec_usage)
+async function saveAll(){
+  var all = collect();
+  // 빈칸 검사 — 단독계약이 아닌데 지침을 안 넣은 곳은 저장 불가
+  var blanks = all.filter(function(x){ return !x.direct && (x.cur === '' || x.prev === ''); });
+  if (blanks.length) {
+    var bl = blanks.slice(0, 12).map(function(x){ return x.label + ' ' + x.room; }).join('\n  · ');
+    var bmore = blanks.length > 12 ? '\n  ... 외 ' + (blanks.length - 12) + '곳' : '';
+    return alert('❌ 지침이 비어 있는 곳이 ' + blanks.length + '곳 있습니다.\n\n  · ' + bl + bmore
+      + '\n\n모든 칸을 채워 주세요.\n(한전과 직접 계약한 상가는 [단독계약]에 체크하면 0으로 처리됩니다)');
+  }
+
+  var rows = all.filter(function(x){ return x.cur !== ''; });   // 단독계약(0)도 저장
+  if(!rows.length) return alert('입력된 당월 지침이 없습니다.');
+
+  // 사용량 0 확인 — 공실이라도 공사 전기를 쓰는 경우가 있어 한 번 짚고 넘어감
+  var zeros = rows.filter(function(x){ return !x.direct && Number(x.use) === 0; });
+  if (zeros.length) {
+    var list = zeros.slice(0, 12).map(function(x){ return x.label + ' ' + x.room; }).join('\n  · ');
+    var more = zeros.length > 12 ? '\n  ... 외 ' + (zeros.length - 12) + '곳' : '';
+    if (!confirm('⚠️ 사용량이 0인 호실이 ' + zeros.length + '곳 있습니다.\n\n  · ' + list + more
+        + '\n\n공실이라도 공사·청소 등으로 전기를 쓴 경우 지침이 올라갑니다.\n계량기를 다시 확인하셨나요?\n\n'
+        + '[확인] 0으로 그대로 저장    [취소] 다시 확인')) return;
+  }
+  if(!confirm(rows.length + '개 항목을 각 호실에 저장할까요?')) return;
+  var ym = document.getElementById('ym').value || '';
+  var ok = 0;
+  for (var i=0;i<rows.length;i++){
+    try{
+      var res = await fetch('/api/v1/bills', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ room_id: rows[i].roomId, elec_usage: Number(rows[i].cur),
+                               due_date: ym ? (ym + '-05') : '', status: '미납(고지대기)' })
+      });
+      if (res.ok) ok++;
+    }catch(e){}
+  }
+  BILLS = await (await fetch('/api/v1/bills')).json() || [];
+  alert('💾 저장 완료 — ' + ok + '건이 호실에 기록되었습니다.');
+}
+
+// 엑셀에서 바로 열리는 파일(CSV, 한글 안 깨짐)
+function downloadExcel(){
+  var ym = document.getElementById('ym').value || '';
+  var bld = document.getElementById('bldSel').selectedOptions[0];
+  var bldName = bld ? bld.textContent : '';
+  var rows = collect();
+
+  // 한전 제출 파일이므로 빈칸 확인
+  var blanks = rows.filter(function(x){ return !x.direct && (x.cur === '' || x.prev === ''); });
+  if (blanks.length) {
+    if (!confirm('⚠️ 지침이 비어 있는 곳이 ' + blanks.length + '곳 있습니다.\n\n'
+      + '  · ' + blanks.slice(0,10).map(function(x){ return x.label+' '+x.room; }).join('\n  · ')
+      + (blanks.length>10 ? '\n  ... 외 '+(blanks.length-10)+'곳' : '')
+      + '\n\n빈칸인 채로 파일을 만들까요?\n[취소] 를 눌러 먼저 채우는 것을 권합니다.')) return;
+  }
+  var zeros = rows.filter(function(x){ return !x.direct && x.cur !== '' && Number(x.use) === 0; });
+  if (zeros.length) {
+    if (!confirm('⚠️ 사용량이 0인 호실이 ' + zeros.length + '곳 있습니다.\n\n'
+      + '공실이라도 공사·청소 전기를 쓴 경우 지침이 올라갑니다.\n계량기를 확인하셨나요?\n\n[확인] 그대로 파일 만들기')) return;
+  }
+
+  var lines = [];
+  lines.push('한전 검침표');
+  lines.push('건물,' + bldName);
+  lines.push('검침년월,' + ym);
+  lines.push('');
+  lines.push('층,호실,전월지침,당월지침,사용량(kWh),비고');
+  rows.forEach(function(r){
+    lines.push([r.label, r.room, r.prev, r.cur, r.use, (r.note||'').replace(/,/g,' ')].join(','));
+  });
+  var csv = '﻿' + lines.join('\r\n');          // BOM → 엑셀 한글 정상
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '한전검침표_' + bldName + '_' + (ym||'') + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  alert('📗 파일이 저장되었습니다.\n\n다운로드 폴더의 "한전검침표_...csv" 파일을\n메일에 첨부해서 보내시면 됩니다.');
+}
+
+function openMail(){
+  var ym = document.getElementById('ym').value || '';
+  var bld = document.getElementById('bldSel').selectedOptions[0];
+  var bldName = bld ? bld.textContent : '';
+  var subject = '[' + bldName + '] ' + ym + ' 검침 결과 제출';
+  var body = bldName + ' ' + ym + ' 검침 결과를 첨부와 같이 보내드립니다.\n\n'
+           + '※ 먼저 [엑셀 파일 만들기] 를 눌러 저장한 파일을 이 메일에 첨부해 주세요.\n';
+  window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+}
+
+function clearAll(){
+  if(!confirm('입력한 값을 모두 지울까요? (저장된 자료는 그대로입니다)')) return;
+  ROWS.forEach(function(_, i){
+    document.getElementById('c_'+i).value = '';
+    document.getElementById('u_'+i).textContent = '-';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

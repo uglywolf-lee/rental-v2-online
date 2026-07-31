@@ -168,6 +168,31 @@ def handle_auth_endpoint(path, data):
         conn.close()
 
 
+def _check_contract_dates(start_date, end_date):
+    """계약 기간 검증: 시작일 < 종료일, 최소 1개월. 문제 없으면 None, 있으면 오류 메시지."""
+    import datetime as _dt
+    s = str(start_date or '')[:10]
+    e = str(end_date or '')[:10]
+    if not s or not e:
+        return None                      # 종료일 미입력은 허용(기존 동작 유지)
+    try:
+        sd = _dt.date.fromisoformat(s)
+        ed = _dt.date.fromisoformat(e)
+    except Exception:
+        return None                      # 날짜 형식이 아니면 검증 생략
+    if ed <= sd:
+        return '계약 종료일은 시작일보다 뒤여야 합니다. (시작 %s / 종료 %s)' % (s, e)
+    # 최소 1개월: 시작일 + 1개월 이상
+    y, m = sd.year, sd.month + 1
+    if m > 12:
+        y, m = y + 1, 1
+    day = min(sd.day, [31, 29 if (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else 28,
+                       31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1])
+    if ed < _dt.date(y, m, day):
+        return '계약 기간은 최소 1개월 이상이어야 합니다. (시작 %s / 종료 %s)' % (s, e)
+    return None
+
+
 def _mark_room_leased(cur, room_id):
     """계약이 생기면 그 호실 상태를 '임대중'으로 자동 변경 (공실로 남아 통계가 틀리는 것 방지).
        단독층/사옥 등 별도 표기된 상태는 건드리지 않음."""
@@ -283,6 +308,11 @@ def handle_post_api(path, data):
             b_id = int(data.get('building_id') or 0)
             floor = int(data.get('floor_no') or data.get('floor') or 1)
             room_no = str(data.get('room_no') or data.get('room') or '')
+            # 같은 건물에 같은 호실번호 중복 등록 금지 (R6)
+            dup = cur.execute("SELECT id FROM rooms WHERE building_id=? AND room_no=?", (b_id, room_no)).fetchone()
+            if dup:
+                return 409, {'error': '이미 등록된 호실입니다: %s호. 목록에서 선택해 [수정]하세요.' % room_no,
+                             'id': (dup['id'] if hasattr(dup, 'keys') else dup[0]), 'duplicate': True}
             area = float(data.get('area_sqm') or data.get('area') or 0.0)
             status = str(data.get('current_room_status') or data.get('status') or '공실')
             cur.execute("INSERT INTO rooms (building_id, floor_no, room_no, area_sqm, current_room_status) VALUES (?, ?, ?, ?, ?)",
@@ -339,7 +369,7 @@ def handle_post_api(path, data):
                 _snapshot(cur, 'bills', bill_edit)
                 fields, vals = [], []
                 for k in ('room_id', 'building_id', 'scope', 'common_area', 'bill_type',
-                          'elec_usage', 'elec_cost', 'water_cost', 'gas_cost', 'net_cost',
+                          'elec_usage', 'elec_cost', 'water_usage', 'water_cost', 'gas_cost', 'net_cost',
                           'due_date', 'status'):
                     if k in data:
                         fields.append(k + '=?'); vals.append(data[k])
@@ -365,10 +395,11 @@ def handle_post_api(path, data):
             net = int(data.get('net_cost', 0) or 0)
             due = str(data.get('due_date', '') or '')
             status = str(data.get('status', '미납(고지대기)'))
+            water_usage = int(data.get('water_usage', 0) or 0)
             cur.execute("""
-                INSERT INTO bills (room_id, building_id, scope, common_area, elec_usage, elec_cost, water_cost, gas_cost, net_cost, due_date, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (room_id, building_id, scope, common_area, elec, elec_cost, water, gas, net, due, status))
+                INSERT INTO bills (room_id, building_id, scope, common_area, elec_usage, elec_cost, water_usage, water_cost, gas_cost, net_cost, due_date, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (room_id, building_id, scope, common_area, elec, elec_cost, water_usage, water, gas, net, due, status))
             bid = cur.lastrowid
             conn.commit()
             return 201, {'id': bid, 'success': True, 'message': '공과금 고지 등록 완료'}
@@ -423,6 +454,9 @@ def handle_post_api(path, data):
                 return 200, {'id': cid, 'success': True, 'message': '수납 메모 자동 저장 완료'}
 
             if cid:
+                _err = _check_contract_dates(data.get('start_date'), data.get('end_date'))
+                if _err:
+                    return 400, {'error': _err}
                 _snapshot(cur, 'contracts', cid)   # 수정 전 스냅샷
                 # 임차인 이름/연락처 → contacts 연결 (계약자 명부 연동)
                 t_id = data.get('tenant_contact_id') or _resolve_tenant(cur, data)
@@ -464,6 +498,26 @@ def handle_post_api(path, data):
                 return 400, {'error': '계약 종류 필수'}
             if not s_date:
                 return 400, {'error': '계약 시작일 필수'}
+            _err = _check_contract_dates(s_date, e_date)
+            if _err:
+                return 400, {'error': _err}
+            # 같은 호실에 유효한 계약이 이미 있으면 신규 등록 금지 → 기존 계약 수정만 허용
+            if room_id:
+                ex = cur.execute("""SELECT id, end_date FROM contracts
+                                    WHERE room_id=? AND (is_active IS NULL OR is_active=1)
+                                    ORDER BY id DESC LIMIT 1""", (room_id,)).fetchone()
+                if ex:
+                    ex_end = (ex['end_date'] if hasattr(ex, 'keys') else ex[1]) or ''
+                    import datetime as _dt
+                    still = True
+                    try:
+                        if ex_end:
+                            still = _dt.date.fromisoformat(str(ex_end)[:10]) >= _dt.date.today()
+                    except Exception:
+                        still = True
+                    if still:
+                        return 409, {'error': '이 호실에는 이미 진행 중인 계약이 있습니다. 기존 계약을 불러와 수정해 주세요.',
+                                     'id': (ex['id'] if hasattr(ex, 'keys') else ex[0]), 'duplicate': True}
 
             cur.execute("""
                 INSERT INTO contracts (room_id, host_address_full, owner_contact_id, tenant_contact_id, broker_id,
