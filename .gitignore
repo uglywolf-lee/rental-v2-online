@@ -29,3 +29,5 @@ uploads/
 
 # 폐기된 실행 방식 (사용자 PC에 파이썬 설치를 요구 → 설계원칙 위배)
 START_python.bat
+building_manager*.db
+_backups/
