@@ -37,7 +37,9 @@
     <span class="hint">고지서 총액 + 호실 검침 → 자동 계산</span>
     <div class="bar">
       <label>청구 년월</label>
-      <input type="month" id="ym">
+      <input type="month" id="ym" onchange="onYmChange()">
+      <label title="수도 계량기를 돌아본 날. 전기·가스와 날짜가 다릅니다">수도 검침일</label>
+      <input type="date" id="readDate" style="padding:5px;border:1px solid #ccc;border-radius:4px">
       <button class="btn btn-calc" onclick="calcAll()">🧮 배분 계산</button>
       <button class="btn btn-save" onclick="saveAll()">💾 호실에 저장</button>
       <button class="btn btn-xls" onclick="downloadExcel()">📗 엑셀 파일</button>
@@ -120,6 +122,15 @@
 
 <script>
 var ROOMS=[], BILLS=[], ROWS=[];
+// 수도 검침일 — 비워 두면 청구 년월의 9일로 넣습니다 (현장 관행: 수도 9일)
+function readDateWater(){
+  var el = document.getElementById('readDate');
+  var v = el ? el.value : '';
+  if (v) return v;
+  var ym = document.getElementById('ym').value || '';
+  return ym ? (ym + '-09') : '';
+}
+
 function fl(f){ return f<0 ? ('지하 '+Math.abs(f)+'층') : (f+'층'); }
 function won(n){ return (Math.floor(Number(n)||0)).toLocaleString(); }
 
@@ -141,30 +152,63 @@ function isHomeMode(){ return document.getElementById('grpSel').value === 'home'
 
 // 지난 검침 지침 자동 채움 (수도는 2개월마다 검침이라 '전월'이 아님)
 // 이번 달(현재 청구월)에 이미 저장한 건인지 판정 — 잘못 넣은 값을 되불러 고치기 위함
-function isThisMonth(b){
-  var d = String(b.created_at || b.due_date || '');
-  var now = new Date();
-  var ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-  return d.indexOf(ym) === 0;
+// ── 어느 달의 검침인가 ────────────────────────────────────────────
+// 예전에는 '저장한 날'로 판단했습니다. 그래서 8월에 7월분을 뒤늦게 넣으면
+// 8월 검침으로 잡혀 전달 지침이 엉뚱하게 떴습니다.
+// 지금은 실제 '수도 검침일'을 기준으로 봅니다. 옛 자료는 예전 방식으로 봅니다.
+function billYM(b){
+  return String(b.read_date_water || b.due_date || b.created_at || '').slice(0, 7);   // 'YYYY-MM'
+}
+// 화면 위에서 고른 청구 년월 (안 골랐으면 오늘이 속한 달)
+function targetYM(){
+  var el = document.getElementById('ym');
+  var v = el ? el.value : '';
+  if (v) return v;
+  var n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0');
+}
+// 바로 앞 달
+function prevYM(ym){
+  var y = Number(ym.slice(0,4)), m = Number(ym.slice(5,7)) - 1;
+  if (m < 1) { m = 12; y--; }
+  return y + '-' + String(m).padStart(2,'0');
+}
+function isThisMonth(b){ return billYM(b) === targetYM(); }
+
+// 청구 년월을 바꾸면 그 달 기준으로 지난 검침을 다시 채웁니다
+function onYmChange(){
+  var ym = document.getElementById('ym').value || '';
+  var rd = document.getElementById('readDate');
+  if (ym && rd && !rd.value) rd.value = ym + '-09';    // 수도는 보통 9일
+  renderRows();
 }
 
 function waterHistory(roomId){
   return BILLS.filter(function(x){
     return x.scope !== 'common' && String(x.room_id) === String(roomId) && x.water_usage;
-  }).sort(function(a,b){ return b.id - a.id; });
+  }).sort(function(a,b){
+    var ya = billYM(a), yb = billYM(b);
+    if (ya !== yb) return ya < yb ? 1 : -1;
+    return b.id - a.id;
+  });
 }
 
-// 지난 검침 — 이번 달 저장분이 있으면 그 전 건을 씀
+// 지난 검침(전달 지침) — 검침하는 사람이 이 칸을 보고 사용량을 바로 확인합니다.
+// 고른 달의 '바로 앞 달' 값을 먼저 찾고, 그 달을 건너뛰었으면 그 이전 것 중 가장 가까운 값을 씁니다.
 function lastWaterReading(roomId){
+  var ym = targetYM(), pm = prevYM(ym);
   var h = waterHistory(roomId);
-  if (h.length && isThisMonth(h[0])) h = h.slice(1);
-  return h.length ? (h[0].water_usage || '') : '';
+  var exact = h.filter(function(b){ return billYM(b) === pm; })[0];
+  if (exact) return exact.water_usage || '';
+  var older = h.filter(function(b){ return billYM(b) && billYM(b) < ym; })[0];
+  return older ? (older.water_usage || '') : '';
 }
 
-// 이번 검침 — 이번 달에 이미 저장했다면 그 값을 되돌려 채움(수정 가능)
+// 이번 검침 — 고른 달에 이미 저장했다면 그 값을 되돌려 채움(그 자리에서 수정 가능)
 function currentWaterReading(roomId){
-  var h = waterHistory(roomId);
-  return (h.length && isThisMonth(h[0])) ? (h[0].water_usage || '') : '';
+  var ym = targetYM();
+  var b = waterHistory(roomId).filter(function(x){ return billYM(x) === ym; })[0];
+  return b ? (b.water_usage || '') : '';
 }
 
 // 8·9층: 이번 달에 이미 넣은 요금을 되돌려 채움(수정 가능)
@@ -178,6 +222,8 @@ function currentWaterAmount(roomId){
 function renderRows(){
   var g = document.getElementById('grpSel').value;
   var list = ROOMS.filter(function(r){
+    // '통합' — 옆 호실이 함께 쓰는 방. 계량기가 따로 없으므로 줄을 만들지 않습니다
+    if (/통합/.test(String(r.status || r.current_room_status || ''))) return false;
     var f = (r.floor!=null? r.floor : r.floor_no); return inGroup(Number(f), g);
   }).sort(function(a,b){
     var fa=(a.floor!=null?a.floor:a.floor_no), fb=(b.floor!=null?b.floor:b.floor_no);
@@ -326,13 +372,14 @@ function calcAll(){
 async function saveAll(){
   // 8·9층: 입력한 요금을 각 호실에 그대로 저장
   if (isHomeMode()) {
+    // ⚠️ 0원도 정상 값입니다. 빈 칸과 0을 구분해야 0원 저장이 막히지 않습니다.
     var list = [];
     ROWS.forEach(function(r, i){
       var el = document.getElementById('h_'+i);
-      var v = el ? (Number(el.value)||0) : 0;
-      if (v) list.push({ id:r.id, amt:v });
+      var raw = el ? String(el.value).trim() : '';
+      if (raw !== '') list.push({ id:r.id, amt: Number(raw)||0 });
     });
-    if(!list.length) return alert('입력된 요금이 없습니다.');
+    if(!list.length) return alert('입력된 요금이 없습니다.\n받을 요금이 없는 세대는 0을 넣으시면 됩니다.');
     if(!confirm(list.length + '개 세대의 수도요금을 저장할까요?')) return;
     var ym0 = document.getElementById('ym').value || '';
     var ok0 = 0;
@@ -340,7 +387,8 @@ async function saveAll(){
       try{
         var r0 = await fetch('/api/v1/bills',{method:'POST',headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ room_id:list[k].id, water_cost:list[k].amt,
-                                 due_date: ym0? (ym0+'-05'):'', status:'미납(고지대기)' })});
+                                 due_date: ym0? (ym0+'-05'):'', status:'미납(고지대기)',
+                                 read_date_water: readDateWater() })});
         if(r0.ok) ok0++;
       }catch(e){}
     }
@@ -367,7 +415,8 @@ async function saveAll(){
       var res = await fetch('/api/v1/bills',{method:'POST',headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ room_id:targets[i].id, water_cost:targets[i].amt,
                                water_usage: targets[i].meter,     // 다음 검침의 '지난 검침'으로 자동 사용
-                               due_date: ym? (ym+'-05'):'', status:'미납(고지대기)' })});
+                               due_date: ym? (ym+'-05'):'', status:'미납(고지대기)',
+                               read_date_water: readDateWater() })});
       if(res.ok) ok++;
     }catch(e){}
   }

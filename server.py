@@ -53,6 +53,13 @@ def json_response(handler, code, obj):
     data = json.dumps(obj, ensure_ascii=False).encode('utf-8')
     handler.send_response(code)
     handler.send_header('Content-Type', 'application/json;charset=utf-8')
+    # 자료는 절대 캐시하지 않는다.
+    #   안 붙이면 되돌리기·저장을 해도 화면이 옛 자료를 다시 써서
+    #   "고쳤는데 그대로"인 상황이 된다. (2026-07-31 되돌리기 후 미납이 남던 원인)
+    handler.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    handler.send_header('Pragma', 'no-cache')
+    handler.send_header('Expires', '0')
+    handler.send_header('Content-Length', str(len(data)))
     handler.end_headers()
     handler.wfile.write(data)
 

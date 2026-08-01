@@ -92,7 +92,22 @@
                     <option value="공실">공실</option>
                     <option value="임대">임대</option>
                     <option value="공사중">공사중</option>
+                    <option value="통합">통합 (옆 호실이 같이 씀)</option>
                 </select>
+                <div style="font-size:.78rem;color:#666;margin-top:4px">
+                    옆 호실이 함께 쓰고 있어 따로 세지 않는 방은 <b>통합</b>을 고르세요.
+                    공실 숫자와 검침표에서 빠집니다.
+                </div>
+            </div>
+            <div class="form-group">
+                <label>한전 계약</label>
+                <label style="display:block;font-weight:400;font-size:.88rem;cursor:pointer">
+                    <input type="checkbox" id="roomMeterDirect" style="vertical-align:middle">
+                    세입자가 한전과 직접 계약 (검침 불가)
+                </label>
+                <div style="font-size:.78rem;color:#666;margin-top:4px">
+                    체크하면 검침표에서 지침·사용량이 <b>0</b>으로 기록됩니다. 목록에서는 빠지지 않습니다.
+                </div>
             </div>
             <input type="hidden" id="selectedRoomId" value="">
             <input type="hidden" id="selectedBuildingId" value="">
@@ -293,6 +308,7 @@ function selectRoomToForm(rm, tr) {
     var ar = (rm.area != null ? rm.area : rm.area_sqm);
     document.getElementById('roomArea').value = (ar ? Number(ar) : '');
     setStatusSelect(rm.status || rm.current_room_status || '공실');
+    document.getElementById('roomMeterDirect').checked = (String(rm.meter_direct || 0) === '1');
 
     var b = document.getElementById('editBanner');
     b.style.display = '';
@@ -306,6 +322,7 @@ function resetAssetForm() {
         document.getElementById(id).value = '';
     });
     document.getElementById('assignedFloor').dataset.userEdited = '';
+    document.getElementById('roomMeterDirect').checked = false;
     document.getElementById('editBanner').style.display = 'none';
     document.querySelectorAll('.excel-table-wrap tbody tr').forEach(function(r){ r.style.background=''; });
 }
@@ -339,7 +356,8 @@ async function handleAssetUpdate() {
                 floor_no: isNaN(floor) ? undefined : floor,
                 room_no: roomNo,
                 area_sqm: area,
-                current_room_status: status
+                current_room_status: status,
+                meter_direct: document.getElementById('roomMeterDirect').checked ? 1 : 0
             })
         });
         const d = await res.json();

@@ -114,8 +114,9 @@
         </div>
         <div class="hint" id="amountHint" style="margin:-4px 0 8px"></div>
         <div class="grid2">
-          <div class="form-group"><label>계약 시작일</label><input type="text" inputmode="numeric" id="startDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD"></div>
-          <div class="form-group"><label>계약 종료일</label><input type="text" inputmode="numeric" id="endDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD"></div>
+          <div class="form-group"><label>계약 시작일</label><input type="text" inputmode="numeric" id="startDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD" onchange="showPeriod()" onblur="showPeriod()"></div>
+          <div class="form-group"><label>계약 종료일</label><input type="text" inputmode="numeric" id="endDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD" onchange="showPeriod()" onblur="showPeriod()"></div>
+          <div id="periodHint" style="grid-column:1/-1;font-size:.82rem;color:#495057;margin:-6px 0 6px;min-height:1.1em"></div>
         </div>
         <div class="form-group" style="background:#f3effc;border:1px solid #d6c9f0;border-radius:5px;padding:7px 10px;">
           <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-size:.84rem;white-space:nowrap">
@@ -163,6 +164,51 @@
 <script src="auth.js"></script>
 <script src="date8.js"></script>
 <script>
+// ── 달 계산 (말일 처리) ─────────────────────────────────────────
+//   자바스크립트 setMonth 는 1월 31일 + 1개월을 '3월 3일'로 넘겨버립니다.
+//   그래서 월 계산이 자꾸 틀어집니다. 아래 함수를 쓰세요.
+//   1/31 + 1개월 = 2/28 (윤년이면 2/29) 처럼 그 달의 말일로 맞춥니다.
+function addMonthsSafe(d, n){
+  var y = d.getFullYear(), m = d.getMonth() + n, day = d.getDate();
+  var last = new Date(y, m + 1, 0).getDate();     // 그 달의 마지막 날
+  return new Date(y, m, Math.min(day, last));
+}
+function ymd(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+       + '-' + String(d.getDate()).padStart(2,'0');
+}
+// 두 날짜 사이가 몇 달 며칠인지 (계약 기간 안내용)
+function periodText(s, e){
+  if (isNaN(s) || isNaN(e) || e < s) return '';
+  var months = 0, cur = new Date(s);
+  while (true) {
+    var nxt = addMonthsSafe(s, months + 1);
+    nxt.setDate(nxt.getDate() - 1);              // '다음 달 같은 날의 전날'까지가 한 달
+    if (nxt > e) break;
+    months++; cur = nxt;
+  }
+  var days = Math.round((e - cur) / 86400000);
+  if (months === 0) return days + 1 + '일';
+  return months + '개월' + (days > 0 ? ' ' + days + '일' : '');
+}
+
+// 시작일·종료일을 넣으면 기간을 바로 보여준다 (직원이 눈으로 확인)
+function showPeriod(){
+  var se = document.getElementById('startDate'), ee = document.getElementById('endDate');
+  var box = document.getElementById('periodHint');
+  if (!se || !ee || !box) return;
+  var sv = String(se.value||'').substring(0,10), ev = String(ee.value||'').substring(0,10);
+  if (!sv || !ev) { box.textContent = ''; return; }
+  var s = new Date(sv), e = new Date(ev);
+  if (isNaN(s) || isNaN(e)) { box.textContent = ''; return; }
+  if (e <= s) { box.innerHTML = '<span style="color:#c92a2a">종료일이 시작일보다 앞섭니다</span>'; return; }
+  var min = addMonthsSafe(s, 1); min.setDate(min.getDate() - 1);
+  var ok = e >= min;
+  box.innerHTML = '계약 기간 <b>' + periodText(s, e) + '</b>'
+    + (ok ? ' <span style="color:#0d9488">✓</span>'
+          : ' <span style="color:#c92a2a">— 1개월 미만입니다. ' + ymd(min) + ' 이후로 넣어 주세요</span>');
+}
+
 var ALL_CONTRACTS_C = [];   // 기존 계약 목록 (수정 진입용)
 var DOC_FILES = [];    // 계약서 원본들 [{name, path}]
 var ID_FILES  = [];    // 신분증 사본들 [{name, path}]
@@ -407,6 +453,8 @@ async function saveContract(){
   if(!payload.start_date){ return alert('❌ 계약 시작일을 확인해 주세요.'); }
 
   // 계약 기간 검증: 종료일이 시작일보다 뒤 + 최소 1개월
+  //   ⚠️ setMonth 를 쓰면 안 됩니다. 1월 31일 + 1개월을 '3월 3일'로 넘겨버립니다.
+  //      말일 처리를 직접 해야 월 계산이 틀어지지 않습니다.
   if (payload.end_date) {
     var _s = new Date(String(payload.start_date).substring(0,10));
     var _e = new Date(String(payload.end_date).substring(0,10));
@@ -414,9 +462,13 @@ async function saveContract(){
       if (_e <= _s) {
         return alert('❌ 계약 종료일은 시작일보다 뒤여야 합니다.\n\n시작: ' + payload.start_date + '\n종료: ' + payload.end_date);
       }
-      var _min = new Date(_s); _min.setMonth(_min.getMonth() + 1);
+      var _min = addMonthsSafe(_s, 1);
+      _min.setDate(_min.getDate() - 1);   // 2/26 시작이면 3/25 까지가 '한 달'
       if (_e < _min) {
-        return alert('❌ 계약 기간은 최소 1개월 이상이어야 합니다.\n\n시작: ' + payload.start_date + '\n종료: ' + payload.end_date);
+        return alert('❌ 계약 기간은 최소 1개월 이상이어야 합니다.\n\n'
+          + '시작 ' + payload.start_date + ' 이면\n'
+          + '종료일은 ' + ymd(_min) + ' 이후여야 합니다.\n\n'
+          + '지금 입력: ' + payload.end_date);
       }
     }
   }

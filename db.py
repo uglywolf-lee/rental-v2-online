@@ -390,6 +390,17 @@ def init_db_schema():
             ("bills", "net_cost", "INTEGER DEFAULT 0"),
             ("bills", "due_date", "TEXT"),
             ("bills", "status", "TEXT DEFAULT '미납(고지대기)'"),
+            # 날짜는 항목마다 다릅니다 (현장 검침표: 전기 11일 · 수도 9일 · 가스 7일)
+            # 전기: 우리가 검침 → 한전에 메일 → 요금이 적혀서 회신됩니다
+            # 수도: 우리가 검침 → 요금표(톤당 단가)로 계산해 호실별로 배분합니다
+            # 가스: 우리는 검침하지 않습니다. 도시가스가 요금표를 건물로 보내오고
+            #       우리는 그걸 호실별로 합산합니다 → '검침일'이 아니라 '요금표 날짜'
+            ("bills", "read_date_elec", "TEXT"),
+            ("bills", "read_date_water", "TEXT"),
+            ("bills", "read_date_gas", "TEXT"),
+            # 한전과 세입자가 직접 계약한 호실 — 검침 불가. 브라우저가 아니라 DB에 기억합니다
+            # (예전엔 localStorage에 뒀는데, 다른 PC에서 열면 표시가 사라졌습니다)
+            ("rooms", "meter_direct", "INTEGER DEFAULT 0"),
             ("incidents", "reported_by_name", "TEXT"),
             ("incidents", "estimated_cost", "INTEGER DEFAULT 0"),
             ("incidents", "photos_json", "TEXT")

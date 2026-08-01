@@ -175,6 +175,27 @@
                 </div>
             </div>
 
+            <!-- 날짜는 항목마다 다릅니다 (현장 검침표: 전기 11일 · 수도 9일 · 가스 7일)
+                 전기·수도는 우리가 검침한 날, 가스는 도시가스가 보내온 요금표의 날짜입니다. -->
+            <div style="background:#f8f9fa;padding:8px 10px;border-radius:4px;margin:8px 0;font-size:.78rem;border-left:3px solid #6c757d;">
+                <b>📅 날짜</b> — 항목마다 날짜가 다릅니다. <span style="color:#666">비워 두면 기록하지 않습니다.</span><br>
+                전기·수도는 <b>계량기를 돌아본 날</b>, 가스는 <b>도시가스 요금표에 적힌 날</b>입니다.
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                    <label>전기 검침일</label>
+                    <input type="date" id="u_readElec" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>수도 검침일</label>
+                    <input type="date" id="u_readWater" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>가스 요금표 날짜</label>
+                    <input type="date" id="u_readGas" class="form-control">
+                </div>
+            </div>
+
             <div class="form-group form-group-top">
                 <label>납부 마감 기한일</label>
                 <input type="text" inputmode="numeric" id="u_dueDate" class="form-control date8" placeholder="YYYYMMDD (예: 20260320)" maxlength="8" required>
@@ -544,19 +565,27 @@
     // 한 줄 저장/수정 (silent=true 면 알림 없이 처리 → 일괄저장용)
     async function saveBatchRow(roomId, roomName, silent) {
         var g = function(id){ var e=document.getElementById(id); return e ? e.value : ''; };
-        var elecCost = trunc10(g('b_elecCost_' + roomId) || 0);
-        var waterCost= trunc10(g('b_waterCost_' + roomId) || 0);
-        var gasCost  = trunc10(g('b_gas_' + roomId) || 0);
-        var netCost  = trunc10(g('b_net_' + roomId) || 0);
+        // ⚠️ 0원도 정상적인 값입니다. (공실·단독계약 등)
+        //    빈 칸과 0을 반드시 구분해야 합니다. 숫자 0을 '값 없음'으로 보면 0원 저장이 막힙니다.
+        var raw = function(id){ var e=document.getElementById(id); return e ? String(e.value).trim() : ''; };
+        var rElec = raw('b_elecCost_' + roomId), rWater = raw('b_waterCost_' + roomId);
+        var rGas  = raw('b_gas_' + roomId),      rNet   = raw('b_net_' + roomId);
+
+        var elecCost = trunc10(rElec === '' ? 0 : Number(rElec));
+        var waterCost= trunc10(rWater=== '' ? 0 : Number(rWater));
+        var gasCost  = trunc10(rGas  === '' ? 0 : Number(rGas));
+        var netCost  = trunc10(rNet  === '' ? 0 : Number(rNet));
         var dueDate  = document.getElementById('u_dueDate').value || new Date().toISOString().split('T')[0];
 
-        // 아무것도 입력 안 한 줄은 건너뜀
-        if (!elecCost && !waterCost && !gasCost && !netCost) {
-            if (!silent) alert('입력된 값이 없습니다. 요금을 넣어 주세요.\n(전기는 [한전 검침표], 수도는 [수도요금 배분] 탭에서 자동으로 채워집니다)');
+        // 네 칸이 '모두 비어 있을 때'만 건너뜁니다. 0을 넣은 줄은 정상 저장합니다.
+        var allEmpty = (rElec === '' && rWater === '' && rGas === '' && rNet === '');
+        if (allEmpty) {
+            if (!silent) alert('이 줄은 비어 있습니다.\n요금을 넣어 주세요. 받을 요금이 없으면 0을 넣으시면 됩니다.');
             return false;
         }
 
-        // 검침량(사용량)은 전용 탭 값 유지, 금액은 이 화면에서 수정 가능
+        // 검침량(사용량)과 검침일은 전용 탭에서 넣은 값을 그대로 지킵니다.
+        // (예전에 가스·통신만 저장했다가 전기·수도 값이 0으로 덮인 사고가 있었습니다)
         var prev = LATEST_BILL_BY_ROOM[roomId] || {};
         var payload = {
             room_id: roomId,
@@ -567,7 +596,11 @@
             gas_cost: gasCost,
             net_cost: netCost,
             due_date: dueDate,
-            status: '미납(고지대기)'
+            status: '미납(고지대기)',
+            // 전용 탭에서 넣은 날짜를 그대로 지킵니다 (0/빈칸으로 덮이면 안 됩니다)
+            read_date_elec:  prev.read_date_elec  || '',
+            read_date_water: prev.read_date_water || '',
+            read_date_gas:   prev.read_date_gas   || ''
         };
         var ex = LATEST_BILL_BY_ROOM[roomId];
         if (ex) payload.id = ex.id;                 // 이미 있으면 수정
@@ -678,7 +711,10 @@
             gas_cost: gasCost,
             net_cost: netCost,
             due_date: dueDate,
-            status: '미납(고지대기)'
+            status: '미납(고지대기)',
+            read_date_elec:  document.getElementById('u_readElec').value  || '',
+            read_date_water: document.getElementById('u_readWater').value || '',
+            read_date_gas:   document.getElementById('u_readGas').value   || ''
         };
 
         try {

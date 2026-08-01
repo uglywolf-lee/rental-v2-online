@@ -168,6 +168,7 @@ async function build(){
   var vacant = rooms.filter(function(r){
     if (leasedRoomIds[r.id]) return false;                       // 유효 계약 있음
     var st = String(pick(r,['status','current_room_status']) || '');
+    if (/통합/.test(st)) return false;                           // 옆 호실이 함께 쓰는 방 → 빈 방이 아님
     if (!st) return true;                                        // 상태 미입력 → 공실로 간주
     return /공실|비어|빈/.test(st);                               // '공실'만 공실 (임대·공사중·사옥 제외)
   });

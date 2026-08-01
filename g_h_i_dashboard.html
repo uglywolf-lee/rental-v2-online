@@ -146,20 +146,20 @@
     <div class="grid-3">
         <div class="card card-teal">
             <h2>📊 G. 월세 수입 요약</h2>
-            <div class="metric-row"><span>당월 목표 총수입</span><span class="val" id="m_targetRevenue">1억 4,500만원</span></div>
-            <div class="metric-row"><span>보증금 반환 정산액</span><span class="val" id="m_depositReturn">8,000만원</span></div>
+            <div class="metric-row"><span>이번 달 받을 돈</span><span class="val" id="m_targetRevenue">계산 중…</span></div>
+            <div class="metric-row"><span>보증금 합계</span><span class="val" id="m_depositReturn">계산 중…</span></div>
         </div>
 
         <div class="card card-amber">
             <h2>📅 H. 만기 스케줄 요약</h2>
-            <div class="metric-row"><span>30일 이내 만기도래</span><span class="val text-orange" id="m_expireNotice">5건</span></div>
-            <div class="metric-row"><span>중도 해지 및 분쟁</span><span class="val text-red">1건</span></div>
+            <div class="metric-row"><span>30일 이내 만기</span><span class="val text-orange" id="m_expireNotice">계산 중…</span></div>
+            <div class="metric-row"><span>이미 만료된 계약</span><span class="val text-red" id="m_expired">계산 중…</span></div>
         </div>
 
         <div class="card card-primary">
             <h2>👑 I. 인프라 가동률</h2>
-            <div class="metric-row"><span>전체 운영 자산 수</span><span class="val" id="m_totalInfra">4개동 / 180호실</span></div>
-            <div class="metric-row"><span>미해결 시설파손</span><span class="val text-red" id="m_unsolvedFix">2건 접수중</span></div>
+            <div class="metric-row"><span>호실 / 입주 / 공실</span><span class="val" id="m_totalInfra">계산 중…</span></div>
+            <div class="metric-row"><span>처리 중인 유지보수</span><span class="val text-red" id="m_unsolvedFix">계산 중…</span></div>
         </div>
     </div>
 
@@ -233,9 +233,86 @@ async function loadDashboardData() {
             ALL_BILLS = await bRes.json() || [];
         } catch(e) { ALL_BILLS = []; }
         renderLedgerTable(CONTRACT_LIST);
+        renderSummaryCards();
     } catch(e) {
         console.error('[대시보드 데이터 불러오기 오류]', e);
     }
+}
+
+// 상단 요약 카드 3개 — 실제 자료로 계산한다 (예전엔 숫자가 박혀 있었다)
+async function renderSummaryCards() {
+    var set = function(id, txt){ var el = document.getElementById(id); if (el) el.textContent = txt; };
+    var 만원 = function(n){
+        n = Math.round(Number(n) || 0);
+        if (n >= 100000000) {
+            var 억 = Math.floor(n / 100000000), 나머지 = Math.round((n % 100000000) / 10000);
+            return 억 + '억' + (나머지 ? ' ' + 나머지.toLocaleString() + '만' : '') + '원';
+        }
+        if (n >= 10000) return Math.round(n / 10000).toLocaleString() + '만원';
+        return n.toLocaleString() + '원';
+    };
+
+    var today = new Date().toISOString().split('T')[0];
+    var d30 = new Date(); d30.setDate(d30.getDate() + 30);
+    var after30 = d30.toISOString().split('T')[0];
+
+    // ① 이번 달 받을 돈 / 보증금 합계 — 표와 똑같은 규칙으로 계산
+    var 수입 = 0, 보증금 = 0;
+    CONTRACT_LIST.forEach(function(c){
+        var rent  = Number(c.monthly_rent) || 0;
+        var maint = Number(c.maintenance_fee) || 0;
+        var bill = ALL_BILLS.filter(function(b){
+            return b.scope !== 'common' && String(b.room_id) === String(c.room_id);
+        }).sort(function(a,b){ return b.id - a.id; })[0] || {};
+        var vatOn = true;
+        try { if (JSON.parse(c.documents_json || '{}').vat_applied === false) vatOn = false; } catch(e){}
+        수입 += rent + maint + (vatOn ? trunc10(maint * 0.1) : 0)
+              + (Number(bill.elec_cost)||0) + (Number(bill.water_cost)||0)
+              + (Number(bill.gas_cost)||0)  + (Number(bill.net_cost)||0);
+        보증금 += Number(c.deposit_amount) || 0;
+    });
+    set('m_targetRevenue', 만원(수입));
+    set('m_depositReturn', 만원(보증금));
+
+    // ② 만기 — 30일 이내 / 이미 지난 것
+    var 임박 = 0, 만료 = 0;
+    CONTRACT_LIST.forEach(function(c){
+        if (!c.end_date) return;
+        if (c.end_date < today) 만료++;
+        else if (c.end_date <= after30) 임박++;
+    });
+    set('m_expireNotice', 임박 + '건');
+    set('m_expired',      만료 + '건');
+
+    // ③ 호실 현황 — 계약이 있으면 입주, 없으면 공실
+    //    '통합'(옆 호실이 함께 쓰는 방)은 따로 세지 않습니다.
+    //    예: 201호가 2층 전체를, 301호가 3층 전체를 쓰고 있어 202·203·302·303호는 빈 방이 아닙니다.
+    var 전체 = 0, 통합수 = 0;
+    Object.keys(ROOM_BY_ID).forEach(function(k){
+        var r = ROOM_BY_ID[k] || {};
+        var st = String(r.status || r.current_room_status || '');
+        if (/통합/.test(st)) { 통합수++; return; }
+        전체++;
+    });
+    var 입주 = {};
+    CONTRACT_LIST.forEach(function(c){
+        if (!c.room_id || !(!c.end_date || c.end_date >= today)) return;
+        var r = ROOM_BY_ID[c.room_id] || {};
+        if (/통합/.test(String(r.status || r.current_room_status || ''))) return;
+        입주[c.room_id] = 1;
+    });
+    var 입주수 = Object.keys(입주).length;
+    set('m_totalInfra', 전체
+        ? (전체 + '실 / 입주 ' + 입주수 + ' / 공실 ' + (전체 - 입주수)
+           + (통합수 ? ' (통합 ' + 통합수 + '실 제외)' : ''))
+        : '-');
+
+    // ④ 유지보수 — 완료가 아닌 건
+    try {
+        var inc = await (await fetch('/api/v1/incidents')).json() || [];
+        var 미완 = inc.filter(function(i){ return String(i.status || '') !== '완료'; }).length;
+        set('m_unsolvedFix', 미완 ? (미완 + '건 처리 중') : '없음');
+    } catch(e) { set('m_unsolvedFix', '-'); }
 }
 
 function renderLedgerTable(list) {

@@ -182,14 +182,20 @@ def _check_contract_dates(start_date, end_date):
         return None                      # 날짜 형식이 아니면 검증 생략
     if ed <= sd:
         return '계약 종료일은 시작일보다 뒤여야 합니다. (시작 %s / 종료 %s)' % (s, e)
-    # 최소 1개월: 시작일 + 1개월 이상
+
+    # 최소 1개월 판정 — 부동산 관행에 맞춘다.
+    #   2월 26일에 시작해 3월 25일에 끝나면 "딱 한 달"이다. (다음 달 같은 날의 '전날')
+    #   예전에는 3월 26일 이상을 요구해 하루 차이로 정상 계약이 막혔다. (2026-07-31 수정)
     y, m = sd.year, sd.month + 1
     if m > 12:
         y, m = y + 1, 1
-    day = min(sd.day, [31, 29 if (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else 28,
-                       31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1])
-    if ed < _dt.date(y, m, day):
-        return '계약 기간은 최소 1개월 이상이어야 합니다. (시작 %s / 종료 %s)' % (s, e)
+    last = [31, 29 if (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else 28,
+            31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]
+    one_month_later = _dt.date(y, m, min(sd.day, last))
+    if ed < one_month_later - _dt.timedelta(days=1):
+        return ('계약 기간은 최소 1개월 이상이어야 합니다.\n'
+                '시작 %s 이면 종료일은 %s 이후여야 합니다. (지금 입력: %s)'
+                % (s, (one_month_later - _dt.timedelta(days=1)).isoformat(), e))
     return None
 
 
@@ -295,6 +301,7 @@ def handle_post_api(path, data):
                     'area_sqm': 'area_sqm', 'area': 'area_sqm',
                     'current_room_status': 'current_room_status', 'status': 'current_room_status',
                     'is_active': 'is_active',
+                    'meter_direct': 'meter_direct',   # 한전 단독계약(검침 불가)
                 }
                 used = set()
                 for k, col in mapping.items():
@@ -315,8 +322,9 @@ def handle_post_api(path, data):
                              'id': (dup['id'] if hasattr(dup, 'keys') else dup[0]), 'duplicate': True}
             area = float(data.get('area_sqm') or data.get('area') or 0.0)
             status = str(data.get('current_room_status') or data.get('status') or '공실')
-            cur.execute("INSERT INTO rooms (building_id, floor_no, room_no, area_sqm, current_room_status) VALUES (?, ?, ?, ?, ?)",
-                        (b_id, floor, room_no, area, status))
+            direct = 1 if str(data.get('meter_direct', '')).strip() in ('1', 'true', 'True', 'on') else 0
+            cur.execute("INSERT INTO rooms (building_id, floor_no, room_no, area_sqm, current_room_status, meter_direct) VALUES (?, ?, ?, ?, ?, ?)",
+                        (b_id, floor, room_no, area, status, direct))
             rid = cur.lastrowid
             conn.commit()
             return 201, {'id': rid, 'success': True, 'message': '호실 등록 완료'}
@@ -370,7 +378,8 @@ def handle_post_api(path, data):
                 fields, vals = [], []
                 for k in ('room_id', 'building_id', 'scope', 'common_area', 'bill_type',
                           'elec_usage', 'elec_cost', 'water_usage', 'water_cost', 'gas_cost', 'net_cost',
-                          'due_date', 'status'):
+                          'due_date', 'status',
+                          'read_date_elec', 'read_date_water', 'read_date_gas'):
                     if k in data:
                         fields.append(k + '=?'); vals.append(data[k])
                 if fields:
@@ -396,10 +405,17 @@ def handle_post_api(path, data):
             due = str(data.get('due_date', '') or '')
             status = str(data.get('status', '미납(고지대기)'))
             water_usage = int(data.get('water_usage', 0) or 0)
+            # 날짜 — 전기·수도는 우리가 검침한 날, 가스는 도시가스 요금표에 적힌 날입니다.
+            # 셋 다 날짜가 다릅니다. 안 넣으면 빈칸으로 둡니다
+            rd_e = str(data.get('read_date_elec', '') or '')
+            rd_w = str(data.get('read_date_water', '') or '')
+            rd_g = str(data.get('read_date_gas', '') or '')
             cur.execute("""
-                INSERT INTO bills (room_id, building_id, scope, common_area, elec_usage, elec_cost, water_usage, water_cost, gas_cost, net_cost, due_date, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (room_id, building_id, scope, common_area, elec, elec_cost, water_usage, water, gas, net, due, status))
+                INSERT INTO bills (room_id, building_id, scope, common_area, elec_usage, elec_cost, water_usage, water_cost, gas_cost, net_cost, due_date, status,
+                                   read_date_elec, read_date_water, read_date_gas)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (room_id, building_id, scope, common_area, elec, elec_cost, water_usage, water, gas, net, due, status,
+                  rd_e, rd_w, rd_g))
             bid = cur.lastrowid
             conn.commit()
             return 201, {'id': bid, 'success': True, 'message': '공과금 고지 등록 완료'}
