@@ -283,6 +283,49 @@ FR_net_wifi_countrycode='KR'
 - `sudo netplan apply` 후 `networkctl status wlan0` 으로 확인
 - 숨김 SSID면 해당 AP 아래에 `hidden: true`
 - `ip link show wlan0` 으로 **MAC 주소를 받아 적어둘 것** (현장 공유기 고정IP 예약용)
+- **SSID 철자가 헷갈리면 두 벌 다 넣어 둘 것.** 대림빌딩은 `daerimM` / `daelimM` (r·l) 두 가지로
+  적힐 수 있어 양쪽을 모두 등록해 뒀습니다. 안 잡히는 쪽은 그냥 무시되므로 손해가 없고,
+  현장에 도착해서 철자 하나 때문에 못 붙는 사고를 막아 줍니다.
+  현재 등록: `606_202`(집) · `daerimM` · `daelimM` · `iPhone`(핫스팟, 비상용)
+- **원격(Tailscale·WiFi)으로 netplan을 고칠 때는 자동 복구를 먼저 걸어 둘 것.**
+  오타 하나로 진입로가 사라지면 현장에 직접 가야 합니다. 순서는 이렇습니다.
+
+  ```bash
+  # 1) 백업
+  sudo cp /etc/netplan/30-wifis-dhcp.yaml /root/30-wifis-dhcp.yaml.bak-$(date +%Y%m%d-%H%M%S)
+
+  # 2) 수정 후 문법 검사 (apply 전에 반드시)
+  sudo netplan generate
+
+  # 3) 3분 뒤 되돌리는 스크립트를 띄운다.
+  #    setsid nohup 이라야 SSH가 끊겨도 계속 살아 있습니다.
+  #    /root/NETPLAN_OK 가 있으면 되돌리지 않고 그냥 끝냅니다.
+  sudo setsid nohup /root/netplan_revert.sh >/dev/null 2>&1 &
+
+  # 4) 적용하고 접속이 살아 있는지 확인
+  sudo netplan apply
+  iw dev wlan0 link          # SSID·연결 상태
+  ip -4 addr show wlan0      # IP를 받았는지
+
+  # 5) 멀쩡하면 자동 복구 취소
+  sudo touch /root/NETPLAN_OK
+  ```
+
+  접속이 끊기면 3분 뒤 보드가 알아서 예전 설정으로 돌아와 다시 붙습니다.
+
+  `/root/netplan_revert.sh` 는 이미 보드에 넣어 뒀습니다. 내용은 이렇습니다 —
+  **가장 최근 백업**을 되살리므로 백업(1단계)을 거르면 안 됩니다.
+
+  ```bash
+  #!/bin/bash
+  sleep 180
+  if [ -f /root/NETPLAN_OK ]; then rm -f /root/NETPLAN_OK; exit 0; fi
+  BAK=$(ls -1t /root/30-wifis-dhcp.yaml.bak-* 2>/dev/null | head -1)
+  [ -z "$BAK" ] && exit 0
+  cp "$BAK" /etc/netplan/30-wifis-dhcp.yaml
+  chmod 600 /etc/netplan/30-wifis-dhcp.yaml
+  netplan apply
+  ```
 
 **Tailscale** — 건물 IP를 몰라도 접속되게 만드는 단계.
 
