@@ -59,6 +59,21 @@
   .viewer-body img{max-width:100%;max-height:100%;box-shadow:0 4px 14px rgba(0,0,0,.4)}
   .viewer-empty{color:#9aa0a6;font-size:.85rem;text-align:center;line-height:1.6}
   .review-note{background:#fff3cd;color:#856404;font-size:.74rem;padding:7px 10px;border-radius:5px;margin-bottom:12px;border:1px solid #ffe69c}
+  /* 긴 설명은 접어 둔다 — 늘 펼쳐 두면 입력칸이 아래로 밀려 저장 버튼이 화면 밖으로 나간다 */
+  details.help{font-size:.78rem;color:#666;margin-top:3px;line-height:1.6}
+  details.help summary{cursor:pointer;color:var(--primary);font-weight:600;font-size:.74rem;
+                       list-style:none;display:inline-block;padding:1px 0}
+  details.help summary::-webkit-details-marker{display:none}
+  details.help summary::before{content:'❔ '}
+  details.help[open] summary::before{content:'✕ '}
+  details.help .help-body{padding:4px 0 2px}
+  /* 저장 버튼은 항상 화면에 남는다 — 입력칸이 늘어나도 아래로 밀려 사라지지 않는다 */
+  .save-bar{position:sticky;bottom:0;z-index:5;display:flex;gap:8px;align-items:stretch;
+            background:var(--white);border-top:1px solid var(--border);
+            padding:10px 20px;margin:10px -20px -20px;
+            box-shadow:0 -5px 12px rgba(0,0,0,.07)}
+  .save-bar .btn-save{flex:1;margin-top:0}
+  .save-bar .btn-sub{flex:0 0 auto;white-space:nowrap;margin-top:0}
 </style>
 <script src="guard.js"></script>
 </head>
@@ -120,10 +135,13 @@
               <input type="checkbox" id="autoExtend" onchange="showPeriod()" style="vertical-align:middle">
               <b>자동 연장</b> — 매달 내면서 계속 사는 계약 (깔세 등)
             </label>
-            <div style="font-size:.78rem;color:#666;margin-top:3px;line-height:1.6">
-              체크해 두면 종료일이 지나도 <b>공실로 세지 않습니다.</b> 종료일은 계약서에 적힌 그대로 두세요.<br>
-              나가시면 <b>체크를 풀고</b> 실제 나간 날을 종료일에 적으면 됩니다.
-            </div>
+            <details class="help">
+              <summary>자동 연장이 뭔가요?</summary>
+              <div class="help-body">
+                체크해 두면 종료일이 지나도 <b>공실로 세지 않습니다.</b> 종료일은 계약서에 적힌 그대로 두세요.<br>
+                나가시면 <b>체크를 풀고</b> 실제 나간 날을 종료일에 적으면 됩니다.
+              </div>
+            </details>
           </div>
           <div id="periodHint" style="grid-column:1/-1;font-size:.82rem;color:#495057;margin:-6px 0 6px;min-height:1.1em"></div>
         </div>
@@ -159,8 +177,11 @@
 
       <input type="hidden" id="editContractId" value="">
       <div id="cEditBanner" style="display:none;background:#fff3cd;border:1px solid #ffe08a;border-left:4px solid #f0ad4e;border-radius:5px;padding:8px 10px;margin-bottom:8px;font-size:.8rem;color:#664d03"></div>
-      <button type="submit" class="btn btn-save" id="cSaveBtn">💾 계약서 저장 (원본문서 첨부)</button>
-      <button type="button" class="btn btn-sub" style="width:100%;margin-top:6px" onclick="resetContractForm()">새 계약 입력 (선택 해제)</button>
+      <div class="save-bar">
+        <button type="submit" class="btn btn-save" id="cSaveBtn">💾 계약서 저장 (원본문서 첨부)</button>
+        <button type="button" class="btn btn-sub" onclick="resetContractForm()"
+                title="입력한 내용을 비우고 새 계약을 처음부터 입력합니다">새 계약</button>
+      </div>
     </form>
   </div>
 
