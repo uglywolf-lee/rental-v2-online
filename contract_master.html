@@ -283,6 +283,10 @@ var ALL_CONTRACTS_C = [];   // 기존 계약 목록 (수정 진입용)
 var DOC_FILES = [];    // 계약서 원본들 [{name, path}]
 var ID_FILES  = [];    // 신분증 사본들 [{name, path}]
 var ALL_ROOMS = [];
+// 지금 우측 뷰어에 떠 있는 것이 '좌측 호실의 기존 계약을 그냥 보여주는 것'인가?
+//   true  = 미리보기 (호실을 바꾸면 그 호실 계약서로 갈아끼워도 됨)
+//   false = 사용자가 직접 올렸거나 수정 중인 계약의 파일 (건드리면 안 됨)
+var VIEW_PREVIEW = false;
 
 // 파일 여러 개 업로드 공통 처리
 async function uploadMany(files, bucket, listElId, label){
@@ -323,6 +327,7 @@ async function handleFilePicked(){
   var fi=document.getElementById('docFile');
   if(!fi.files || !fi.files.length) return;
   setStatus('계약서 업로드 중...', 'st-warn');
+  VIEW_PREVIEW = false;   // 이제부터는 사용자가 올린 파일이다 — 호실을 바꿔도 안 지운다
   await uploadMany(fi.files, DOC_FILES, 'docFileList', '계약서');
   if (DOC_FILES.length){
     VIEW_IDX = DOC_FILES.length-1; switchViewerKeepIdx('doc');
@@ -337,6 +342,7 @@ async function handleFilePicked(){
 async function handleIdPicked(){
   var fi=document.getElementById('idFile');
   if(!fi.files || !fi.files.length) return;
+  VIEW_PREVIEW = false;   // 이제부터는 사용자가 올린 파일이다 — 호실을 바꿔도 안 지운다
   await uploadMany(fi.files, ID_FILES, 'idFileList', '신분증');
   if (ID_FILES.length){
     VIEW_IDX = ID_FILES.length-1; switchViewerKeepIdx('id');
@@ -413,9 +419,16 @@ function onRoomChanged(){
   var rid = document.getElementById('roomId').value;
   var hint = document.getElementById('roomHint');
   var addrEl = document.getElementById('hostAddress');
-  if(!rid){ hint.textContent=''; return; }
+  // 호실이 확정되지 않았으면 안내·뷰어를 비운다 (옛 호실 계약서가 남아 있으면 안 된다)
+  var clearAll = function(){
+    hint.textContent = '';
+    var b = document.getElementById('existingContractBox');
+    if (b) b.style.display = 'none';
+    if (!document.getElementById('editContractId').value) previewContractFiles(null);
+  };
+  if(!rid){ clearAll(); return; }
   var rm = ALL_ROOMS.find(function(r){ return String(r.id) === String(rid); });
-  if(!rm){ hint.textContent=''; return; }
+  if(!rm){ clearAll(); return; }
   var addr = rm.building_address || '';
   var roomNo = rm.room || rm.room_no || '';
   var full = (addr + (roomNo ? ' ' + roomNo + '호' : '')).trim();
@@ -435,14 +448,34 @@ function showExistingContract(rid){
   if (document.getElementById('editContractId').value) { box.style.display='none'; return; }  // 이미 수정 중
   var c = ALL_CONTRACTS_C.filter(function(x){ return String(x.room_id) === String(rid); })
                          .sort(function(a,b){ return b.id - a.id; })[0];
-  if (!c) { box.style.display='none'; return; }
+  if (!c) { box.style.display='none'; previewContractFiles(null); return; }
+  previewContractFiles(c);   // 우측 원본뷰어도 이 호실을 따라가게 한다
   box.style.display = '';
   box.innerHTML = '📄 이 호실에 <b>기존 계약</b>이 있습니다 — ' + (c.tenant_name || '임차인 미등록')
-    + ' (' + (c.start_date||'') + ' ~ ' + (c.end_date||'') + ')<br>'
+    + ' (' + (c.start_date||'') + ' ~ ' + (c.end_date||'') + ')'
+    + (DOC_FILES.length ? ' · 우측에 그 계약서 원본을 띄웠습니다' : '') + '<br>'
     + '<button type="button" onclick="loadContractForEdit(' + c.id + ')" '
     + 'style="margin-top:6px;padding:6px 14px;font-size:.82rem;font-weight:700;cursor:pointer;'
     + 'background:#fd7e14;color:#fff;border:none;border-radius:5px">✏️ 불러와 수정하기</button>'
     + '<span style="margin-left:8px;color:#666">(그냥 새로 입력하면 별개 계약으로 저장됩니다)</span>';
+}
+
+// 좌측에서 호실을 바꾸면 우측 원본뷰어도 그 호실 계약서로 따라가게 한다.
+//   예전에는 loadContractForEdit() 안에서만 뷰어를 채웠다. 그래서 호실만 바꾸면
+//   처음 열었던 계약서가 계속 떠 있어, 엉뚱한 방 계약서를 보며 입력하게 됐다.
+//   c 가 null 이면 (계약 없는 호실) 뷰어를 비운다.
+function previewContractFiles(c){
+  // ⚠️ 사용자가 직접 올린 파일이나 수정 중인 계약의 파일은 절대 밀어내지 않는다.
+  if (!VIEW_PREVIEW && (DOC_FILES.length || ID_FILES.length)) return;
+  var m = {};
+  try { m = JSON.parse((c && c.documents_json) || '{}'); } catch(e) { m = {}; }
+  DOC_FILES = Array.isArray(m.files) ? m.files : (m.file ? [m.file] : []);
+  ID_FILES  = Array.isArray(m.id_files) ? m.id_files : (m.tenant_id_front ? [m.tenant_id_front] : []);
+  VIEW_PREVIEW = true;
+  renderFileList(DOC_FILES,'docFileList');
+  renderFileList(ID_FILES,'idFileList');
+  VIEW_IDX = 0;
+  switchViewer('doc');
 }
 
 // 3) 호실 목록 로드
@@ -566,7 +599,7 @@ async function saveContract(){
       document.getElementById('contractForm').reset();
       resetContractForm();
       loadContractsList();          // 저장 직후 목록 갱신 → 다시 고르면 '불러와 수정' 뜸
-      DOC_FILES=[]; ID_FILES=[];
+      DOC_FILES=[]; ID_FILES=[]; VIEW_PREVIEW=false;
       document.getElementById('docFileList').innerHTML='';
       document.getElementById('idFileList').innerHTML='';
       document.getElementById('vatApplied').checked=true;
@@ -592,7 +625,7 @@ function resetContractForm(){
   document.getElementById('cRoomChips').innerHTML = '';
   document.getElementById('roomHint').textContent = '';
   document.getElementById('existingContractBox').style.display = 'none';
-  DOC_FILES=[]; ID_FILES=[];
+  DOC_FILES=[]; ID_FILES=[]; VIEW_PREVIEW=false;
   document.getElementById('docFileList').innerHTML='';
   document.getElementById('idFileList').innerHTML='';
   document.getElementById('vatApplied').checked = true;
@@ -652,6 +685,7 @@ async function loadContractForEdit(cid){
       ID_FILES  = Array.isArray(m.id_files) ? m.id_files : (m.tenant_id_front ? [m.tenant_id_front] : []);
       renderFileList(DOC_FILES,'docFileList');
       renderFileList(ID_FILES,'idFileList');
+      VIEW_PREVIEW = false;   // 수정 대상 계약의 파일이다 — 미리보기로 갈아끼우면 안 된다
       VIEW_IDX = 0; switchViewer('doc');
     }catch(e){}
 
