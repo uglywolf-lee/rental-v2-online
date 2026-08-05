@@ -127,6 +127,19 @@
           </div>
           <div id="periodHint" style="grid-column:1/-1;font-size:.82rem;color:#495057;margin:-6px 0 6px;min-height:1.1em"></div>
         </div>
+        <div class="form-group" style="background:#eef6ff;border:1px solid #c3ddf7;border-radius:5px;padding:8px 10px">
+          <label style="margin:0 0 4px">수납 약정일 — 매월 며칠에 월세를 받나요?</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:.9rem">매월</span>
+            <input type="number" id="payDay" class="form-control" min="1" max="31"
+                   style="width:88px;text-align:center" placeholder="자동"
+                   oninput="showPayDay()" onchange="showPayDay()">
+            <span style="font-size:.9rem">일</span>
+          </div>
+          <div id="payDayHint" style="font-size:.78rem;color:#666;margin-top:5px;line-height:1.6">
+            <b>비워 두면 계약 시작일과 같은 날</b>로 봅니다. 계약서에 다른 날로 적혀 있을 때만 넣으세요.
+          </div>
+        </div>
         <div class="form-group" style="background:#f3effc;border:1px solid #d6c9f0;border-radius:5px;padding:7px 10px;">
           <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-size:.84rem;white-space:nowrap">
             <input type="checkbox" id="vatApplied" checked style="width:16px;height:16px;cursor:pointer">
@@ -201,8 +214,42 @@ function periodText(s, e){
   return months + '개월' + (days > 0 ? ' ' + days + '일' : '');
 }
 
+// 수납 약정일 — 지금 값이면 매월 며칠이 되는지 그 자리에서 보여준다.
+//   판정은 guard.js 의 contractPayDay() 한 곳에서만 합니다. 여기서 다시 계산하지 않습니다.
+function showPayDay(){
+  var el   = document.getElementById('payDay');
+  var hint = document.getElementById('payDayHint');
+  if (!el || !hint) return;
+  var sd = document.getElementById('startDate');
+  var sv = String((sd && sd.value) || '').substring(0, 10);
+
+  var typed   = String(el.value || '').trim();
+  var n       = Number(typed);
+  var typedOk = typed !== '' && isFinite(n) && n >= 1 && n <= 31;
+
+  if (typed !== '' && !typedOk) {
+    hint.innerHTML = '<span style="color:#c92a2a">1 부터 31 사이의 날짜를 넣어 주세요</span>';
+    return;
+  }
+  var day = window.contractPayDay
+          ? window.contractPayDay({ pay_day: typedOk ? n : 0, start_date: sv })
+          : 0;
+
+  if (typedOk) {
+    hint.innerHTML = '이 계약은 <b style="color:#0b5ed7">매월 ' + day + '일</b>에 받습니다. (계약서에 적힌 날)';
+  } else if (day) {
+    hint.innerHTML = '비워 두셨으므로 <b style="color:#0b5ed7">매월 ' + day + '일</b>로 봅니다 — 계약 시작일과 같은 날입니다.';
+  } else {
+    hint.innerHTML = '<b>비워 두면 계약 시작일과 같은 날</b>로 봅니다. 계약서에 다른 날로 적혀 있을 때만 넣으세요.';
+  }
+  if (day > 28) {
+    hint.innerHTML += '<div style="color:#b26a00;margin-top:3px">⚠️ ' + day + '일이 없는 달도 있습니다. 그런 달은 직원이 직접 챙겨 주세요.</div>';
+  }
+}
+
 // 시작일·종료일을 넣으면 기간을 바로 보여준다 (직원이 눈으로 확인)
 function showPeriod(){
+  showPayDay();   // 시작일이 바뀌면 약정일 안내도 같이 바뀝니다
   var se = document.getElementById('startDate'), ee = document.getElementById('endDate');
   var box = document.getElementById('periodHint');
   if (!se || !ee || !box) return;
@@ -469,6 +516,8 @@ async function saveContract(){
     start_date: document.getElementById('startDate').value,   // date8 → ISO 반환
     end_date: document.getElementById('endDate').value,
     auto_extend: document.getElementById('autoExtend').checked ? 1 : 0,
+    // 비워 두면 0 으로 저장되고, 화면에서는 계약 시작일과 같은 날로 봅니다
+    pay_day: parseInt(document.getElementById('payDay').value || '0', 10) || 0,
     special_terms: document.getElementById('specialTerms').value.trim(),
     // 임차인 정보 → 서버가 계약자 명부(contacts)에 자동 등록·연결
     tenant_name: val('tenantName'),
@@ -548,6 +597,7 @@ function resetContractForm(){
   document.getElementById('idFileList').innerHTML='';
   document.getElementById('vatApplied').checked = true;
   document.getElementById('autoExtend').checked = false;
+  document.getElementById('payDay').value = '';
   VIEW_IDX=0; switchViewer('doc');
   updateAmountHint();
   showPeriod();
@@ -580,8 +630,11 @@ async function loadContractForEdit(cid){
     document.getElementById('startDate').value = c.start_date || '';
     document.getElementById('endDate').value   = c.end_date || '';
     document.getElementById('autoExtend').checked = (String(c.auto_extend || 0) === '1');
+    // 0 은 '따로 정하지 않음' → 칸을 비워 두고 시작일과 같은 날로 안내합니다
+    document.getElementById('payDay').value = (Number(c.pay_day) || 0) ? Number(c.pay_day) : '';
     document.getElementById('specialTerms').value = c.special_terms || '';
     updateAmountHint();
+    showPeriod();
 
     // documents_json 복원 (임차인 정보 / 첨부파일 / 부가세)
     try{

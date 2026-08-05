@@ -208,6 +208,29 @@
     var orig = String(c.end_date || '').substring(0, 10);
     return !!orig && orig < today();
   };
+
+  // ===== 수납 약정일 (매월 며칠에 월세를 받는가) =====
+  //
+  // 예전에는 모든 화면에 '매월 15일'이 글자로 박혀 있었습니다.
+  // 실제로는 계약마다 다릅니다. 기준은 **계약 시작일과 같은 날**입니다.
+  //   1월 15일에 시작했으면 매월 15일에 받습니다.
+  //   이래야 '이번 기간 종료일(2월 14일)'이 다음 납입일 바로 전날이 되어 위 계산과 맞습니다.
+  // 계약서에 다른 날로 적혀 있으면 계약 화면에서 그 날을 직접 넣습니다(contracts.pay_day).
+  //
+  //   contractPayDay(계약)     → 1~31 숫자. 알 수 없으면 0
+  //   contractPayDayText(계약) → '매월 15일' 같은 표시용 글자. 모르면 '-'
+  window.contractPayDay = function (c) {
+    var d = Number(c && c.pay_day) || 0;          // 계약서에 따로 적어 둔 날이 우선
+    if (d >= 1 && d <= 31) return d;
+    var p = String((c && c.start_date) || '').substring(0, 10).split('-');
+    var s = Number(p[2]) || 0;                    // 없으면 계약 시작일과 같은 날
+    return (s >= 1 && s <= 31) ? s : 0;
+  };
+
+  window.contractPayDayText = function (c) {
+    var d = window.contractPayDay(c);
+    return d ? ('매월 ' + d + '일') : '-';
+  };
 })();
 
 

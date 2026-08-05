@@ -173,6 +173,19 @@ def _flag(v):
     return 1 if str(v).strip().lower() in ('1', 'true', 'on', 'yes', '예') else 0
 
 
+def _pay_day(v):
+    """수납 약정일을 1~31 숫자로 바꿉니다.
+
+    비었거나 범위를 벗어나면 0 을 돌려주고, 0 은 '따로 정하지 않음'이라는 뜻입니다.
+    이때 화면은 계약 시작일과 같은 날로 봅니다 (guard.js contractPayDay).
+    """
+    try:
+        n = int(str(v).strip() or 0)
+    except (TypeError, ValueError):
+        return 0
+    return n if 1 <= n <= 31 else 0
+
+
 def _check_contract_dates(start_date, end_date):
     """계약 기간 검증: 시작일 < 종료일, 최소 1개월. 문제 없으면 None, 있으면 오류 메시지."""
     import datetime as _dt
@@ -485,14 +498,14 @@ def handle_post_api(path, data):
                     UPDATE contracts SET
                         room_id=?, host_address_full=?, lease_type=?, deposit_amount=?,
                         monthly_rent=?, maintenance_fee=?, commission_fee=?, start_date=?,
-                        end_date=?, documents_json=?, special_terms=?, auto_extend=?
+                        end_date=?, documents_json=?, special_terms=?, auto_extend=?, pay_day=?
                     WHERE id=?
                 """, (
                     data.get('room_id'), data.get('host_address_full', ''), data.get('lease_type', '월세'),
                     data.get('deposit_amount', 0), data.get('monthly_rent', 0), data.get('maintenance_fee', 0),
                     data.get('commission_fee', 0), data.get('start_date', ''), data.get('end_date', ''),
                     data.get('documents_json', '[]'), str(special_terms or '').strip(),
-                    _flag(data.get('auto_extend')), cid
+                    _flag(data.get('auto_extend')), _pay_day(data.get('pay_day')), cid
                 ))
                 if t_id:
                     cur.execute("UPDATE contracts SET tenant_contact_id=? WHERE id=?", (t_id, cid))
@@ -544,9 +557,9 @@ def handle_post_api(path, data):
             cur.execute("""
                 INSERT INTO contracts (room_id, host_address_full, owner_contact_id, tenant_contact_id, broker_id,
                                       lease_type, deposit_amount, monthly_rent, maintenance_fee, commission_fee,
-                                      start_date, end_date, documents_json, special_terms, auto_extend, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            """, (room_id, host_addr, owner_cid, tenant_cid, broker_id, lease_type, deposit, monthly, maint_fee, comm_fee, s_date, e_date, docs_json, str(special_terms or '').strip(), _flag(data.get('auto_extend'))))
+                                      start_date, end_date, documents_json, special_terms, auto_extend, pay_day, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """, (room_id, host_addr, owner_cid, tenant_cid, broker_id, lease_type, deposit, monthly, maint_fee, comm_fee, s_date, e_date, docs_json, str(special_terms or '').strip(), _flag(data.get('auto_extend')), _pay_day(data.get('pay_day'))))
             new_cid = cur.lastrowid
             _mark_room_leased(cur, room_id)
             conn.commit()

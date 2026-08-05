@@ -194,7 +194,7 @@
                             <th>대상 호실</th>
                             <th>임차 상호 / 성명</th>
                             <th>청구월</th>
-                            <th>약정 약정일</th>
+                            <th>수납 약정일</th>
                             <th>입금 확인일</th>
                             <th>수납 금액</th>
                             <th>수납 상태</th>
@@ -465,7 +465,7 @@ function renderLedgerTable(list) {
             <td class="cell-text-center" data-doc-room="${roomNoOnly}" title="누르면 계약서·신분증이 새 창으로 열립니다"><b>${roomStr}</b></td>
             <td class="cell-text-center" data-doc-room="${roomNoOnly}" title="누르면 계약서·신분증이 새 창으로 열립니다">${item.tenant_name || '-'} 📄</td>
             <td class="cell-text-center">${todayStr.substring(0, 7)}</td>
-            <td class="cell-text-center">매월 15일</td>
+            <td class="cell-text-center">${window.contractPayDayText ? window.contractPayDayText(item) : '-'}</td>
             <td class="cell-num-right">${pay ? (pay.pay_date || '-') : '-'}</td>
             <td class="cell-num-right"><b>${(pay ? paidAmt : total).toLocaleString()}원</b>${pay ? '' : ' <span style="font-size:.7rem;color:#888">(청구예정)</span>'}</td>
             <td class="cell-text-center"><span style="color:${stColor};font-weight:bold">${payStatus}</span></td>

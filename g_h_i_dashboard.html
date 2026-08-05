@@ -369,6 +369,9 @@ function renderLedgerTable(list) {
                       (ROOM_BY_ID[item.room_id] ? (ROOM_BY_ID[item.room_id].building_name || '') : '');
         var roomStr = roomNo ? ((bldName ? bldName + ' ' : '') + roomNo + '호') : '미지정';
 
+        // 수납 약정일 — 계약서에 적어 둔 날, 없으면 계약 시작일과 같은 날 (guard.js)
+        var payDay = window.contractPayDay ? window.contractPayDay(item) : 0;
+
         tr.innerHTML = `
             <td class="col-no">${idx + 1}</td>
             <td class="cell-text-center cell-doc" title="누르면 계약서·신분증이 새 창으로 열립니다"
@@ -376,7 +379,7 @@ function renderLedgerTable(list) {
             <td class="cell-text-center cell-doc" title="누르면 계약서·신분증이 새 창으로 열립니다"
                 onclick="openDocs(${item.id})">${item.tenant_name || '-'} 📄</td>
             <td class="cell-num-right">${item.tenant_phone || '-'}</td>
-            <td class="cell-day">15일</td>
+            <td class="cell-day">${payDay ? payDay + '일' : '-'}</td>
             <td class="cell-num-right">${fmt(rent)}</td>
             <td class="cell-num-right">${fmt(maint)}</td>
             <td class="cell-num-right">${fmt(elec)}</td>

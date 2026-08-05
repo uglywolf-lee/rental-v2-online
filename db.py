@@ -386,6 +386,11 @@ def init_db_schema():
             #   종료일을 달 단위로 밀어 '이번 기간 종료일'을 계산해 씁니다.
             #   나가면 체크를 풀고 실제 퇴실일을 종료일에 적습니다.
             ("contracts", "auto_extend", "INTEGER DEFAULT 0"),
+            # 수납 약정일 — 매월 며칠에 월세를 받기로 했는지 (1~31).
+            #   0 이면 '따로 정하지 않음' 이고, 화면에서는 계약 시작일과 같은 날로 봅니다.
+            #   (1월 15일 시작 → 매월 15일. 계약서에 다른 날로 적혀 있으면 여기에 그 날을 넣습니다)
+            #   판정 규칙은 guard.js 의 contractPayDay() 한 곳에만 둡니다.
+            ("contracts", "pay_day", "INTEGER DEFAULT 0"),
             ("contracts", "tenant_contact_id", "INTEGER DEFAULT 0"),
             ("contracts", "owner_contact_id", "INTEGER DEFAULT 1"),
             ("contracts", "broker_id", "INTEGER DEFAULT 0"),
