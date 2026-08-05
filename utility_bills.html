@@ -326,13 +326,23 @@
                 dl.appendChild(opt);
             });
 
+            // ⚠️ 저장된 공과금을 **먼저** 불러옵니다. 그래야 입력판을 그릴 때 값이 함께 들어갑니다.
+            //    예전에는 순서가 반대라서 입력판이 빈 채로 그려졌고, 저장해 둔 값이 안 보였습니다.
+            //    그래서 [검색]을 눌러 다시 그려야 비로소 값이 나타났습니다.
+            await loadDbBillsHistory();
+
+            // 화면을 처음 열었을 때 잡히는 호실 — 4층 440호입니다.
+            //   예전에는 목록의 첫 줄(지하 2층 B201)이 잡혔습니다. 검침에서 자주 쓰는 층이 아닙니다.
+            //   440을 넣으면 우측 입력판이 4층 전체(440~449)로 함께 맞춰집니다.
             if (ALL_ROOMS.length > 0) {
-                sel.value = String(ALL_ROOMS[0].room || ALL_ROOMS[0].room_no || '');
-                onRoomSearchChange(sel.value);
+                var has440 = ALL_ROOMS.some(function(r) {
+                    return String(r.room || r.room_no || '') === '440';
+                });
+                sel.value = has440 ? '440' : String(ALL_ROOMS[0].room || ALL_ROOMS[0].room_no || '');
+                onRoomSearchChange(sel.value);   // 좌측 주소와 우측 입력판을 같이 맞춥니다
             }
 
-            renderBatchTable();
-            loadDbBillsHistory(); // DB 이력 동기화
+            renderBatchTable();   // 호실이 하나도 없을 때를 위한 마무리
         } catch(e) {
             console.error('[공과금 호실 로드 오류]', e);
         }
