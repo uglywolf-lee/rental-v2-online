@@ -398,6 +398,11 @@ def init_db_schema():
             #   special_terms = 계약서에 적힌 특약 (계약서 화면에서만 수정)
             #   collect_memo  = 그날그날의 수납 통화 메모 (금일현황에서만 수정)
             ("contracts", "collect_memo", "TEXT DEFAULT ''"),
+            # 사업자등록번호 — 협력사·중개사에게 세금계산서를 받으려면 반드시 있어야 합니다.
+            #   화면에는 칸이 있는데 저장은 안 되고 있었습니다. 직원이 적어 넣어도 조용히
+            #   사라졌습니다. (2026-08-05 발견·수정)
+            #   ⚠️ 검색 대상에는 넣지 않습니다. 사업자번호로 찾는 일은 없습니다.
+            ("contacts", "biz_no", "TEXT DEFAULT ''"),
             ("contracts", "tenant_contact_id", "INTEGER DEFAULT 0"),
             ("contracts", "owner_contact_id", "INTEGER DEFAULT 1"),
             ("contracts", "broker_id", "INTEGER DEFAULT 0"),

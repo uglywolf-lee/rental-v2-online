@@ -362,7 +362,7 @@ def handle_post_api(path, data):
                     return 200, {'id': cid, 'message': '비밀번호 변경 완료'}
 
                 fields, vals = [], []
-                for k in ['category', 'company_or_name', 'representative_name', 'contact_info', 'email', 'password_hash', 'role', 'role_name', 'is_active', 'documents_json', 'account_no']:
+                for k in ['category', 'company_or_name', 'representative_name', 'contact_info', 'email', 'password_hash', 'role', 'role_name', 'is_active', 'documents_json', 'account_no', 'biz_no']:
                     if k in data:
                         fields.append(f"{k}=?")
                         vals.append(data[k])
@@ -381,10 +381,11 @@ def handle_post_api(path, data):
                 role = data.get('role', 'office_worker')
                 docs = data.get('documents_json', '[]')
                 acct = data.get('account_no', '')
+                biz = data.get('biz_no', '')        # 사업자등록번호 (세금계산서용)
                 cur.execute("""
-                    INSERT INTO contacts (category, company_or_name, representative_name, contact_info, email, password_hash, role, role_name, is_active, documents_json, account_no)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-                """, (cat, name, rep, phone, email, pw, role, role, docs, acct))
+                    INSERT INTO contacts (category, company_or_name, representative_name, contact_info, email, password_hash, role, role_name, is_active, documents_json, account_no, biz_no)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                """, (cat, name, rep, phone, email, pw, role, role, docs, acct, biz))
                 new_cid = cur.lastrowid
                 conn.commit()
                 return 201, {'id': new_cid, 'success': True, 'message': '연락처/팀원 등록 완료'}

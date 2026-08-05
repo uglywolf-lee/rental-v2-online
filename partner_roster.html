@@ -163,13 +163,14 @@
                         <th>전화번호</th>
                         <th>이메일</th>
                         <th>계좌번호</th>
+                        <th>사업자등록번호</th>
                         <th>업종 / 분류</th>
                         <th>관리</th>
                     </tr>
                 </thead>
                 <tbody id="partnerTbody">
                     <tr>
-                        <td colspan="8" class="cell-text-center">데이터를 불러오는 중입니다...</td>
+                        <td colspan="9" class="cell-text-center">데이터를 불러오는 중입니다...</td>
                     </tr>
                 </tbody>
             </table>
@@ -211,7 +212,7 @@
             tbody.innerHTML = '';
 
             if (!list || list.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="cell-text-center">등록된 협력사 정보가 없습니다.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="cell-text-center">등록된 협력사 정보가 없습니다.</td></tr>';
                 return;
             }
 
@@ -228,6 +229,7 @@
                     <td class="cell-num-right td-phone">${item.contact_info || item.phone || '-'}</td>
                     <td class="cell-text-center td-email">${item.email || '-'}</td>
                     <td class="cell-text-center td-account">${item.account_no || '-'}</td>
+                    <td class="cell-text-center td-bizno">${item.biz_no || '-'}</td>
                     <td class="cell-text-center td-biztype">${item.role || '일반'}</td>
                     <td class="cell-text-center">
                         <button class="actions-btn" onclick="event.stopPropagation(); loadToForm(${JSON.stringify(item).replace(/"/g, '&quot;')}, this.closest('tr'))">수정</button>
@@ -250,6 +252,7 @@
             document.getElementById('partnerEmail').value = item.email || '';
             document.getElementById('partnerBizType').value = item.role || '';
             document.getElementById('partnerAccount').value = item.account_no || '';
+            document.getElementById('partnerBizNo').value = item.biz_no || '';   // 사업자등록번호
 
             document.getElementById('formPanelTitle').innerText = `📝 협력사 정보 수정 (${item.company_or_name || item.name})`;
             document.getElementById('btnSubmit').innerText = "변경사항 수정 적용";
@@ -273,6 +276,7 @@
             const email = document.getElementById('partnerEmail').value.trim();
             const bizType = document.getElementById('partnerBizType').value.trim();
             const account = document.getElementById('partnerAccount').value.trim();
+            const bizNo = document.getElementById('partnerBizNo').value.trim();   // 사업자등록번호
 
             if (!companyName || !phone) {
                 return alert('❌ 필수 항목(상호명, 전화번호)을 입력해 주세요.');
@@ -285,7 +289,8 @@
                 contact_info: phone,
                 email: email,
                 role: bizType,
-                account_no: account
+                account_no: account,
+                biz_no: bizNo            // ⚠️ 빠뜨리면 조용히 사라집니다. 세금계산서에 필요한 정보입니다
             };
 
             if (id) {
