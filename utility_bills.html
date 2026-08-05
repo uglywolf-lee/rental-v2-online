@@ -533,7 +533,14 @@
             var tr = document.createElement('tr');
             var roomName = (rm.room || rm.room_no || '') + '호';
             var ex = LATEST_BILL_BY_ROOM[rm.id];            // 이미 저장된 값이 있으면 채워넣고 '수정'
-            var v = function(n){ return (ex && ex[n]) ? ex[n] : ''; };
+            // ⚠️ 0원도 저장된 값입니다. (공실·한전 단독계약 등 실제로 0원인 곳이 있습니다)
+            //    예전에는 `ex[n] ? ex[n] : ''` 였는데, 자바스크립트가 숫자 0을 거짓으로 보는 바람에
+            //    0원을 저장해도 다시 열면 빈칸으로 보였고 → 네 칸이 다 비면 아래 allEmpty 검사에 걸려
+            //    "이 줄은 비어 있습니다"로 저장이 막혔습니다. 즉 0원으로는 고칠 수가 없었습니다.
+            var v = function(n){
+                var x = ex ? ex[n] : null;
+                return (x === null || x === undefined || x === '') ? '' : x;
+            };
             var btn = ex
                 ? '<button type="button" class="btn-table-save" style="background:#fd7e14" onclick="saveBatchRow(' + rm.id + ", '" + roomName + '\')">수정</button>'
                 : '<button type="button" class="btn-table-save" onclick="saveBatchRow(' + rm.id + ", '" + roomName + '\')">저장</button>';
@@ -546,7 +553,7 @@
                 <td><input type="number" id="b_waterCost_${rm.id}" class="table-input" style="background:#e7f5ff;" placeholder="수도 탭 자동" value="${v('water_cost')}" oninput="recalcRowTotal(${rm.id})"></td>
                 <td><input type="number" id="b_gas_${rm.id}" class="table-input" style="background:#fffbeb;" placeholder="가스비" value="${v('gas_cost')}" oninput="recalcRowTotal(${rm.id})"></td>
                 <td><input type="number" id="b_net_${rm.id}" class="table-input" placeholder="통신비" value="${v('net_cost')}" oninput="recalcRowTotal(${rm.id})"></td>
-                <td id="b_sum_${rm.id}" class="td-num-align-right" style="font-weight:700;color:#212529;background:#f8f9fa">${sum0 ? sum0.toLocaleString() : '-'}</td>
+                <td id="b_sum_${rm.id}" class="td-num-align-right" style="font-weight:700;color:#212529;background:#f8f9fa">${ex ? sum0.toLocaleString() : '-'}</td>
                 <td>${btn}</td>
             `;
             tbody.appendChild(tr);
@@ -557,8 +564,13 @@
     function recalcRowTotal(roomId) {
         var g = function(id){ var e=document.getElementById(id); return e ? (Number(e.value)||0) : 0; };
         var s = g('b_elecCost_'+roomId) + g('b_waterCost_'+roomId) + g('b_gas_'+roomId) + g('b_net_'+roomId);
+        // 합계 0원과 '아직 안 넣음'은 다릅니다. 한 칸이라도 채워져 있으면 0원도 0으로 보여 줍니다.
+        var filled = ['b_elecCost_','b_waterCost_','b_gas_','b_net_'].some(function(p){
+            var e = document.getElementById(p + roomId);
+            return e && String(e.value).trim() !== '';
+        });
         var cell = document.getElementById('b_sum_'+roomId);
-        if (cell) cell.textContent = s ? s.toLocaleString() : '-';
+        if (cell) cell.textContent = filled ? s.toLocaleString() : '-';
     }
 
     // 🌟 5. 배치 행 DB 실제 POST 전송 기능 추가
