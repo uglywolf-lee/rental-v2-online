@@ -34,15 +34,21 @@
         
         .row-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .filter-divider { text-align: center; color: var(--text-muted); font-size: 0.8rem; margin: 20px 0 15px 0; position: relative; }
+        /* 명부 검색칸 — 자기가 거르는 표 바로 위에 둔다 */
+        .roster-search { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .roster-search input { flex: 1; padding: 9px 12px; border: 1px solid var(--border);
+                               border-radius: 5px; font-size: 0.9rem; }
+        .roster-search input:focus { outline: none; border-color: var(--primary);
+                                     box-shadow: 0 0 0 2px rgba(0,0,0,.05); }
+        #searchCount { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
         
         .btn-box { margin-top: 15px; display: flex; gap: 8px; }
         /* 저장 버튼은 항상 화면에 남는다 — 입력칸이 늘어나도 아래로 밀려 사라지지 않는다.
-           ⚠️ 이 화면은 버튼 아래에 [검색 및 필터]가 더 있다. 그래서 margin-bottom 을
-              음수로 주면 안 된다 (아래 내용이 25px 딸려 올라온다).
-              폼을 채우는 동안은 버튼이 바닥에 붙어 있다가, 검색칸까지 내리면 제자리로 간다. */
+           검색칸을 우측 표 위로 옮기면서 이 버튼이 폼의 마지막 요소가 되어,
+           다른 화면들과 똑같이 아래 여백까지 상쇄할 수 있게 됐다. */
         .btn-box { position: sticky; bottom: 0; z-index: 5; background: #fff;
                    border-top: 1px solid var(--border);
-                   padding: 10px 25px; margin-left: -25px; margin-right: -25px;
+                   padding: 10px 25px; margin-left: -25px; margin-right: -25px; margin-bottom: -25px;
                    box-shadow: 0 -5px 12px rgba(0,0,0,.07); }
         .btn { padding: 10px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; text-align: center; }
         .btn-main { background: var(--primary); color: var(--white); flex: 2; }
@@ -73,18 +79,28 @@
         <form id="partnerForm" onsubmit="event.preventDefault(); savePartner();">
             <input type="hidden" id="partnerId" value="">
 
-            <div class="row-grid-2">
-                <div class="form-group">
-                    <label>구분</label>
-                    <select class="form-control" id="partnerCategory" required>
-                        <option value="broker" selected>중개사</option>
-                        <option value="partner">일반 협력사</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>업종 (유지보수 분류)</label>
-                    <input type="text" id="partnerBizType" class="form-control" placeholder="예: 부동산중개, 전기설비">
-                </div>
+            <!-- 구분(중개사/일반협력사)은 따로 고르지 않습니다. 업종에서 자동으로 정해집니다.
+                 예전에는 구분과 업종을 둘 다 입력했는데, 업종에 '부동산중개'라고 쓰면
+                 구분은 자동으로 중개사입니다. 같은 걸 두 번 입력하게 되어 있었고
+                 둘이 어긋나면 어느 쪽이 맞는지 알 수 없었습니다. (2026-08-05) -->
+            <div class="form-group">
+                <label>업종 <span style="font-weight:400;color:var(--text-muted);font-size:.72rem">— 칸을 누르면 자주 쓰는 업종이 뜹니다</span></label>
+                <input type="text" id="partnerBizType" class="form-control" list="bizTypeList"
+                       placeholder="예: 부동산중개, 전기설비, 상하수도" oninput="showDerivedCategory()">
+                <datalist id="bizTypeList">
+                    <option value="부동산중개">
+                    <option value="전기설비">
+                    <option value="상하수도">
+                    <option value="도시가스">
+                    <option value="승강기">
+                    <option value="소방설비">
+                    <option value="냉난방">
+                    <option value="청소">
+                    <option value="인터넷·통신">
+                    <option value="세무·회계">
+                </datalist>
+                <input type="hidden" id="partnerCategory" value="partner">
+                <div id="categoryHint" style="font-size:.76rem;color:var(--text-muted);margin-top:4px"></div>
             </div>
 
             <div class="form-group">
@@ -131,28 +147,23 @@
                 <button type="button" class="btn btn-sub" onclick="resetForm()">비우기</button>
             </div>
 
-            <div class="filter-divider">—— 검색 및 필터 ——</div>
-
-            <div class="form-group">
-                <label>검색어 입력</label>
-                <input type="text" class="form-control" id="globalSearchInput" onkeyup="searchPartner()" placeholder="상호·대표자·전화번호·업종 검색">
-            </div>
-            
-            <div class="row-grid-2">
-                <div class="form-group">
-                    <label>구분 필터</label>
-                    <select class="form-control" id="typeFilter" onchange="searchPartner()">
-                        <option value="">(전체)</option>
-                        <option value="broker">중개사</option>
-                        <option value="partner">일반 협력사</option>
-                    </select>
-                </div>
-            </div>
         </form>
     </div>
 
     <div class="right-panel">
         <div class="panel-title">📋 등록된 협력사 명부 (행 클릭 시 좌측에 자동 로드)</div>
+        <!-- 검색칸은 자기가 거르는 표 바로 위에 둔다.
+             ⚠️ 예전에는 좌측 등록 폼 안에 있었다. <form> 안의 입력칸에서 Enter 를 치면
+                브라우저가 폼을 제출해 savePartner() 가 돌았다. 표에서 협력사를 클릭해
+                좌측에 불러온 상태였다면 그 협력사가 조용히 다시 저장됐다.
+                폼 밖으로 빼서 그 경로를 없앴다. (2026-08-05)
+             구분 필터는 없앴다 — 표에 [구분] 열이 이미 보이고, 값이 두 개뿐이라
+             검색어 한 칸으로 충분하다. -->
+        <div class="roster-search">
+            <input type="text" id="globalSearchInput" onkeyup="searchPartner()"
+                   placeholder="🔍 상호 · 대표자 · 전화번호 · 업종으로 검색">
+            <span id="searchCount"></span>
+        </div>
         <div class="excel-table-wrap">
             <table id="partnerTable">
                 <thead>
@@ -200,7 +211,7 @@
                 
                 // broker 및 partner 카테고리만 필터링
                 ALL_PARTNERS = list.filter(item => item.category === 'broker' || item.category === 'partner');
-                renderPartnerTable(ALL_PARTNERS);
+                searchPartner();   // 검색어가 남아 있어도 반영되고, 건수 표시도 같이 갱신된다
             } catch(e) {
                 console.error('[협력사 로드 오류]', e);
             }
@@ -239,13 +250,42 @@
             });
         }
 
+        // 업종 → 구분(category) 판정. 규칙은 여기 한 곳에만 둔다.
+        //   중개 업무면 broker, 나머지는 전부 partner(일반 협력사).
+        //   DB 의 category 컬럼은 임차인(tenant)·직원(staff)도 함께 쓰므로 없앨 수 없다.
+        //   화면에서 고르게 하지 않을 뿐, 값은 계속 저장된다.
+        function categoryFromBizType(bizType) {
+            var t = String(bizType || '');
+            return /중개|공인중개|부동산/.test(t) ? 'broker' : 'partner';
+        }
+
+        // 어느 구분으로 저장되는지 화면에 보여 준다 (몰래 정해지면 안 된다)
+        function renderCategoryHint() {
+            var hint = document.getElementById('categoryHint');
+            if (!hint) return;
+            var bizType = document.getElementById('partnerBizType').value.trim();
+            var cat = document.getElementById('partnerCategory').value || 'partner';
+            hint.innerHTML = bizType
+                ? '구분: <b>' + (cat === 'broker' ? '중개사' : '일반 협력사') + '</b> 로 저장됩니다'
+                : '구분은 업종에 따라 자동으로 정해집니다 (중개 업무 → 중개사)';
+        }
+
+        // 업종을 고치면 그때 구분을 다시 정한다.
+        //   ⚠️ 불러오기(loadToForm)에서는 부르지 않는다. 기존에 저장된 구분을 존중해야 한다
+        //      (예전에 손으로 '중개사'로 지정해 둔 협력사를 업종만 보고 바꿔버리면 안 된다)
+        function showDerivedCategory() {
+            document.getElementById('partnerCategory').value =
+                categoryFromBizType(document.getElementById('partnerBizType').value.trim());
+            renderCategoryHint();
+        }
+
         // 3. 선택한 행의 데이터를 좌측 폼에 바인딩
         function loadToForm(item, row) {
             document.querySelectorAll('#partnerTable tbody tr').forEach(r => r.classList.remove('selected'));
             if(row) row.classList.add('selected');
 
             document.getElementById('partnerId').value = item.id;
-            document.getElementById('partnerCategory').value = item.category || 'broker';
+            document.getElementById('partnerCategory').value = item.category || 'partner';
             document.getElementById('partnerCompany').value = item.company_or_name || item.name || '';
             document.getElementById('partnerRepName').value = item.representative_name || item.rep || '';
             document.getElementById('partnerPhone').value = item.contact_info || item.phone || '';
@@ -253,6 +293,7 @@
             document.getElementById('partnerBizType').value = item.role || '';
             document.getElementById('partnerAccount').value = item.account_no || '';
             document.getElementById('partnerBizNo').value = item.biz_no || '';   // 사업자등록번호
+            renderCategoryHint();   // 저장된 구분을 그대로 보여 준다 (다시 판정하지 않는다)
 
             document.getElementById('formPanelTitle').innerText = `📝 협력사 정보 수정 (${item.company_or_name || item.name})`;
             document.getElementById('btnSubmit').innerText = "변경사항 수정 적용";
@@ -261,6 +302,9 @@
         function resetForm() {
             document.getElementById('partnerId').value = "";
             document.getElementById('partnerForm').reset();
+            // form.reset() 은 hidden 칸을 HTML 의 초기값으로 되돌린다 → 'partner'
+            document.getElementById('partnerCategory').value = 'partner';
+            renderCategoryHint();
             document.getElementById('formPanelTitle').innerText = "👥 협력사 정보 등록·수정";
             document.getElementById('btnSubmit').innerText = "정보 저장/수정";
             document.querySelectorAll('#partnerTable tbody tr').forEach(r => r.classList.remove('selected'));
@@ -341,19 +385,29 @@
         // 5. 실시간 검색 및 필터
         function searchPartner() {
             const query = document.getElementById('globalSearchInput').value.toLowerCase().trim();
-            const typeVal = document.getElementById('typeFilter').value;
 
+            // ⚠️ 사업자등록번호(biz_no)는 검색 대상이 아니다. 그걸로 찾는 일은 없다.
+            //    전화번호는 contact_info 에 들어 있다 (item.phone 은 비어 있을 수 있어 둘 다 본다).
             const filtered = ALL_PARTNERS.filter(item => {
-                const str = ((item.company_or_name || '') + ' ' + (item.representative_name || '') + ' ' + (item.phone || '') + ' ' + (item.role || '')).toLowerCase();
-                const matchQuery = !query || str.includes(query);
-                const matchType = !typeVal || item.category === typeVal;
-                return matchQuery && matchType;
+                if (!query) return true;
+                const str = [item.company_or_name, item.representative_name,
+                             item.contact_info, item.phone, item.role]
+                            .filter(Boolean).join(' ').toLowerCase();
+                return str.includes(query);
             });
+
+            const cnt = document.getElementById('searchCount');
+            if (cnt) cnt.textContent = query
+                ? filtered.length + '건 / 전체 ' + ALL_PARTNERS.length + '건'
+                : '전체 ' + ALL_PARTNERS.length + '건';
 
             renderPartnerTable(filtered);
         }
 
-        document.addEventListener('DOMContentLoaded', loadPartners);
+        document.addEventListener('DOMContentLoaded', function(){
+            renderCategoryHint();   // 처음 열었을 때도 구분 안내가 보이게
+            loadPartners();
+        });
     </script>
 </body>
 </html>
