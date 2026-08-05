@@ -51,6 +51,12 @@
         .row-grid-5 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: var(--bg); padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
         
         .btn-box { margin-top: 20px; display: flex; gap: 10px; }
+        /* 저장 버튼은 항상 화면에 남는다 — 입력칸이 늘어나도 아래로 밀려 사라지지 않는다.
+           좌우 -25px 는 .left-form-panel 의 padding 을 상쇄해 칸을 가로로 꽉 채우기 위한 것. */
+        .btn-box { position: sticky; bottom: 0; z-index: 5; background: #fff;
+                   border-top: 1px solid var(--border);
+                   padding: 10px 25px; margin-left: -25px; margin-right: -25px; margin-bottom: -25px;
+                   box-shadow: 0 -5px 12px rgba(0,0,0,.07); }
         .btn { flex: 1; padding: 10px; border: none; border-radius: 4px; font-size: 0.88rem; font-weight: bold; cursor: pointer; text-align: center; }
         .btn-main { background: var(--primary); color: var(--white); }
         .btn-sub { background: var(--text-muted); color: var(--white); }

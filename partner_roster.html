@@ -36,6 +36,14 @@
         .filter-divider { text-align: center; color: var(--text-muted); font-size: 0.8rem; margin: 20px 0 15px 0; position: relative; }
         
         .btn-box { margin-top: 15px; display: flex; gap: 8px; }
+        /* 저장 버튼은 항상 화면에 남는다 — 입력칸이 늘어나도 아래로 밀려 사라지지 않는다.
+           ⚠️ 이 화면은 버튼 아래에 [검색 및 필터]가 더 있다. 그래서 margin-bottom 을
+              음수로 주면 안 된다 (아래 내용이 25px 딸려 올라온다).
+              폼을 채우는 동안은 버튼이 바닥에 붙어 있다가, 검색칸까지 내리면 제자리로 간다. */
+        .btn-box { position: sticky; bottom: 0; z-index: 5; background: #fff;
+                   border-top: 1px solid var(--border);
+                   padding: 10px 25px; margin-left: -25px; margin-right: -25px;
+                   box-shadow: 0 -5px 12px rgba(0,0,0,.07); }
         .btn { padding: 10px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; text-align: center; }
         .btn-main { background: var(--primary); color: var(--white); flex: 2; }
         .btn-sub { background: var(--text-muted); color: var(--white); flex: 1; }

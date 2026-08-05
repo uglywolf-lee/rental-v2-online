@@ -47,6 +47,12 @@
         .preview-img { width: 60px; height: 60px; border-radius: 4px; border: 1px solid var(--border); object-fit: cover; }
         
         .btn-box { margin-top: 15px; display: flex; gap: 8px; }
+        /* 저장 버튼은 항상 화면에 남는다 — 입력칸이 늘어나도 아래로 밀려 사라지지 않는다.
+           좌우 -25px 는 .left-panel 의 padding 을 상쇄해 칸을 가로로 꽉 채우기 위한 것. */
+        .btn-box { position: sticky; bottom: 0; z-index: 5; background: #fff;
+                   border-top: 1px solid var(--border);
+                   padding: 10px 25px; margin-left: -25px; margin-right: -25px; margin-bottom: -25px;
+                   box-shadow: 0 -5px 12px rgba(0,0,0,.07); }
         .btn { flex: 1; padding: 10px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; text-align: center; }
         .btn-main { background: var(--primary); color: white; }
         .btn-sub { background: #6c757d; color: white; }
