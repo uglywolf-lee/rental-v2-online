@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#5a2fb8">
+<title>대림빌딩</title>
+
+<!-- 홈 화면에 추가하면 앱처럼 열립니다 (주소창 없이 전체 화면) -->
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="대림빌딩">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="guard.js"></script>
+<style>
+  :root{
+    --pri:#5a2fb8; --bg:#f4f5f7; --card:#fff; --line:#e3e5ea;
+    --ink:#1b1d21; --dim:#6b7280; --red:#c92a2a; --orange:#d9480f; --green:#177245;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+    background:var(--bg); color:var(--ink); font-size:17px; line-height:1.5;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+
+  /* 위쪽 제목줄 */
+  .top{
+    background:var(--pri); color:#fff; padding:14px 16px;
+    padding-top:calc(14px + env(safe-area-inset-top));
+    position:sticky; top:0; z-index:20;
+  }
+  .top h1{font-size:1.05rem;font-weight:800;letter-spacing:-.02em}
+  .top .sub{font-size:.78rem;opacity:.85;margin-top:2px}
+
+  /* 탭 */
+  .tabs{display:flex;background:#fff;border-bottom:1px solid var(--line);position:sticky;
+        top:calc(58px + env(safe-area-inset-top));z-index:19}
+  .tabs button{
+    flex:1;border:none;background:none;padding:14px 4px;font-size:.95rem;font-weight:700;
+    color:var(--dim);cursor:pointer;border-bottom:3px solid transparent;font-family:inherit;
+  }
+  .tabs button.on{color:var(--pri);border-bottom-color:var(--pri)}
+
+  .wrap{padding:14px 12px 40px}
+  .pane{display:none}
+  .pane.on{display:block}
+
+  /* 카드 */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+        padding:14px 16px;margin-bottom:12px}
+  .card h2{font-size:.82rem;color:var(--dim);font-weight:700;margin-bottom:10px;
+           letter-spacing:.02em}
+  .row{display:flex;justify-content:space-between;align-items:baseline;
+       padding:9px 0;border-top:1px solid #f0f1f4}
+  .row:first-of-type{border-top:none}
+  .row .k{font-size:.95rem;color:#454952}
+  .row .v{font-size:1.05rem;font-weight:800;text-align:right}
+  .big{font-size:1.5rem;font-weight:800;letter-spacing:-.02em}
+  .red{color:var(--red)} .orange{color:var(--orange)} .green{color:var(--green)}
+  .dim{color:var(--dim)}
+
+  /* 큰 숫자 두 칸 */
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .duo .card{margin:0;text-align:center;padding:16px 10px}
+  .duo .lbl{font-size:.78rem;color:var(--dim);font-weight:700;margin-bottom:6px}
+
+  /* 명부 */
+  .search{width:100%;padding:13px 14px;font-size:1rem;border:1px solid var(--line);
+          border-radius:12px;background:#fff;font-family:inherit;margin-bottom:12px}
+  .person{background:#fff;border:1px solid var(--line);border-radius:14px;
+          padding:13px 15px;margin-bottom:9px}
+  .person .hd{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .person .rm{font-weight:800;font-size:1.05rem;color:var(--pri);white-space:nowrap}
+  .person .nm{font-weight:700;font-size:1rem;flex:1}
+  .person .meta{font-size:.85rem;color:var(--dim);margin-top:6px;line-height:1.7}
+  .tel{display:inline-block;margin-top:9px;padding:9px 16px;background:#f2eefc;
+       color:var(--pri);border-radius:10px;font-weight:800;font-size:.92rem;
+       text-decoration:none}
+  .tag{display:inline-block;font-size:.72rem;font-weight:800;padding:2px 8px;
+       border-radius:999px;margin-left:6px;vertical-align:middle}
+  .tag.exp{background:#ffe3e3;color:var(--red)}
+  .tag.soon{background:#fff0e0;color:var(--orange)}
+  .tag.short{background:#e7f5ff;color:#0b5ed7}
+  .tag.ext{background:#f2eefc;color:#5a2fb8}
+
+  .none{text-align:center;color:var(--dim);padding:26px 10px;font-size:.92rem}
+  .foot{text-align:center;color:var(--dim);font-size:.75rem;padding:18px 20px 8px;line-height:1.7}
+  .foot a{color:var(--pri)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>대림빌딩</h1>
+  <div class="sub" id="stamp">불러오는 중…</div>
+</div>
+
+<div class="tabs">
+  <button id="tab_dash" class="on" onclick="show('dash')">현황</button>
+  <button id="tab_list" onclick="show('list')">명부</button>
+</div>
+
+<div class="wrap">
+
+  <!-- ───── 현황 ───── -->
+  <div class="pane on" id="pane_dash">
+    <div class="duo">
+      <div class="card">
+        <div class="lbl">이번 달 받을 돈</div>
+        <div class="big" id="d_income">—</div>
+      </div>
+      <div class="card">
+        <div class="lbl">공실</div>
+        <div class="big" id="d_vacant">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>호실</h2>
+      <div class="row"><span class="k">전체 호실</span><span class="v" id="d_rooms">—</span></div>
+      <div class="row"><span class="k">입주</span><span class="v" id="d_used">—</span></div>
+      <div class="row"><span class="k">공실</span><span class="v red" id="d_empty">—</span></div>
+      <div class="row" id="d_mergedRow" style="display:none">
+        <span class="k dim">통합 (옆 호실이 같이 씀)</span><span class="v dim" id="d_merged">—</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>계약 만기</h2>
+      <div class="row"><span class="k">30일 이내 만기</span><span class="v orange" id="d_soon">—</span></div>
+      <div class="row"><span class="k">이미 만료됨</span><span class="v red" id="d_expired">—</span></div>
+      <div class="row"><span class="k">전체 계약</span><span class="v" id="d_contracts">—</span></div>
+    </div>
+
+    <div class="card">
+      <h2>돈</h2>
+      <div class="row"><span class="k">이번 달 받을 돈</span><span class="v" id="d_income2">—</span></div>
+      <div class="row"><span class="k">보증금 합계</span><span class="v" id="d_deposit">—</span></div>
+    </div>
+
+    <div class="card">
+      <h2>유지보수</h2>
+      <div class="row"><span class="k">처리 중</span><span class="v red" id="d_fix">—</span></div>
+    </div>
+
+    <div class="card" id="c_expired" style="display:none">
+      <h2>만기가 지난 계약</h2>
+      <div id="d_expiredList"></div>
+    </div>
+  </div>
+
+  <!-- ───── 명부 ───── -->
+  <div class="pane" id="pane_list">
+    <input class="search" id="q" type="search" placeholder="호실번호나 이름으로 찾기"
+           oninput="drawList()" autocomplete="off">
+    <div id="listBox"><div class="none">불러오는 중…</div></div>
+  </div>
+
+  <div class="foot">
+    보기 전용 화면입니다. 고치거나 넣는 것은 컴퓨터에서 하세요.<br>
+    <a href="index.html?pc=1">컴퓨터 화면으로 보기</a>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   대림빌딩 휴대폰 화면 — 보기 전용
+   저장·수정 요청은 하나도 하지 않습니다. 읽기(GET)만 합니다.
+   숫자 계산 규칙은 통합 대시보드(g_h_i_dashboard.html)와 똑같이 맞췄습니다.
+   ============================================================ */
+var ROOMS=[], CONTRACTS=[], BILLS=[], INCIDENTS=[];
+var TODAY = new Date().toISOString().split('T')[0];
+
+function won(n){
+  n = Number(n)||0;
+  if (n >= 100000000) {
+    var e = Math.floor(n/100000000), m = Math.round((n%100000000)/10000);
+    return e + '억' + (m ? ' ' + m.toLocaleString() + '만' : '');
+  }
+  if (n >= 10000) return Math.round(n/10000).toLocaleString() + '만원';
+  return n.toLocaleString() + '원';
+}
+function t10(n){ return Math.floor((Number(n)||0)/10)*10; }   // 10원 절사
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function isMerged(r){
+  return /통합/.test(String((r&&(r.status||r.current_room_status))||''));
+}
+function roomNoOf(id){
+  var r = ROOMS.filter(function(x){ return String(x.id)===String(id); })[0];
+  return r ? String(r.room||r.room_no||'') : '';
+}
+
+function show(which){
+  ['dash','list'].forEach(function(k){
+    document.getElementById('pane_'+k).classList.toggle('on', k===which);
+    document.getElementById('tab_'+k).classList.toggle('on', k===which);
+  });
+  window.scrollTo(0,0);
+}
+
+async function get(url){
+  try {
+    var r = await fetch(url, {cache:'no-store'});
+    if (!r.ok) return [];
+    return (await r.json()) || [];
+  } catch(e){ return []; }
+}
+
+async function load(){
+  var res = await Promise.all([
+    get('/api/v1/rooms'), get('/api/v1/contracts'),
+    get('/api/v1/bills'), get('/api/v1/incidents')
+  ]);
+  ROOMS=res[0]; CONTRACTS=res[1]; BILLS=res[2]; INCIDENTS=res[3];
+  drawDash();
+  drawList();
+  var now = new Date();
+  document.getElementById('stamp').textContent =
+    now.getMonth()+1 + '월 ' + now.getDate() + '일 ' +
+    String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ' 기준';
+}
+
+/* ── 유효한 계약인가 (끝난 계약은 뺀다) ── */
+// 계약이 살아있는가 — '자동 연장'(깔세) 규칙은 guard.js 한 곳에 있습니다
+function alive(c){
+  if (window.contractAlive) return window.contractAlive(c);
+  return !c.end_date || c.end_date >= TODAY;
+}
+function endOf(c){
+  return (window.contractEnd ? window.contractEnd(c) : c.end_date) || '';
+}
+
+function drawDash(){
+  /* ① 이번 달 받을 돈 / 보증금
+        부가세 = 관리비 × 10%. 월세에는 붙이지 않습니다.
+        (월세는 부가세 포함으로 합의한 금액이라 또 붙이면 이중청구입니다)      */
+  var 수입=0, 보증금=0;
+  CONTRACTS.forEach(function(c){
+    var rent  = Number(c.monthly_rent)||0;
+    var maint = Number(c.maintenance_fee)||0;
+    var bill = BILLS.filter(function(b){
+      return b.scope!=='common' && String(b.room_id)===String(c.room_id);
+    }).sort(function(a,b){ return b.id-a.id; })[0] || {};
+    var vatOn = true;
+    try { if (JSON.parse(c.documents_json||'{}').vat_applied === false) vatOn = false; } catch(e){}
+    수입 += rent + maint + (vatOn ? t10(maint*0.1) : 0)
+          + (Number(bill.elec_cost)||0) + (Number(bill.water_cost)||0)
+          + (Number(bill.gas_cost)||0)  + (Number(bill.net_cost)||0);
+    보증금 += Number(c.deposit_amount)||0;
+  });
+  document.getElementById('d_income').textContent  = won(수입);
+  document.getElementById('d_income2').textContent = won(수입);
+  document.getElementById('d_deposit').textContent = won(보증금);
+
+  /* ② 호실 — '통합'은 공실로 세지 않습니다 */
+  var 전체=0, 통합=0;
+  ROOMS.forEach(function(r){ if (isMerged(r)) 통합++; else 전체++; });
+  var 입주={};
+  CONTRACTS.forEach(function(c){
+    if (!c.room_id || !alive(c)) return;
+    var r = ROOMS.filter(function(x){ return String(x.id)===String(c.room_id); })[0];
+    if (r && isMerged(r)) return;
+    입주[c.room_id]=1;
+  });
+  var 입주수 = Object.keys(입주).length;
+  var 공실 = 전체 - 입주수;
+  document.getElementById('d_rooms').textContent = 전체 + '실';
+  document.getElementById('d_used').textContent  = 입주수 + '실';
+  document.getElementById('d_empty').textContent = 공실 + '실';
+  document.getElementById('d_vacant').textContent = 공실 + '실';
+  if (통합) {
+    document.getElementById('d_mergedRow').style.display = '';
+    document.getElementById('d_merged').textContent = 통합 + '실';
+  }
+
+  /* ③ 만기 */
+  var d30 = new Date(); d30.setDate(d30.getDate()+30);
+  var after30 = d30.toISOString().split('T')[0];
+  var 임박=0, 만료=[], 유효=0;
+  CONTRACTS.forEach(function(c){
+    if (alive(c)) 유효++;
+    var end = endOf(c);
+    if (!end) return;
+    if (end < TODAY) 만료.push(c);
+    else if (end <= after30) 임박++;
+  });
+  document.getElementById('d_soon').textContent      = 임박 + '건';
+  document.getElementById('d_expired').textContent   = 만료.length + '건';
+  document.getElementById('d_contracts').textContent = 유효 + '건';
+
+  if (만료.length){
+    document.getElementById('c_expired').style.display = '';
+    document.getElementById('d_expiredList').innerHTML = 만료
+      .sort(function(a,b){ return String(a.end_date).localeCompare(String(b.end_date)); })
+      .map(function(c){
+        return '<div class="row"><span class="k">' + esc(roomNoOf(c.room_id) || '?') + '호 '
+             + esc(c.tenant_name||'') + '</span>'
+             + '<span class="v red" style="font-size:.9rem">' + esc(endOf(c)) + '</span></div>';
+      }).join('');
+  }
+
+  /* ④ 유지보수 — 완료가 아닌 건 */
+  var 미완 = INCIDENTS.filter(function(x){
+    return String(x.status||'').indexOf('완료') < 0;
+  }).length;
+  document.getElementById('d_fix').textContent = 미완 ? (미완 + '건') : '없음';
+}
+
+function drawList(){
+  var q = (document.getElementById('q').value||'').trim().toLowerCase();
+  var d30 = new Date(); d30.setDate(d30.getDate()+30);
+  var after30 = d30.toISOString().split('T')[0];
+
+  var list = CONTRACTS.filter(alive).map(function(c){
+    return {
+      c: c,
+      room: roomNoOf(c.room_id),
+      name: String(c.tenant_name||''),
+      phone: String(c.tenant_phone||'')
+    };
+  });
+  if (q) list = list.filter(function(x){
+    return (x.room+' '+x.name+' '+x.phone).toLowerCase().indexOf(q) >= 0;
+  });
+  list.sort(function(a,b){ return a.room.localeCompare(b.room, 'ko', {numeric:true}); });
+
+  var box = document.getElementById('listBox');
+  if (!list.length){
+    box.innerHTML = '<div class="none">' + (q ? '찾는 사람이 없습니다.' : '계약이 없습니다.') + '</div>';
+    return;
+  }
+  box.innerHTML = list.map(function(x){
+    var c = x.c, tag = '';
+    var end = endOf(c);
+    if (end && end < TODAY)        tag = '<span class="tag exp">만료</span>';
+    else if (end && end <= after30) tag = '<span class="tag soon">곧 만기</span>';
+    if (window.contractExtended && window.contractExtended(c))
+      tag += '<span class="tag ext">연장 중</span>';
+
+    var money = [];
+    if (Number(c.monthly_rent))     money.push('월세 ' + won(c.monthly_rent));
+    if (Number(c.maintenance_fee))  money.push('관리비 ' + won(c.maintenance_fee));
+    if (Number(c.deposit_amount))   money.push('보증금 ' + won(c.deposit_amount));
+
+    var term = (c.start_date||'') + (end ? ' ~ ' + end : '');
+    var tel = x.phone.replace(/[^0-9+]/g,'');
+
+    return '<div class="person">'
+      + '<div class="hd"><span class="rm">' + esc(x.room||'?') + '호</span>'
+      +   '<span class="nm">' + esc(x.name||'(이름 없음)') + tag + '</span></div>'
+      + (money.length ? '<div class="meta">' + esc(money.join(' · ')) + '</div>' : '')
+      + (term.trim() ? '<div class="meta">' + esc(term) + '</div>' : '')
+      + (tel ? '<a class="tel" href="tel:' + esc(tel) + '">전화 ' + esc(x.phone) + '</a>'
+             : '<div class="meta dim">연락처 없음</div>')
+      + '</div>';
+  }).join('');
+}
+
+load();
+</script>
+</body>
+</html>

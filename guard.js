@@ -8,13 +8,21 @@
 
   // 서류 보기 창인가?
   var isDocWin = /doc_viewer\.html/i.test(location.pathname);
+  // 휴대폰 화면인가? — 보기 전용이며 혼자 열리는 것이 정상입니다 (main.html 로 되돌리지 않음)
+  var isMobile = /mobile\.html/i.test(location.pathname);
+
+  // 휴대폰은 로그인을 오래 기억합니다.
+  //   홈 화면 아이콘으로 열 때마다 비밀번호를 물으면 어르신이 쓰실 수 없습니다.
+  //   보기 전용 화면이고, 자기 폰이며, Tailscale 안에서만 닿는 주소라서 이렇게 둡니다.
+  //   컴퓨터(서류 창)는 예전대로 12시간입니다.
+  var TTL = isMobile ? 30 * 24 * 60 * 60 * 1000 : DOC_TTL;
 
   try {
     var ok = sessionStorage.getItem('loginOk') === 'true';
 
     // 새 창은 sessionStorage 를 물려받지 못하는 브라우저가 있다.
     // 서류 창에 한해 아래 3가지를 차례로 시도해 로그인 상태를 이어받는다.
-    if (!ok && isDocWin) {
+    if (!ok && (isDocWin || isMobile)) {
 
       // ① 창을 띄운 쪽(부모 창)에서 직접 읽어온다 — 가장 확실하다
       try {
@@ -33,7 +41,7 @@
           var tk = new URLSearchParams(location.search).get('t');
           if (tk) {
             var d = JSON.parse(decodeURIComponent(escape(atob(tk))));
-            if (d && d.ts && (Date.now() - d.ts) < DOC_TTL) {
+            if (d && d.ts && (Date.now() - d.ts) < TTL) {
               sessionStorage.setItem('loginOk', 'true');
               sessionStorage.setItem('userEmp',  d.emp  || '');
               sessionStorage.setItem('userRole', d.role || '');
@@ -47,7 +55,7 @@
       if (!ok) {
         try {
           var pass = JSON.parse(localStorage.getItem(DOC_KEY) || 'null');
-          if (pass && pass.ts && (Date.now() - pass.ts) < DOC_TTL) {
+          if (pass && pass.ts && (Date.now() - pass.ts) < TTL) {
             sessionStorage.setItem('loginOk', 'true');
             sessionStorage.setItem('userEmp',  pass.emp  || '');
             sessionStorage.setItem('userRole', pass.role || '');
@@ -102,8 +110,8 @@
       } catch (e3) {}
     }
 
-    // 서류 보기 창은 일부러 별도 창으로 띄우는 것이므로 main.html 로 되돌리지 않는다
-    if (window.top === window.self && !isDocWin) {
+    // 서류 보기 창과 휴대폰 화면은 일부러 혼자 여는 것이므로 main.html 로 되돌리지 않는다
+    if (window.top === window.self && !isDocWin && !isMobile) {
       // 단독으로 직접 열린 콘텐츠 페이지 → 로그인 후의 정상 진입점(main.html)으로 되돌림
       window.location.replace('main.html');
     }
@@ -126,6 +134,82 @@
     location.replace('index.html');
   }
 })();
+
+// ===== 계약 만기일 계산 (자동 연장 반영) =====
+//
+// 깔세처럼 매달 내면서 계속 사는 계약이 있습니다. 나갈 때까지 이어집니다.
+// 계약서에 적힌 종료일은 그대로 두되, [자동 연장]이 켜져 있으면
+// 그 종료일을 **달 단위로 밀어** '이번 기간 종료일'을 계산해서 씁니다.
+//
+// 이 규칙은 여기 한 곳에만 둡니다. 화면마다 복사하면 언젠가 서로 어긋납니다.
+//
+//   contractEnd(계약)        → 이번 기간 종료일 'YYYY-MM-DD' (없으면 '')
+//   contractAlive(계약)      → 오늘 기준으로 살아있는 계약인가
+//   contractExtended(계약)   → 연장 중인가 (원래 종료일이 지났는가)
+(function () {
+  function ymd(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+                           + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function today() { return ymd(new Date()); }
+
+  // 달을 더합니다. 말일 처리 주의 — 1월 31일 + 1개월은 2월 31일이 없으므로 2월 28일로 둡니다.
+  function addMonths(iso, n) {
+    var p = String(iso).substring(0, 10).split('-');
+    var y = Number(p[0]), m = Number(p[1]) - 1, day = Number(p[2]);
+    m += n;
+    var y2 = y + Math.floor(m / 12), m2 = ((m % 12) + 12) % 12;
+    var last = new Date(y2, m2 + 1, 0).getDate();
+    return ymd(new Date(y2, m2, Math.min(day, last)));
+  }
+
+  function addDays(iso, n) {
+    var p = String(iso).substring(0, 10).split('-');
+    return ymd(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + n));
+  }
+
+  // 이번 기간 종료일.
+  //   계약 기간은 '시작일 + n개월 − 1일' 로 셉니다. (1월 15일 시작 → 2월 14일 종료 = 딱 한 달)
+  //   그래서 연장도 종료일이 아니라 **시작일**을 기준으로 계산해야 합니다.
+  //   종료일에 달을 더하면 월말 계약(1월 31일 시작 등)에서 하루씩 밀립니다.
+  window.contractEnd = function (c) {
+    var end   = String((c && c.end_date) || '').substring(0, 10);
+    var start = String((c && c.start_date) || '').substring(0, 10);
+    if (!end) return '';
+    if (!c.auto_extend || String(c.auto_extend) === '0') return end;
+    var t = today();
+    if (end >= t) return end;                 // 아직 이번 기간 안이면 그대로
+
+    if (!start) {                             // 시작일을 모르면 종료일 기준으로 (예비)
+      var n0 = 0, cur0 = end;
+      while (cur0 < t && n0 < 600) { n0++; cur0 = addMonths(end, n0); }
+      return cur0;
+    }
+    // 자동 연장은 **한 달씩** 밉니다.
+    //
+    //   깔세 세입자는 보증금을 적게 내는 대신 월세를 더 내고, 원할 때 나갈 자유를 삽니다.
+    //   그래서 매달 월세를 받을 때가 곧 '연장하시겠어요?' 하고 묻는 시점입니다.
+    //   이번 기간 종료일이 **다음 월세 납입일 바로 전날**이 되어 사무실 흐름과 맞습니다.
+    //
+    //   서류상 기간(1년·2년)만큼 밀지 않는 이유: 정부가 달 단위 계약을 인정하지 않아
+    //   계약서에는 길게 적을 뿐, 실제 약속은 한 달짜리이기 때문입니다.
+    var k = 1, cur = end;
+    while (cur < t && k < 600) { k++; cur = addDays(addMonths(start, k), -1); }
+    return cur;
+  };
+
+  window.contractAlive = function (c) {
+    var end = window.contractEnd(c);
+    return !end || end >= today();
+  };
+
+  window.contractExtended = function (c) {
+    if (!c || !c.auto_extend || String(c.auto_extend) === '0') return false;
+    var orig = String(c.end_date || '').substring(0, 10);
+    return !!orig && orig < today();
+  };
+})();
+
 
 // ===== 서류 보기 창 (계약서 · 신분증) =====
 // 어느 화면에서든 이름이나 호실을 누르면 별도 창으로 원본이 뜹니다.

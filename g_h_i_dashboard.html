@@ -275,14 +275,17 @@ async function renderSummaryCards() {
     set('m_depositReturn', 만원(보증금));
 
     // ② 만기 — 30일 이내 / 이미 지난 것
-    var 임박 = 0, 만료 = 0;
+    //  '자동 연장'(깔세) 계약은 이번 기간 종료일로 봅니다 — 규칙은 guard.js 한 곳에 있습니다
+    var 임박 = 0, 만료 = 0, 연장중 = 0;
     CONTRACT_LIST.forEach(function(c){
-        if (!c.end_date) return;
-        if (c.end_date < today) 만료++;
-        else if (c.end_date <= after30) 임박++;
+        var end = window.contractEnd ? window.contractEnd(c) : c.end_date;
+        if (window.contractExtended && window.contractExtended(c)) 연장중++;
+        if (!end) return;
+        if (end < today) 만료++;
+        else if (end <= after30) 임박++;
     });
     set('m_expireNotice', 임박 + '건');
-    set('m_expired',      만료 + '건');
+    set('m_expired',      만료 + '건' + (연장중 ? ' (연장 중 ' + 연장중 + ')' : ''));
 
     // ③ 호실 현황 — 계약이 있으면 입주, 없으면 공실
     //    '통합'(옆 호실이 함께 쓰는 방)은 따로 세지 않습니다.
@@ -296,7 +299,8 @@ async function renderSummaryCards() {
     });
     var 입주 = {};
     CONTRACT_LIST.forEach(function(c){
-        if (!c.room_id || !(!c.end_date || c.end_date >= today)) return;
+        if (!c.room_id) return;
+        if (window.contractAlive ? !window.contractAlive(c) : !(!c.end_date || c.end_date >= today)) return;
         var r = ROOM_BY_ID[c.room_id] || {};
         if (/통합/.test(String(r.status || r.current_room_status || ''))) return;
         입주[c.room_id] = 1;

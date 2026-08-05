@@ -168,6 +168,11 @@ def handle_auth_endpoint(path, data):
         conn.close()
 
 
+def _flag(v):
+    """체크박스 값을 0/1 로 바꿉니다 (true/1/on/'예' 모두 켜짐으로 봅니다)"""
+    return 1 if str(v).strip().lower() in ('1', 'true', 'on', 'yes', '예') else 0
+
+
 def _check_contract_dates(start_date, end_date):
     """계약 기간 검증: 시작일 < 종료일, 최소 1개월. 문제 없으면 None, 있으면 오류 메시지."""
     import datetime as _dt
@@ -480,13 +485,14 @@ def handle_post_api(path, data):
                     UPDATE contracts SET
                         room_id=?, host_address_full=?, lease_type=?, deposit_amount=?,
                         monthly_rent=?, maintenance_fee=?, commission_fee=?, start_date=?,
-                        end_date=?, documents_json=?, special_terms=?
+                        end_date=?, documents_json=?, special_terms=?, auto_extend=?
                     WHERE id=?
                 """, (
                     data.get('room_id'), data.get('host_address_full', ''), data.get('lease_type', '월세'),
                     data.get('deposit_amount', 0), data.get('monthly_rent', 0), data.get('maintenance_fee', 0),
                     data.get('commission_fee', 0), data.get('start_date', ''), data.get('end_date', ''),
-                    data.get('documents_json', '[]'), str(special_terms or '').strip(), cid
+                    data.get('documents_json', '[]'), str(special_terms or '').strip(),
+                    _flag(data.get('auto_extend')), cid
                 ))
                 if t_id:
                     cur.execute("UPDATE contracts SET tenant_contact_id=? WHERE id=?", (t_id, cid))
@@ -538,9 +544,9 @@ def handle_post_api(path, data):
             cur.execute("""
                 INSERT INTO contracts (room_id, host_address_full, owner_contact_id, tenant_contact_id, broker_id,
                                       lease_type, deposit_amount, monthly_rent, maintenance_fee, commission_fee,
-                                      start_date, end_date, documents_json, special_terms, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            """, (room_id, host_addr, owner_cid, tenant_cid, broker_id, lease_type, deposit, monthly, maint_fee, comm_fee, s_date, e_date, docs_json, str(special_terms or '').strip()))
+                                      start_date, end_date, documents_json, special_terms, auto_extend, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """, (room_id, host_addr, owner_cid, tenant_cid, broker_id, lease_type, deposit, monthly, maint_fee, comm_fee, s_date, e_date, docs_json, str(special_terms or '').strip(), _flag(data.get('auto_extend'))))
             new_cid = cur.lastrowid
             _mark_room_leased(cur, room_id)
             conn.commit()

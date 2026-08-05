@@ -69,7 +69,13 @@ function doLogin(){
         role: u.role || data.role || 'office_worker'
       }));
     } catch (e) {}
-    location.href='main.html';
+    // 휴대폰이면 보기 전용 화면으로, 컴퓨터면 평소대로 메뉴로 갑니다.
+    //   · 주소 끝에 ?m=1 을 붙이면 컴퓨터에서도 휴대폰 화면을 볼 수 있습니다
+    //   · ?pc=1 을 붙이면 휴대폰에서도 평소 화면으로 갑니다
+    var q = new URLSearchParams(location.search);
+    var 좁은화면 = Math.min(screen.width, window.innerWidth || 9999) <= 820;
+    var 휴대폰으로 = q.get('m') === '1' || (좁은화면 && q.get('pc') !== '1');
+    location.href = 휴대폰으로 ? 'mobile.html' : 'main.html';
   })
   .catch(e => { alert('로그인 에러: ' + e.message); });
 }

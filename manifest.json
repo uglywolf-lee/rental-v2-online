@@ -1,0 +1,16 @@
+{
+  "name": "대림빌딩",
+  "short_name": "대림빌딩",
+  "description": "대림빌딩 현황 보기",
+  "start_url": "mobile.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#5a2fb8",
+  "theme_color": "#5a2fb8",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

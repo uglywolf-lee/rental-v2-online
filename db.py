@@ -381,6 +381,11 @@ def init_db_schema():
             ("audit_logs", "detail", "TEXT"),
             ("audit_logs", "created_at", "TEXT"),
             ("contracts", "special_terms", "TEXT"),
+            # 자동 연장(깔세) — 매달 내면 계속 사는 계약입니다.
+            #   종료일은 계약서에 적힌 그대로 두고, 이 표시가 켜져 있으면
+            #   종료일을 달 단위로 밀어 '이번 기간 종료일'을 계산해 씁니다.
+            #   나가면 체크를 풀고 실제 퇴실일을 종료일에 적습니다.
+            ("contracts", "auto_extend", "INTEGER DEFAULT 0"),
             ("contracts", "tenant_contact_id", "INTEGER DEFAULT 0"),
             ("contracts", "owner_contact_id", "INTEGER DEFAULT 1"),
             ("contracts", "broker_id", "INTEGER DEFAULT 0"),

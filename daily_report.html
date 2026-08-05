@@ -162,7 +162,8 @@ async function build(){
   //  · 사옥/단독층 통합 등 별도 표기 → 공실에서 제외
   var leasedRoomIds = {};
   contracts.forEach(function(c){
-    var ed = parseDate(c.end_date);
+    // '자동 연장'(깔세)은 이번 기간 종료일로 봅니다 — 규칙은 guard.js 한 곳에 있습니다
+    var ed = parseDate(window.contractEnd ? window.contractEnd(c) : c.end_date);
     if (!ed || ed >= today) leasedRoomIds[c.room_id] = true;   // 만료일 없거나 아직 유효
   });
   var vacant = rooms.filter(function(r){

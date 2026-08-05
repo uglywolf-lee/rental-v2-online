@@ -115,7 +115,16 @@
         <div class="hint" id="amountHint" style="margin:-4px 0 8px"></div>
         <div class="grid2">
           <div class="form-group"><label>계약 시작일</label><input type="text" inputmode="numeric" id="startDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD" onchange="showPeriod()" onblur="showPeriod()"></div>
-          <div class="form-group"><label>계약 종료일</label><input type="text" inputmode="numeric" id="endDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD" onchange="showPeriod()" onblur="showPeriod()"></div>
+          <div class="form-group"><label>계약 종료일</label><input type="text" inputmode="numeric" id="endDate" class="form-control date8" maxlength="8" placeholder="YYYYMMDD" onchange="showPeriod()" onblur="showPeriod()">
+            <label style="display:block;margin-top:6px;font-weight:400;font-size:.86rem;cursor:pointer">
+              <input type="checkbox" id="autoExtend" onchange="showPeriod()" style="vertical-align:middle">
+              <b>자동 연장</b> — 매달 내면서 계속 사는 계약 (깔세 등)
+            </label>
+            <div style="font-size:.78rem;color:#666;margin-top:3px;line-height:1.6">
+              체크해 두면 종료일이 지나도 <b>공실로 세지 않습니다.</b> 종료일은 계약서에 적힌 그대로 두세요.<br>
+              나가시면 <b>체크를 풀고</b> 실제 나간 날을 종료일에 적으면 됩니다.
+            </div>
+          </div>
           <div id="periodHint" style="grid-column:1/-1;font-size:.82rem;color:#495057;margin:-6px 0 6px;min-height:1.1em"></div>
         </div>
         <div class="form-group" style="background:#f3effc;border:1px solid #d6c9f0;border-radius:5px;padding:7px 10px;">
@@ -207,6 +216,20 @@ function showPeriod(){
   box.innerHTML = '계약 기간 <b>' + periodText(s, e) + '</b>'
     + (ok ? ' <span style="color:#0d9488">✓</span>'
           : ' <span style="color:#c92a2a">— 1개월 미만입니다. ' + ymd(min) + ' 이후로 넣어 주세요</span>');
+
+  // 자동 연장이면 이번 기간이 언제까지인지 바로 보여 줍니다
+  var au = document.getElementById('autoExtend');
+  if (au && au.checked && window.contractEnd) {
+    var now = window.contractEnd({ end_date: ev, auto_extend: 1 });
+    if (now && now !== ev) {
+      box.innerHTML += '<div style="margin-top:5px;color:#5a2fb8;font-weight:700">'
+        + '🔄 자동 연장 중 — 이번 기간은 <b>' + now + '</b> 까지입니다'
+        + '<span style="font-weight:400;color:#666"> (계약서상 종료일 ' + ev + ')</span></div>';
+    } else {
+      box.innerHTML += '<div style="margin-top:5px;color:#5a2fb8;font-weight:700">'
+        + '🔄 자동 연장 — 종료일이 지나도 공실로 세지 않습니다</div>';
+    }
+  }
 }
 
 var ALL_CONTRACTS_C = [];   // 기존 계약 목록 (수정 진입용)
@@ -445,6 +468,7 @@ async function saveContract(){
     maintenance_fee: parseInt(document.getElementById('maint').value||'0',10),
     start_date: document.getElementById('startDate').value,   // date8 → ISO 반환
     end_date: document.getElementById('endDate').value,
+    auto_extend: document.getElementById('autoExtend').checked ? 1 : 0,
     special_terms: document.getElementById('specialTerms').value.trim(),
     // 임차인 정보 → 서버가 계약자 명부(contacts)에 자동 등록·연결
     tenant_name: val('tenantName'),
@@ -523,8 +547,10 @@ function resetContractForm(){
   document.getElementById('docFileList').innerHTML='';
   document.getElementById('idFileList').innerHTML='';
   document.getElementById('vatApplied').checked = true;
+  document.getElementById('autoExtend').checked = false;
   VIEW_IDX=0; switchViewer('doc');
   updateAmountHint();
+  showPeriod();
 }
 
 // 기존 계약 불러오기 (계약자 화면의 [수정] → contract_master.html?id=N)
@@ -553,6 +579,7 @@ async function loadContractForEdit(cid){
     document.getElementById('maint').value   = c.maintenance_fee || 0;
     document.getElementById('startDate').value = c.start_date || '';
     document.getElementById('endDate').value   = c.end_date || '';
+    document.getElementById('autoExtend').checked = (String(c.auto_extend || 0) === '1');
     document.getElementById('specialTerms').value = c.special_terms || '';
     updateAmountHint();
 
