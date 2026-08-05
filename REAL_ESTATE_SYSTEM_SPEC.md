@@ -1,4 +1,4 @@
-# REAL_ESTATE_SYSTEM_SPEC (v2.8 - 2026-08-05 현장운영 보정판)
+# REAL_ESTATE_SYSTEM_SPEC (v2.9 - 2026-08-05 현장운영 보정판)
 # 서버: server.py + db.py + routes.py 분할구조 | DB: building_manager.db (SQLite) | 포트: 8899
 
 ## ★ 설계 제1원칙 (2026-07-23 확정) — 모든 결정의 최상위 기준
@@ -56,6 +56,11 @@
 * id(Integer/AI), category(VARCHAR:tenant/landlord/broker/partner/staff), company_or_name(VARCHAR/100,Req)
 * representative_name(VARCHAR/RepresentativeName UI용), contact_info(VARCHAR/연락처 NN-NNNN-NNNN)
 * email(VARCHAR/lowercase), documents_json(TEXT), **password_hash**(TEXT/평문비번저장), **role**(TEXT:super_admin|office_worker|maintenance_staff), **is_active**(INTEGER DEFAULT1/0=정지)
+* account_no(TEXT/입금 계좌)
+* **biz_no**(TEXT DEFAULT '') — 사업자등록번호. 협력사·중개사 세금계산서용
+  * ⚠️ 화면에 칸만 있고 저장 경로가 없어 입력해도 조용히 사라지고 있었다 (2026-08-05 수정 → 10-8)
+  * ⚠️ **검색 대상에 넣지 말 것.** 사업자번호로 협력사를 찾는 일은 없다 (사용자 확인)
+* ⚠️ `role` 은 직원에게는 권한, **협력사에게는 업종**으로 쓰인다 (한 칸 두 용도). `category` 가 partner/broker 면 업종이다
 
 ### incidents (유지보수 신고) - 현재 DDL
 * id(Integer/AI), room_id(INTEGER/FK), category(TEXT), reported_at(TEXT/신고일시), completed_at(TEXT/완료일시), description(TEXT), reported_by_name(VARCHAR/담당자실명DB저장용)
@@ -222,7 +227,7 @@
 * `build_windows.bat` 한글 파일명으로 인한 실행 오류 → `copy *.txt` 방식으로 수정(순수 ASCII 유지).
 * 노션에 **터미널 명령어 모음 / 폴더 구조 메모** 페이지 작성.
 
-## 10. 현장 운영 보정 (2026-08-01 ~ 08-05) — v2.8
+## 10. 현장 운영 보정 (2026-08-01 ~ 08-05) — v2.9
 
 ### 10-1. 깔세 '자동 연장' (2026-08-01)
 * 깔세는 매달 내면서 나갈 때까지 사는 계약인데, 정부가 달 단위 계약을 인정하지 않아
@@ -288,3 +293,34 @@
   남아 그 형태로 보내면, 갈래가 없을 때 전체 UPDATE로 떨어져 **계약서가 통째로 비워진다.**
 * 검증: DB 사본 샌드박스(포트 8977)에서 6개 항목 전수 통과 — 메모 저장·삭제 시 특약 보존,
   옛 화면 안전망, 계약 전체 수정 시 메모 보존, 목록 API 양쪽 노출, 기존 43건 무영향.
+
+### 10-8. 입력 화면 정리 (2026-08-05)
+
+**저장 버튼 고정** — 입력칸이 세로로 늘어나면 저장 버튼이 화면 밖으로 밀려
+스크롤을 내려야 눌 수 있었다. 5개 화면(계약서·검침·월세납부·유지보수·협력사)의
+버튼칸을 `position:sticky; bottom:0` 으로 바닥에 고정했다. 좌우 음수 margin 은
+좌측 패널 padding(20~25px) 상쇄용. **앞으로 칸을 추가해도 같은 문제가 안 생긴다.**
+계약서 화면의 긴 설명(자동 연장)은 `<details>` 로 접었다.
+
+**계약서 원본뷰어가 호실을 따라가지 않던 문제** — 뷰어 파일 목록을
+`loadContractForEdit()` 안에서만 채워서, 좌측에서 호실만 바꾸면 처음 열었던
+계약서가 계속 떠 있었다. **엉뚱한 방 계약서를 보며 입력하게 된다.**
+→ `previewContractFiles()` 로 호실 변경 시 갱신. 계약 없는 호실이면 비운다.
+`VIEW_PREVIEW` 플래그로 '미리보기'와 '사용자가 올린 파일'을 구분해,
+직접 올린 파일과 수정 중인 계약의 첨부는 밀어내지 않는다.
+
+**협력사 화면** —
+* 사업자등록번호가 저장되지 않았다. 화면에 칸만 있고 코드가 읽지 않았으며 DB 컬럼도 없었다.
+  → `contacts.biz_no` 신설, 등록·수정·복원·표 표시까지 연결. **검색에는 넣지 않는다.**
+* 검색칸이 등록 폼(`<form>`) **안에** 있었다. 검색창에서 Enter 를 치면 폼이 제출돼
+  `savePartner()` 가 돌았다. 표에서 협력사를 클릭해 좌측에 불러온 상태였다면
+  **그 협력사가 아무 경고 없이 다시 저장됐다.** → 우측 표 위로 옮겨 경로 자체를 제거.
+* 검색이 `item.phone` 을 봤는데 API 는 `contact_info` 로 내려준다.
+  **전화번호 검색이 원래부터 동작하지 않았다.** 안내문에는 된다고 써 있었다.
+* 구분 필터 삭제(표에 구분 열이 이미 있고 값이 2개뿐). 검색 결과 건수 표시 추가.
+* 구분(중개사/일반협력사)을 **업종에서 자동 판정**한다. 업종에 '부동산중개'라고 쓰면
+  구분은 자동으로 중개사인데 둘 다 입력하게 되어 있었고, 어긋나면 어느 쪽이 맞는지
+  알 수 없었다. 업종 칸에 자주 쓰는 값 10개를 추천으로 넣었다.
+  * ⚠️ **불러오기에서는 다시 판정하지 않는다.** 예전에 손으로 지정해 둔 구분을
+    업종만 보고 덮어쓰면 안 된다. 업종을 직접 고칠 때만 다시 정한다.
+  * `category` 컬럼은 임차인·직원도 쓰므로 그대로 둔다. 화면에서 고르게 하지 않을 뿐이다.
