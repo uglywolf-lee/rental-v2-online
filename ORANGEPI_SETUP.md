@@ -396,8 +396,60 @@ rsync -av -e ssh <오렌지파이Tailscale주소>:~/rental-v2-online/uploads/   
 - 직원 PC 2대에서 동시 접속 확인
 - 집에서 Tailscale로 접속 확인
 - 집 라즈베리파이 USB에 백업 파일이 **실제로 올라갔는지** 확인
-- 온도: `cat /sys/class/thermal/thermal_zone0/temp` (1000으로 나눈 값이 ℃).
-  며칠 관찰해 70℃ 미만이면 정상
+- 온도: `cat /sys/class/thermal/thermal_zone2/temp` (1000으로 나눈 값이 ℃).
+  ⚠️ **zone0 은 GPU 입니다.** 이 보드의 CPU는 **zone2**(`cpu-thermal`) 입니다.
+  네 구역이 다 있습니다 — zone0 gpu · zone1 ve · **zone2 cpu** · zone3 ddr
+  ```bash
+  for z in /sys/class/thermal/thermal_zone*; do echo "$(cat $z/type): $(cat $z/temp)"; done
+  ```
+
+### 온도 기준선 — 집에서 잰 값 (2026-08-05, 방열판 케이스 부착 상태)
+
+현장에 설치한 뒤 같은 방법으로 재서 이 표와 비교하면 됩니다. **실온이 다르면 통째로 오르내리므로
+절대값보다 "부하를 걸었을 때 몇 도가 오르는가"와 "주파수가 떨어지는가"를 보세요.**
+
+| 상태 | CPU 온도 | 주파수 |
+|---|---|---|
+| 대기 (load 0.00) | 47.4℃ | 1416MHz |
+| 4코어 100% · 30초 | 60.0℃ | 1416MHz |
+| 4코어 100% · 90초 | 60.5℃ (평평) | 1416MHz |
+| 부하 종료 15초 후 | 48.2℃ | 480MHz |
+
+이 보드의 쓰로틀링 기준선: **60℃ 1차(passive) · 70℃ 2차 · 100℃ 위험(critical)**
+
+읽는 법 —
+- **주파수가 1416MHz 에서 안 떨어지면 쓰로틀링 없음.** 위 시험에서는 90초 내내 최고 주파수 유지.
+- **온도가 평평해지면 방열이 충분하다는 뜻.** 30초에 60℃ 찍고 90초까지 안 올랐다.
+  방열이 모자라면 계속 우상향하다 80~90℃에서 주파수가 뚝 떨어진다.
+- 부하를 끄고 **15초 만에 12℃가 빠졌다.** 열이 케이스로 잘 전달되고 있다는 뜻.
+- 부하 시 60~61℃는 1차 쓰로틀링 선에 걸쳐 있지만, 실제 운영 부하는 `load average 0.00` 수준이라
+  이 시험 같은 상황은 생기지 않는다. 시험 중에도 앱은 90초 내내 HTTP 200 으로 응답했다.
+
+재는 방법 (4코어 90초 부하):
+```bash
+for i in 1 2 3 4; do ( timeout 90 bash -c 'while :; do :; done' ) & done
+for s in 30 60 90; do sleep 30; \
+  echo "$s초: $(awk '{printf "%.1f", $1/1000}' /sys/class/thermal/thermal_zone2/temp)C \
+$(awk '{printf "%d", $1/1000}' /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq)MHz"; done
+```
+
+### SD 카드 수명 — 설치 후에 확인할 것
+
+집에서는 **일이 일어나지 않아 쓰기량을 재도 의미가 없습니다.** 현장에서 며칠 돌린 뒤에 재세요.
+
+```bash
+# 누적 쓰기량 (7번째 값이 쓴 섹터 수 · 512바이트 단위)
+awk '{printf "쓰기 %.2f GB\n", $7*512/1024/1024/1024}' /sys/block/mmcblk0/stat
+awk '{print "가동 " int($1/3600) "시간"}' /proc/uptime      # 둘을 나누면 하루 환산
+
+findmnt -no TARGET,OPTIONS /          # noatime 붙어 있는지
+swapon --show                         # SD 스왑이 있으면 수명을 갈아먹는다
+systemctl is-active log2ram           # 로그를 램에 두는지
+du -sh /var/log _backups              # 로그·백업이 얼마나 쌓이는지
+```
+
+수명을 줄이는 것들 — SD 스왑, journald 영구 로그, 잦은 백업 파일 생성.
+백업은 어차피 **집 라즈베리파이 USB로 내보내는 게 원칙**(7단계)이므로 보드에 오래 쌓아두지 마세요.
 
 ---
 
