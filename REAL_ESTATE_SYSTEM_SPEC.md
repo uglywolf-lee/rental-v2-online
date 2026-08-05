@@ -1,4 +1,4 @@
-# REAL_ESTATE_SYSTEM_SPEC (v2.6 - 2026-07-30 운영안정화판)
+# REAL_ESTATE_SYSTEM_SPEC (v2.7 - 2026-08-05 현장운영 보정판)
 # 서버: server.py + db.py + routes.py 분할구조 | DB: building_manager.db (SQLite) | 포트: 8899
 
 ## ★ 설계 제1원칙 (2026-07-23 확정) — 모든 결정의 최상위 기준
@@ -38,6 +38,10 @@
 
 ### contracts
 * id(Integer/AI), room_id(Integer/FK→rooms.id), host_address_full(TEXT/Req), owner_contact_id(Integer/FK→contacts.id), tenant_contact_id(Integer/FK→contacts.id), broker_id(Integer)/, lease_type(VARCHAR),'전세'|'월세'|'반전세', deposit_amount(BIGINT), monthly_rent(BIGINT), maintenance_fee(INTEGER), commission_fee(INTEGER), start_date(TEXT/Req), end_date(TEXT), documents_json(TEXT/JSON), special_terms(TEXT/Contract 특약사항)
+* **auto_extend**(INTEGER DEFAULT 0) — 깔세 자동 연장. 1이면 종료일이 지나도 공실로 세지 않고 이번 기간 종료일을 한 달씩 민다
+* **pay_day**(INTEGER DEFAULT 0) — 수납 약정일(1~31). 0=미지정이며 이때는 **계약 시작일과 같은 날**로 본다
+* ⚠️ 위 두 컬럼의 판정 규칙은 **`guard.js` 한 곳에만** 둔다 (`contractEnd`/`contractAlive`/`contractExtended`/`contractPayDay`/`contractPayDayText`). 화면에 복사 금지
+* ⚠️ GET `/api/v1/contracts` 는 `SELECT c.*` 이며 **ORDER BY가 없다.** 화면에서 '첫 번째'를 집으면 옛 계약이 잡힌다 → id로 명시 선택할 것
 **server_sql**: SELECT c.id,c.room_id,c.host_address_full,c.lease_type,c.deposit_amount,c.monthly_rent,c.maintenance_fee,c.commission_fee,c.start_date,c.end_date,c.documents_json,c.special_terms,c.tenant_contact_id,c.owner_contact_id,c.broker_id,r.room_no as room_no,r.floor_no,ct.company_or_name as tenant_name FROM contracts c LEFT JOIN rooms r ON c.room_id=r.id LEFT JOIN contacts ct ON c.tenant_contact_id=ct.id ORDER BY c.id DESC
 
 ### bills (공과금 고지 장부) - 현재 DDL
@@ -215,3 +219,51 @@
 * 관리자 비밀번호 재변경(sha256), 직원 계정 추가(사번 121 · 손승연 · office_worker).
 * `build_windows.bat` 한글 파일명으로 인한 실행 오류 → `copy *.txt` 방식으로 수정(순수 ASCII 유지).
 * 노션에 **터미널 명령어 모음 / 폴더 구조 메모** 페이지 작성.
+
+## 10. 현장 운영 보정 (2026-08-01 ~ 08-05) — v2.7
+
+### 10-1. 깔세 '자동 연장' (2026-08-01)
+* 깔세는 매달 내면서 나갈 때까지 사는 계약인데, 정부가 달 단위 계약을 인정하지 않아
+  **계약서에는 1년·2년으로 적고 실제로는 달마다 받는다.** 그래서 프로그램이 만기로 보고 공실로 셌다.
+* `contracts.auto_extend` 신설 + 계약 화면 **[자동 연장]** 체크박스.
+* **이번 기간 종료일 = 시작일 + n개월 − 1일.** 자동 연장은 **한 달씩** 민다.
+  종료일이 아니라 **시작일 기준**이어야 월말 계약(1월 31일 시작 등)이 하루씩 밀리지 않는다.
+* 깔세 11건(444·449·552·555·660·661·666·668·778·779·882) 적용 → 공실 38→**27실**, 만료 11→**0건**.
+
+### 10-2. 휴대폰 화면 / PWA (2026-08-01)
+* `mobile.html`(보기 전용) + `manifest.json` + 아이콘 3종. 홈 화면 아이콘으로 실행.
+* 좁은 화면으로 로그인하면 자동 전환. `?pc=1` 평소 화면, `?m=1` 컴퓨터에서도 휴대폰 화면.
+* 휴대폰만 로그인 **30일** 기억(컴퓨터·서류창은 12시간 유지). 보기 전용 + Tailscale 내부 주소라 허용.
+
+### 10-3. 수납 약정일 (2026-08-05)
+* 전 화면에 `매월 15일`이 **글자로 박혀** 있었고 계약서에 고칠 칸조차 없었다.
+* `contracts.pay_day` 신설 + 계약 화면 **[수납 약정일]** 칸.
+* 기준은 **계약 시작일과 같은 날**. 이래야 '이번 기간 종료일'이 다음 납입일 바로 전날이 되어 10-1과 맞는다.
+* 비우면 0 저장 → 시작일 기준. **기존 계약 43건은 손댈 필요 없음.**
+* 반영: 통합 대시보드 `약정일`, 월세납부 `수납 약정일`(표 제목 '약정 약정일' 오타 정정).
+
+### 10-4. 데이터 정합성 (2026-08-05)
+* **공과금 0원 수정 불가** — 기존값 채우기에 `ex[n] ? ex[n] : ''` 를 써서 **JS가 숫자 0을 거짓으로** 봤다.
+  0원을 저장해도 다시 열면 빈칸 → 네 칸이 다 비면 "이 줄은 비어 있습니다"로 저장 거부.
+  0원은 실제 값이다(공실·한전 단독계약). 빈칸과 0을 구분하도록 수정. 합계칸도 0 표시.
+* **금일현황이 되돌린 값을 반영 못함** — 되돌리기(스냅샷 복구)는 정상. 원인은 표시 쪽이었다.
+  검침할 때마다 고지 줄이 새로 생기는데 미납 목록에 **전부** 올려서, 한 줄을 고치거나 되돌려도
+  **옛 줄이 남아 이전 값이 계속 보였다.** 미납 **132건 → 66건**(중복 66곳 제거).
+  → 호실별(공용부는 건물+구역별) **최신 1건**만 본다.
+* **금일현황 임차인·연락처가 '먼저 나온 계약'** 이었다 → 방을 옮긴 이력이 있으면 **나간 세입자**가 잡힐 수 있었다.
+  → 가장 최근 계약(id 최대)으로. `/api/v1/contracts` 에 ORDER BY가 없어 순서를 믿으면 안 된다.
+
+### 10-5. 부가세 — 자동 계산하지 말 것 (2026-08-05 확인)
+* 기본 규칙은 **관리비 × 10%** 지만 **가구마다 다르다.**
+  월세에 관리비가 포함된 가구, 부가세가 포함된 가구가 있고 **세금 환급을 받는 가구만 부가세를 따로** 받는다.
+* → **월세납부 화면 좌측 폼의 계산을 고치지 말 것.** `부가세 적용`·`월세`·`관리비` 체크박스와
+  금액칸으로 **직원이 가구별로 정한다.** 우측 목록의 `(월세+관리비)×10%` 는 수납 전 **어림값**이다.
+* 화면 하나만 보고 "이중청구 버그"로 판단한 오판이 있었다. 반복 금지.
+
+### 10-6. 형상·운영
+* `building_manager.db` 를 git 추적에서 제외 — `git pull` 이 현장 실데이터를 덮어쓰던 사고 방지.
+  **배포는 rsync 로만** (CLAUDE.md 3-1의 제외 목록을 하나도 빼지 말 것).
+* 승인 규칙(.claude/settings.local.json) 38개 → **5개**. 임의 파이썬 실행·SSH 비밀키 읽기·
+  현장 DB 덮어쓰기 rsync 는 **일부러 제외**(확인 없이 나가면 안 되는 것들).
+* ⚠️ **API 시험을 실제 DB에 대고 하지 말 것.** POST 본문에 없는 항목은 빈 값으로 덮인다.
+  계약 1건(554호)의 주소·관리비·첨부·특약이 날아간 적 있다(복구 완료). 시험은 **DB 사본**에서.
