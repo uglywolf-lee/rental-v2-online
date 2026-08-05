@@ -482,10 +482,21 @@ def handle_post_api(path, data):
             cid = data.get('id')
             special_terms = data.get('special_terms')
 
+            # 금일현황의 수납 통화 메모 자동 저장.
+            #   ⚠️ 특약(special_terms)은 손대지 않습니다. 예전에는 이 메모를 특약 칸에 덮어써서
+            #      금일현황에 메모 한 줄 적으면 계약서 특약이 통째로 사라졌습니다. (2026-08-05 분리)
+            if cid and data.get('collect_memo') is not None:
+                cur.execute("UPDATE contracts SET collect_memo = ? WHERE id = ?",
+                            (str(data.get('collect_memo')).strip(), cid))
+                conn.commit()
+                return 200, {'id': cid, 'success': True, 'message': '수납 메모 자동 저장 완료'}
+
+            # 옛 화면이 캐시에 남아 {id, special_terms} 만 보내는 경우의 안전망.
+            #   이 갈래를 지우면 아래 전체 UPDATE로 떨어져 계약서가 통째로 비워집니다.
             if cid and special_terms is not None and len(data.keys()) <= 3:
                 cur.execute("UPDATE contracts SET special_terms = ? WHERE id = ?", (str(special_terms).strip(), cid))
                 conn.commit()
-                return 200, {'id': cid, 'success': True, 'message': '수납 메모 자동 저장 완료'}
+                return 200, {'id': cid, 'success': True, 'message': '특약 저장 완료'}
 
             if cid:
                 _err = _check_contract_dates(data.get('start_date'), data.get('end_date'))

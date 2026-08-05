@@ -391,6 +391,13 @@ def init_db_schema():
             #   (1월 15일 시작 → 매월 15일. 계약서에 다른 날로 적혀 있으면 여기에 그 날을 넣습니다)
             #   판정 규칙은 guard.js 의 contractPayDay() 한 곳에만 둡니다.
             ("contracts", "pay_day", "INTEGER DEFAULT 0"),
+            # 수납 통화 메모 — 금일현황 표의 맨 오른쪽 칸입니다. ("오후 3시 입금 확약" 같은 메모)
+            #   ⚠️ 예전에는 이 메모를 special_terms(특약)에 같이 적었습니다. 그래서 금일현황에서
+            #      메모를 한 번 쓰면 계약서 특약이 통째로 지워졌습니다. 부동산 계약은 특약이
+            #      없는 경우가 거의 없으므로 칸을 완전히 갈라 둡니다. (2026-08-05 분리)
+            #   special_terms = 계약서에 적힌 특약 (계약서 화면에서만 수정)
+            #   collect_memo  = 그날그날의 수납 통화 메모 (금일현황에서만 수정)
+            ("contracts", "collect_memo", "TEXT DEFAULT ''"),
             ("contracts", "tenant_contact_id", "INTEGER DEFAULT 0"),
             ("contracts", "owner_contact_id", "INTEGER DEFAULT 1"),
             ("contracts", "broker_id", "INTEGER DEFAULT 0"),

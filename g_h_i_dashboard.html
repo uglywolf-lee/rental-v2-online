@@ -372,6 +372,15 @@ function renderLedgerTable(list) {
         // 수납 약정일 — 계약서에 적어 둔 날, 없으면 계약 시작일과 같은 날 (guard.js)
         var payDay = window.contractPayDay ? window.contractPayDay(item) : 0;
 
+        // 계약서 특약은 여기서 고치지 않습니다. 마우스를 올리면 읽어만 볼 수 있게 합니다.
+        //   (수정은 계약서 화면에서만 — 메모 칸과 특약 칸은 서로 다른 칸입니다)
+        var specialTermsTip = String(item.special_terms || '').trim();
+        specialTermsTip = specialTermsTip
+            ? '[계약서 특약]\n' + specialTermsTip
+            : '수납 통화 메모를 적는 칸입니다. (계약서 특약과는 다른 칸입니다)';
+        specialTermsTip = specialTermsTip
+            .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
         tr.innerHTML = `
             <td class="col-no">${idx + 1}</td>
             <td class="cell-text-center cell-doc" title="누르면 계약서·신분증이 새 창으로 열립니다"
@@ -390,9 +399,10 @@ function renderLedgerTable(list) {
             <td class="cell-num-right cell-total">${fmt(total)}</td>
             <td class="cell-status">${statusBadge}</td>
             <td class="cell-memo">
-                <input type="text" class="ledger-memo-input" 
-                       value="${item.special_terms || ''}" 
-                       placeholder="통화 내용 입력 (예: 금일 오후 3시 입금 확약)" 
+                <input type="text" class="ledger-memo-input"
+                       value="${item.collect_memo || ''}"
+                       title="${specialTermsTip}"
+                       placeholder="통화 내용 입력 (예: 금일 오후 3시 입금 확약)"
                        onchange="saveRealtimeMemo(${item.id}, this)">
             </td>
         `;
@@ -400,7 +410,9 @@ function renderLedgerTable(list) {
     });
 }
 
-// 메모 실시간 서버 연동 및 DB(special_terms) 기록
+// 메모 실시간 서버 연동 및 DB(collect_memo) 기록
+//   ⚠️ special_terms(계약서 특약)로는 절대 보내지 마세요. 예전에 이 칸이 특약을 덮어써서
+//      메모 한 줄에 계약서 특약이 통째로 사라졌습니다. (2026-08-05 분리)
 async function saveRealtimeMemo(contractId, inputElement) {
     var memoText = inputElement.value.trim();
     try {
@@ -409,7 +421,7 @@ async function saveRealtimeMemo(contractId, inputElement) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 id: contractId,
-                special_terms: memoText
+                collect_memo: memoText
             })
         });
         if(res.ok) {

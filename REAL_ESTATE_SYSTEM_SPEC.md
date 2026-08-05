@@ -1,4 +1,4 @@
-# REAL_ESTATE_SYSTEM_SPEC (v2.7 - 2026-08-05 현장운영 보정판)
+# REAL_ESTATE_SYSTEM_SPEC (v2.8 - 2026-08-05 현장운영 보정판)
 # 서버: server.py + db.py + routes.py 분할구조 | DB: building_manager.db (SQLite) | 포트: 8899
 
 ## ★ 설계 제1원칙 (2026-07-23 확정) — 모든 결정의 최상위 기준
@@ -40,6 +40,8 @@
 * id(Integer/AI), room_id(Integer/FK→rooms.id), host_address_full(TEXT/Req), owner_contact_id(Integer/FK→contacts.id), tenant_contact_id(Integer/FK→contacts.id), broker_id(Integer)/, lease_type(VARCHAR),'전세'|'월세'|'반전세', deposit_amount(BIGINT), monthly_rent(BIGINT), maintenance_fee(INTEGER), commission_fee(INTEGER), start_date(TEXT/Req), end_date(TEXT), documents_json(TEXT/JSON), special_terms(TEXT/Contract 특약사항)
 * **auto_extend**(INTEGER DEFAULT 0) — 깔세 자동 연장. 1이면 종료일이 지나도 공실로 세지 않고 이번 기간 종료일을 한 달씩 민다
 * **pay_day**(INTEGER DEFAULT 0) — 수납 약정일(1~31). 0=미지정이며 이때는 **계약 시작일과 같은 날**로 본다
+* **collect_memo**(TEXT DEFAULT '') — 금일현황의 **수납 통화 메모**. `special_terms`(계약서 특약)와 **다른 칸이다**
+* ⚠️ `special_terms` 는 **계약서 화면에서만**, `collect_memo` 는 **금일현황에서만** 쓴다. 섞으면 특약이 덮인다 (10-7)
 * ⚠️ 위 두 컬럼의 판정 규칙은 **`guard.js` 한 곳에만** 둔다 (`contractEnd`/`contractAlive`/`contractExtended`/`contractPayDay`/`contractPayDayText`). 화면에 복사 금지
 * ⚠️ GET `/api/v1/contracts` 는 `SELECT c.*` 이며 **ORDER BY가 없다.** 화면에서 '첫 번째'를 집으면 옛 계약이 잡힌다 → id로 명시 선택할 것
 **server_sql**: SELECT c.id,c.room_id,c.host_address_full,c.lease_type,c.deposit_amount,c.monthly_rent,c.maintenance_fee,c.commission_fee,c.start_date,c.end_date,c.documents_json,c.special_terms,c.tenant_contact_id,c.owner_contact_id,c.broker_id,r.room_no as room_no,r.floor_no,ct.company_or_name as tenant_name FROM contracts c LEFT JOIN rooms r ON c.room_id=r.id LEFT JOIN contacts ct ON c.tenant_contact_id=ct.id ORDER BY c.id DESC
@@ -89,7 +91,7 @@
 | /api/v1/contacts | POST | INSERT신규등록 OR ID기반 UPDATE role/pasword_hash/update지원 **is_active변경도제공**|
 | /api/v1/bills | GET/POST 공과금 고지목록 조회/등록 (elec_usage/water_cost/gas_cost/net_cost/due_date/status) |
 | /api/v1/incidents | GET/POST incidents CRUD + estimated_cost추적 |
-| /api/v1/contracts | GET/POST contracts CRUD+UPDATE special_terms지원
+| /api/v1/contracts | GET/POST contracts CRUD + `{id,collect_memo}` 수납메모 단독저장 + `{id,special_terms}` 옛화면 안전망
 
 ### API_HEADERS_REQ (Content-Type:application/json)
 
@@ -104,7 +106,7 @@
 * [D] 공과금 검침/고지: 양방향 멀티 입력 UI. 당월 검침 등록 시 사용량 및 요금 실시간 파생 생성 연동.(elec/water/gas/net_cost)
 * [E] 월세 납부: 수납 요약, 보증금 반환 정산, bills.status 수납 확인 처리 및 미납 리스트 자동 추출.
 * [F] 유지보수 신고: 파손신고 접수, 상태값 변경 및 incidents.estimated_cost 수리비 추적 정산.
-* [G/H/I] 실무 대시보드: 월세 총합/만기/갱신 현황 통합 시각화. 행별 메모장 (contracts.special_terms에저장-UPDATE API로반환)자동저장(R35). 권한별 차등 격리.
+* [G/H/I] 실무 대시보드: 월세 총합/만기/갱신 현황 통합 시각화. 행별 메모장 (contracts.**collect_memo**에저장-UPDATE API로반환)자동저장(R35). ⚠️ special_terms(특약)에 쓰지 말 것 → 10-7. 권한별 차등 격리.
 * [J] 팀원 관리 (team_management.html): contacts.category'=='staff'동적처리. 사번식별자고정, 패스워드최소6자 검증(R40).
 * [L] 협력사 (partner_roster.html): contacts.category in ('partner','broker') 명부 관리.
 * [RPT] 금일 관리 현황 (daily_report.html) — 임대인 일일 브리핑/출력물 (2026-07-23 신규, 메뉴 최상단): 상단 카드 4개(이번달 월세 전액수납시·미납·공실·30일내 만기) + 예외 목록 4개(미납·공실·만기임박60일·처리대기 유지보수) + 오늘의 연락 리스트(전화 중복제거). @media print A4 인쇄/PDF 저장 버튼, 별도 라이브러리 없음. rooms/contracts/bills/incidents API 집계. **6장 EXTERNAL_VIEW(옵션 A) 리포트의 "본인 전체용" 구현체.** (임대인별 필터는 6장 TODO)
@@ -220,7 +222,7 @@
 * `build_windows.bat` 한글 파일명으로 인한 실행 오류 → `copy *.txt` 방식으로 수정(순수 ASCII 유지).
 * 노션에 **터미널 명령어 모음 / 폴더 구조 메모** 페이지 작성.
 
-## 10. 현장 운영 보정 (2026-08-01 ~ 08-05) — v2.7
+## 10. 현장 운영 보정 (2026-08-01 ~ 08-05) — v2.8
 
 ### 10-1. 깔세 '자동 연장' (2026-08-01)
 * 깔세는 매달 내면서 나갈 때까지 사는 계약인데, 정부가 달 단위 계약을 인정하지 않아
@@ -267,3 +269,22 @@
   현장 DB 덮어쓰기 rsync 는 **일부러 제외**(확인 없이 나가면 안 되는 것들).
 * ⚠️ **API 시험을 실제 DB에 대고 하지 말 것.** POST 본문에 없는 항목은 빈 값으로 덮인다.
   계약 1건(554호)의 주소·관리비·첨부·특약이 날아간 적 있다(복구 완료). 시험은 **DB 사본**에서.
+
+### 10-7. 특약과 수납 메모 분리 (2026-08-05)
+* 계약서 **특약**과 금일현황 **수납 통화 메모**가 `contracts.special_terms` **한 칸을 공유**하고 있었다.
+  금일현황 메모칸은 `onchange` 로 `{id, special_terms}` 를 보내 그 칸을 통째로 덮어썼다.
+  → 금일현황에 "오후 3시 입금 확약" 한 줄만 적어도 **계약서 특약이 전부 사라진다.**
+* 여태 안 터진 이유는 특약이 실제로 들어간 계약이 없었기 때문. 885호 신규 계약(특약 6개 항목)이
+  들어오면서 즉시 위험해졌다. **부동산 계약은 특약이 없는 경우가 거의 없다.**
+* 조치 — `contracts.collect_memo` 신설로 완전 분리.
+
+| 칸 | 뜻 | 쓰는 화면 | 보내는 키 |
+|---|---|---|---|
+| `special_terms` | 계약서에 적힌 특약 (textarea, 여러 줄) | 계약서 관리 | 계약 전체 payload |
+| `collect_memo` | 그날의 수납 통화 메모 (한 줄) | 금일현황 | `{id, collect_memo}` |
+
+* 금일현황 메모칸에 마우스를 올리면 그 계약의 **특약을 읽기 전용 말풍선**으로 보여준다(수정은 불가).
+* ⚠️ routes.py 의 `{id, special_terms}` **안전망 갈래를 지우지 말 것.** 옛 화면이 브라우저 캐시에
+  남아 그 형태로 보내면, 갈래가 없을 때 전체 UPDATE로 떨어져 **계약서가 통째로 비워진다.**
+* 검증: DB 사본 샌드박스(포트 8977)에서 6개 항목 전수 통과 — 메모 저장·삭제 시 특약 보존,
+  옛 화면 안전망, 계약 전체 수정 시 메모 보존, 목록 API 양쪽 노출, 기존 43건 무영향.
